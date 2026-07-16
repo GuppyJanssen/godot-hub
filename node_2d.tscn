@@ -1,5 +1,0 @@
-[gd_scene format=3 uid="uid://bwmfuuktjulwy"]
-
-[node name="Node2D" type="Node2D" unique_id=358171758]
-
-[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=2098512690]
