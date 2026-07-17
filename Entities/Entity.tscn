@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://cfmq0c1gry2gu"]
+
+[ext_resource type="Script" uid="uid://7sakf32221yn" path="res://Entities/Entity.gd" id="1_0p8jp"]
+
+[node name="Entity" type="Node2D" unique_id=1548975201]
+script = ExtResource("1_0p8jp")
+
+[node name="RigidBody2D" type="RigidBody2D" parent="." unique_id=1535330921]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="RigidBody2D" unique_id=425237045]
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1463552869]
