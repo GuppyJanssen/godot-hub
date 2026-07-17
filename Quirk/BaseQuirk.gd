@@ -1,14 +1,22 @@
 extends Node
 
-class BaseQuirk:
+@abstract class BaseQuirk:
 	var trigger: Trigger
 	var effect
 	
 	func _init() -> void:
 		pass
 
-class Trigger:
-	var trigger
-	
+@abstract class Trigger:
 	func _init() -> void:
 		pass
+		
+	func trigger() -> void:
+		pass
+
+@abstract class Effect:
+	func _init() -> void:
+		pass
+	
+	func check_condition() -> bool:
+		return false
