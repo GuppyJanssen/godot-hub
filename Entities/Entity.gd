@@ -10,9 +10,11 @@ var health: float:
 var damage: float:
 	get: return damage
 	set(value): damage = value
-var entity_name: String:
-	get: return entity_name
-	set(value): entity_name = value
+var entity_type: String
+
+func _init(entity_data: JSON) -> void:
+	health = entity_data[entity_type]["health"].to_float()
+	damage = entity_data[entity_type]["damage"].to_float()
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
@@ -21,3 +23,4 @@ func _ready() -> void:
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta: float) -> void:
 	pass
+	
