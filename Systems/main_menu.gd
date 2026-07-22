@@ -9,6 +9,7 @@ func _ready() -> void:
 
 #knop doet nog niks
 func _on_start_button_pressed() -> void:
+	get_tree().change_scene_to_file("res://World/Overworld.tscn")
 	pass # Replace with function body.
 
 #knop sluit spel af

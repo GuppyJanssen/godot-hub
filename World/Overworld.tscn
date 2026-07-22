@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://cvh85qn1ebrlq"]
+
+[ext_resource type="Script" uid="uid://b8828fwbdm1tt" path="res://World/Overworld.gd" id="1_u24f4"]
+
+[node name="Overworld" type="Node2D" unique_id=712198044]
+script = ExtResource("1_u24f4")

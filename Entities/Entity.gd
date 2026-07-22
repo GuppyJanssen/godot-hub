@@ -11,6 +11,9 @@ var damage: float:
 	get: return damage
 	set(value): damage = value
 var entity_type: String
+var coordinates: Vector2:
+	get: return coordinates
+	set(value): coordinates = value
 
 func _init(entity_data: JSON) -> void:
 	health = entity_data[entity_type]["health"].to_float()
