@@ -2,20 +2,29 @@
 
 [ext_resource type="Script" uid="uid://vyhb4l80yfa2" path="res://Player/Player.gd" id="1_4ntmi"]
 [ext_resource type="Texture2D" uid="uid://d02072hf1oivp" path="res://Assets/cursor.png" id="1_l8h54"]
+[ext_resource type="Resource" uid="uid://7w076jmos4po" path="res://Resources/Player_Data.tres" id="2_btcbx"]
+[ext_resource type="PackedScene" uid="uid://b7bm8ntv4rrjm" path="res://Entities/Bullets/bullet.tscn" id="3_k53q1"]
+[ext_resource type="Resource" uid="uid://e1s4pxjjcmbh" path="res://Resources/Bullet_Data.tres" id="4_fhl08"]
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_wdaq0"]
-radius = 11.0
 height = 36.0
 
-[node name="Player" type="CharacterBody2D" unique_id=878384161]
+[node name="Player" type="CharacterBody2D" unique_id=1754520072]
 script = ExtResource("1_4ntmi")
+stats = ExtResource("2_btcbx")
+bullet_scene = ExtResource("3_k53q1")
+active_bullet_data = ExtResource("4_fhl08")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1099126305]
-position = Vector2(1.0000305, -0.9999847)
-rotation = 0.43633232
+position = Vector2(0, 1)
+rotation = 2.0420353
 scale = Vector2(0.109375, 0.109375)
 texture = ExtResource("1_l8h54")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1422617417]
-position = Vector2(0, -7)
+position = Vector2(5, 0.2)
+rotation = 1.5707964
 shape = SubResource("CapsuleShape2D_wdaq0")
+
+[node name="Muzzle_1" type="Marker2D" parent="." unique_id=1757636379]
+position = Vector2(24, 0)

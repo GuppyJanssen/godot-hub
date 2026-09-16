@@ -1,0 +1,13 @@
+[gd_scene format=3 uid="uid://cdfisw6kt3q3f"]
+
+[ext_resource type="Script" uid="uid://jttaxw8irybq" path="res://World/Levels/world_level_spawn_area.gd" id="1_85e52"]
+[ext_resource type="PackedScene" uid="uid://m0mslkm41ksd" path="res://Player/player.tscn" id="2_k1am0"]
+
+[node name="SpawnArea" type="Node2D" unique_id=689702512]
+script = ExtResource("1_85e52")
+player_scene = ExtResource("2_k1am0")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1296384498]
+
+[node name="PlayerSpawnPoint" type="Marker2D" parent="." unique_id=174175650]
+position = Vector2(500, 400)
