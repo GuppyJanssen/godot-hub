@@ -1,0 +1,16 @@
+[gd_scene format=3 uid="uid://b7bm8ntv4rrjm"]
+
+[ext_resource type="Script" uid="uid://up23jk83i2sk" path="res://Entities/Weapon Output/weapon_output.gd" id="1_f2bkj"]
+[ext_resource type="Texture2D" uid="uid://t08xg05gafvt" path="res://Sprites Models/01.png" id="2_3rfr3"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_elb4p"]
+
+[node name="Weapon_Output" type="Area2D" unique_id=1238845207]
+script = ExtResource("1_f2bkj")
+
+[node name="HitBox" type="CollisionShape2D" parent="." unique_id=1264802896]
+rotation = 1.5707964
+shape = SubResource("CapsuleShape2D_elb4p")
+
+[node name="Sprite" type="Sprite2D" parent="." unique_id=2030498710]
+texture = ExtResource("2_3rfr3")

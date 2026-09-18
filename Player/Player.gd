@@ -5,26 +5,40 @@ class_name Player
 # --- DATA RESOURCES ---
 @export var stats: PlayerStats
 
-# NIEUW: Hier slepen we dadelijk de basale 'bullet.tscn' scène in.
-@export var bullet_scene: PackedScene
+# De projectiel-scène (voorheen bullet_scene)
+@export var weapon_output_scene: PackedScene
 
-# NIEUW: De actieve kogel-data (het paspoort) die de speler op dit moment gebruikt.
-# Dit kan later via menu's of power-ups live worden vervangen door andere .tres bestanden!
-@export var active_bullet_data: BulletStats
+# De actieve data-blauwdruk van het wapen (Resource)
+@export var active_weapon_data: WeaponOutputStats
+
 
 # --- NODES ---
-# We zoeken de Muzzle marker zodra de game start
 @onready var muzzle: Marker2D = $Muzzle_1
+
+
+# --- RUN VOORTGANG (ROGUELIKE) ---
+# Dit houdt de buit van de huidige run bij. Begint elke run netjes op 0.
+var run_xp_earned: int = 0
+var run_currency_earned: int = 0
 
 
 # --- INGEBOUWDE GODOT FUNCTIES ---
 
 func _ready() -> void:
+	# Dwing alle menu-knoppen om hun focus direct los te laten bij de start
+	get_viewport().gui_release_focus()
+	
 	if not stats:
 		push_error("Fout: player_data.tres is niet gekoppeld!")
+		
+	# TIJDELIJKE TEST-SIMULATIE: 
+	# We starten fictief met wat buit om de wiskunde op de harde schijf te kunnen testen.
+	run_xp_earned = 15
+	run_currency_earned = 50
 
 
 func _physics_process(delta: float) -> void:
+	# VEILIGHEIDSCHECK VOOR BEWEGING
 	if not stats:
 		return
 		
@@ -43,10 +57,9 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.y = move_toward(velocity.y, 0, stats.friction * delta)
 	
-	# 3. SCHIETEN CHECKEN (NIEUW)
-	#is_action_just_pressed() registreert exact één klik, hoe lang je de muisknop ook ingedrukt houdt.
+	# 3. SCHIETEN CHECKEN
 	if Input.is_action_just_pressed("fire_primary"):
-		shoot_bullet()
+		fire_weapon()
 	
 	# 4. BEWEGING EN ROTATIE UITVOEREN
 	move_and_slide()
@@ -60,29 +73,48 @@ func aim_at_mouse(delta: float) -> void:
 	global_rotation = lerp_angle(global_rotation, target_angle, stats.rotation_speed * delta)
 
 
-func shoot_bullet() -> void:
-	# Veiligheidschecks om crashes te voorkomen bij ontbrekende links
-	if not bullet_scene:
-		push_error("Fout: Geen bullet_scene (bullet.tscn) gekoppeld aan de Player node!")
+# Functie voor het afvuren van de Weapon Output
+func fire_weapon() -> void:
+	if not weapon_output_scene:
+		push_error("Fout: Geen weapon_output_scene gekoppeld aan de Player node!")
 		return
-	if not active_bullet_data:
-		push_error("Fout: Geen active_bullet_data (Bullet_Data.tres) gekoppeld aan de Player node!")
+	if not active_weapon_data:
+		push_error("Fout: Geen active_weapon_data gekoppeld aan de Player node!")
 		return
 		
-	# 1. KOGEL INITIALISEREN
-	# Maak de actieve kopie van de kogel aan in het geheugen van de computer.
-	var new_bullet = bullet_scene.instantiate()
+	var new_projectile = weapon_output_scene.instantiate()
+	new_projectile.current_stats = active_weapon_data
+	get_tree().current_scene.add_child(new_projectile)
 	
-	# DATA-DRIVEN PASPOORT INJECTIE:
-	# We geven de kogel JULLIE specifieke 'Bullet_Data.tres' mee VÓÓRDAT hij in de wereld wordt gezet.
-	new_bullet.current_stats = active_bullet_data
-	
-	# 2. IN DE WERELD PLAATSEN
-	# get_tree().current_scene pakt automatisch jullie actieve Spawn_Area wereldscène erbij.
-	get_tree().current_scene.add_child(new_bullet)
-	
-	# 3. POSITIE EN ROTATIE DOORGEVEN
-	# Zet de kogel op de positie van het geweer (de Muzzle)
-	new_bullet.global_position = muzzle.global_position
-	# Geef de kogel de exacte kijkrichting van de speler mee, zodat hij de juiste kant op schiet!
-	new_bullet.global_rotation = global_rotation
+	new_projectile.global_position = muzzle.global_position
+	new_projectile.global_rotation = global_rotation
+
+
+# --- ROGUELIKE RUN SAVE EN LOAD LOGICA ---
+
+# Vertaalt de huidige stand van de speler naar een Dictionary voor de harde schijf (Exit Game)
+func save_data() -> Dictionary:
+	var player_save_dict: Dictionary = {
+		"current_health": stats.current_health if stats else 100,
+		"position_x": global_position.x,
+		"position_y": global_position.y,
+		"velocity_x": velocity.x,
+		"velocity_y": velocity.y
+	}
+	return player_save_dict
+
+
+# Laadt de stand uit de Dictionary weer terug in de speler (Continue)
+func load_data(saved_dict: Dictionary) -> void:
+	if saved_dict.has("current_health") and stats:
+		stats.current_health = saved_dict["current_health"]
+		
+	if saved_dict.has("position_x") and saved_dict.has("position_y"):
+		global_position.x = saved_dict["position_x"]
+		global_position.y = saved_dict["position_y"]
+		
+	if saved_dict.has("velocity_x") and saved_dict.has("velocity_y"):
+		velocity.x = saved_dict["velocity_x"]
+		velocity.y = saved_dict["velocity_y"]
+		
+	print("Speler-data succesvol ingeladen naar positie: ", global_position, " met momentum: ", velocity)

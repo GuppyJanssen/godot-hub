@@ -1,0 +1,152 @@
+[gd_scene format=3 uid="uid://8hbvxiw2re6r"]
+
+[ext_resource type="Script" uid="uid://dgbvrmutattek" path="res://Systems/skill_tree.gd" id="1_nle7x"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_2gcpv"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_442fu"]
+bg_color = Color(1, 1, 1, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_62hub"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ovfmv"]
+bg_color = Color(1, 1, 1, 1)
+
+[node name="SkillTree" type="Control" unique_id=2129130494]
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("1_nle7x")
+
+[node name="Skill_Lines" type="Node" parent="." unique_id=993163485]
+
+[node name="SkillLine" type="Line2D" parent="Skill_Lines" unique_id=1184206147]
+width = 6.0
+
+[node name="Skill_Slots" type="Node" parent="." unique_id=77314294]
+
+[node name="Skill1_Slot" type="Control" parent="Skill_Slots" unique_id=1741902644]
+layout_mode = 3
+anchor_left = 0.5208333
+anchor_top = 0.8873457
+anchor_right = 0.5208333
+anchor_bottom = 0.8873457
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+
+[node name="Skill1Button" type="Button" parent="Skill_Slots/Skill1_Slot" unique_id=1441432412]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -44.0
+offset_top = -15.5
+offset_right = 44.0
+offset_bottom = 15.5
+grow_horizontal = 2
+grow_vertical = 2
+text = "Upgrade 1"
+
+[node name="Skill1_Bar" type="ProgressBar" parent="Skill_Slots/Skill1_Slot/Skill1Button" unique_id=134434587]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -0.5
+offset_bottom = -0.5
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_2gcpv")
+theme_override_styles/fill = SubResource("StyleBoxFlat_442fu")
+fill_mode = 3
+show_percentage = false
+
+[node name="Skill2_Slot" type="Control" parent="Skill_Slots" unique_id=1815719365]
+layout_mode = 3
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -149.0
+offset_top = 195.0
+offset_right = -149.0
+offset_bottom = 195.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+
+[node name="Skill2Button" type="Button" parent="Skill_Slots/Skill2_Slot" unique_id=583290530]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -44.0
+offset_top = -15.5
+offset_right = 44.0
+offset_bottom = 15.5
+grow_horizontal = 2
+grow_vertical = 2
+text = "Upgrade 2"
+
+[node name="Skill2_Bar" type="ProgressBar" parent="Skill_Slots/Skill2_Slot/Skill2Button" unique_id=574839208]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -0.5
+offset_bottom = -0.5
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_62hub")
+theme_override_styles/fill = SubResource("StyleBoxFlat_ovfmv")
+fill_mode = 3
+show_percentage = false
+
+[node name="MainMenuButton" type="Button" parent="." unique_id=1211369803]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 552.0
+offset_top = 598.0
+offset_right = 648.0
+offset_bottom = 629.0
+grow_horizontal = 2
+grow_vertical = 2
+focus_mode = 0
+text = "Main Menu"
+
+[node name="Node2D" type="Node2D" parent="." unique_id=1474996428]
+position = Vector2(601, 20)
+
+[node name="HBoxContainer" type="HBoxContainer" parent="Node2D" unique_id=814126702]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -136.0
+offset_right = 136.0
+offset_bottom = 23.0
+grow_horizontal = 2
+
+[node name="CurrencyLabel1" type="Label" parent="Node2D/HBoxContainer" unique_id=75090757]
+layout_mode = 2
+text = "Currency 1: 0"
+
+[node name="CurrencyLabel2" type="Label" parent="Node2D/HBoxContainer" unique_id=601992341]
+layout_mode = 2
+text = "Currency 2: 0"
+
+[node name="CurrencyLabel3" type="Label" parent="Node2D/HBoxContainer" unique_id=216068540]
+layout_mode = 2
+text = "Currency 3: 0"
+
+[connection signal="pressed" from="Skill_Slots/Skill1_Slot/Skill1Button" to="." method="_on_skill_1_button_pressed"]
+[connection signal="pressed" from="Skill_Slots/Skill2_Slot/Skill2Button" to="." method="_on_skill_2_button_pressed"]
+[connection signal="pressed" from="MainMenuButton" to="." method="_on_main_menu_button_pressed"]

@@ -1,13 +1,50 @@
 [gd_scene format=3 uid="uid://cdfisw6kt3q3f"]
 
-[ext_resource type="Script" uid="uid://jttaxw8irybq" path="res://World/Levels/world_level_spawn_area.gd" id="1_85e52"]
-[ext_resource type="PackedScene" uid="uid://m0mslkm41ksd" path="res://Player/player.tscn" id="2_k1am0"]
+[ext_resource type="Script" uid="uid://jttaxw8irybq" path="res://World/Levels/world_level_spawn_area.gd" id="1_um4py"]
+[ext_resource type="PackedScene" uid="uid://5b1m6ciujdbd" path="res://Entities/Test Body.tscn" id="2_8ss51"]
+[ext_resource type="PackedScene" uid="uid://dswg3tjt5sdyn" path="res://Systems/pause_menu.tscn" id="3_dhmba"]
+[ext_resource type="PackedScene" uid="uid://m0mslkm41ksd" path="res://Player/player.tscn" id="4_eghfe"]
 
 [node name="SpawnArea" type="Node2D" unique_id=689702512]
-script = ExtResource("1_85e52")
-player_scene = ExtResource("2_k1am0")
+script = ExtResource("1_um4py")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1296384498]
 
 [node name="PlayerSpawnPoint" type="Marker2D" parent="." unique_id=174175650]
-position = Vector2(500, 400)
+position = Vector2(577, 325)
+
+[node name="Player" parent="PlayerSpawnPoint" unique_id=1754520072 instance=ExtResource("4_eghfe")]
+
+[node name="Body\'s" type="Node" parent="." unique_id=1257329506]
+
+[node name="test body" type="Node" parent="Body\'s" unique_id=884536788]
+
+[node name="test_body" parent="Body\'s/test body" unique_id=1759531373 instance=ExtResource("2_8ss51")]
+position = Vector2(16, 25)
+
+[node name="test_body2" parent="Body\'s/test body" unique_id=30070285 instance=ExtResource("2_8ss51")]
+position = Vector2(29, 63)
+
+[node name="test_body3" parent="Body\'s/test body" unique_id=53757767 instance=ExtResource("2_8ss51")]
+position = Vector2(39, 114)
+
+[node name="test_body4" parent="Body\'s/test body" unique_id=1457164206 instance=ExtResource("2_8ss51")]
+position = Vector2(81, 62)
+
+[node name="test_body5" parent="Body\'s/test body" unique_id=919013021 instance=ExtResource("2_8ss51")]
+position = Vector2(208, 67)
+
+[node name="test_body6" parent="Body\'s/test body" unique_id=1506831375 instance=ExtResource("2_8ss51")]
+position = Vector2(143, 156)
+
+[node name="test_body7" parent="Body\'s/test body" unique_id=344694913 instance=ExtResource("2_8ss51")]
+position = Vector2(31, 197)
+
+[node name="test_body8" parent="Body\'s/test body" unique_id=1017697631 instance=ExtResource("2_8ss51")]
+position = Vector2(95, 266)
+
+[node name="hostile" type="Node" parent="Body\'s" unique_id=1677969206]
+
+[node name="static" type="Node" parent="Body\'s" unique_id=1706655738]
+
+[node name="PauseMenu" parent="." unique_id=1334477234 instance=ExtResource("3_dhmba")]

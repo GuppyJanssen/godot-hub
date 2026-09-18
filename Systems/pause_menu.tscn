@@ -1,0 +1,39 @@
+[gd_scene format=3 uid="uid://dswg3tjt5sdyn"]
+
+[ext_resource type="Script" uid="uid://dvkqg6igimlc8" path="res://Systems/pause_menu.gd" id="1_sjik1"]
+
+[node name="PauseMenu" type="CanvasLayer" unique_id=1334477234]
+process_mode = 3
+script = ExtResource("1_sjik1")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1351043885]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -48.0
+offset_top = -50.5
+offset_right = 48.0
+offset_bottom = 50.5
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="ContinueButton" type="Button" parent="VBoxContainer" unique_id=946153112]
+layout_mode = 2
+focus_mode = 0
+text = "Continue"
+
+[node name="MainMenuButton" type="Button" parent="VBoxContainer" unique_id=586871893]
+layout_mode = 2
+focus_mode = 0
+text = "Main Menu"
+
+[node name="SurrenderButton" type="Button" parent="VBoxContainer" unique_id=924358830]
+layout_mode = 2
+focus_mode = 0
+text = "Surrender"
+
+[connection signal="pressed" from="VBoxContainer/ContinueButton" to="." method="_on_continue_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/MainMenuButton" to="." method="_on_main_menu_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/SurrenderButton" to="." method="_on_surrender_button_pressed"]

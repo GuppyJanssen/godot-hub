@@ -1,0 +1,38 @@
+[gd_scene format=3 uid="uid://dsn5aekk46vtp"]
+
+[ext_resource type="Script" uid="uid://cxo6g0asv48lo" path="res://Systems/pre_menu.gd" id="1_nvl8h"]
+
+[node name="PreMenu" type="Control" unique_id=1935750820]
+layout_mode = 3
+anchors_preset = 0
+offset_left = 579.0
+offset_top = 320.0
+offset_right = 579.0
+offset_bottom = 320.0
+script = ExtResource("1_nvl8h")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=152274334]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Slot1Button" type="Button" parent="VBoxContainer" unique_id=1602699106]
+layout_mode = 2
+text = "Save Slot 1"
+
+[node name="Slot2Button" type="Button" parent="VBoxContainer" unique_id=1274972445]
+layout_mode = 2
+text = "Save Slot 2"
+
+[node name="Slot3Button" type="Button" parent="VBoxContainer" unique_id=2106817399]
+layout_mode = 2
+text = "Save Slot 3"
+
+[connection signal="pressed" from="VBoxContainer/Slot1Button" to="." method="_on_slot_1_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/Slot2Button" to="." method="_on_slot_2_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/Slot3Button" to="." method="_on_slot_3_button_pressed"]

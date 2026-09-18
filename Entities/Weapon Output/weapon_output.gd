@@ -1,8 +1,8 @@
 extends Area2D
 
 # --- DYNAMIC DATA INTERFACE ---
-# Dit is de variabele waar de speler de 'Bullet_Data.tres' in stopt.
-var current_stats: BulletStats
+# Dit is de variabele waar de speler de 'weapon_output_data.tres' in stopt.
+var current_stats: WeaponOutputStats
 
 
 # --- INGEBOUWDE GODOT FUNCTIES ---
@@ -25,8 +25,9 @@ func _ready() -> void:
 		$Sprite.texture = current_stats.texture
 		
 	# --- AUTOMATISCH OPRUIMEN (HIERHEEN VERHUISD) ---
-	# We wachten nu veilig binnen de _ready() functie 3 seconden af...
-	await get_tree().create_timer(3.0).timeout
+	# NIEUW: We maken de timer aan en vertellen hem dat hij NIET mag doorlopen tijdens pauze (false)
+	await get_tree().create_timer(3.0, false).timeout
+
 	# ...en wissen de kogel daarna uit het geheugen, zodat de game niet traag wordt.
 	queue_free()
 

@@ -1,0 +1,7 @@
+[gd_resource type="Resource" script_class="MetaProgress" format=3 uid="uid://54h4f3bld3ro"]
+
+[ext_resource type="Script" uid="uid://daiuc4s2ok7uj" path="res://Resources/meta_progress.gd" id="1_wxrvh"]
+
+[resource]
+script = ExtResource("1_wxrvh")
+metadata/_custom_type_script = "uid://daiuc4s2ok7uj"
