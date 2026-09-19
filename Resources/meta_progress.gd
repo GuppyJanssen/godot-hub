@@ -1,12 +1,20 @@
 extends Resource
 class_name MetaProgress
 
-# --- PERMANENTE VOORTGANG (ROGUELIKE META) ---
-# Deze twee variabelen slaan jullie totale progressie over alle runs heen op
-@export var total_xp: int = 0
-@export var currency_1: int = 0  # Bijv. XP
-@export var currency_2: int = 0  # Bijv. Run-Goud
-@export var currency_3: int = 0  # Bijv. Boss Tokens
+# --- PERMANENTE CURRENCIES ---
+@export var currency_1: int = 0
+@export var currency_2: int = 0
+@export var currency_3: int = 0
+@export var currency_4: int = 0
+@export var currency_5: int = 0
+@export var currency_6: int = 0
+
+# --- UNIVERSELE SKILL TREE OPZAKLIJST ---
+# Hierin wordt automatisch opgeslagen: {"Upgrade 1": 2, "Upgrade 2": 4, "Upgrade 3": 0, ...}
+@export var skills_data: Dictionary = {}
+
+
+
 
 # Hier kunnen jullie in de toekomst heel makkelijk extra dingen aan toevoegen, zoals:
 # @export var unlocked_weapons: Array[String] = []

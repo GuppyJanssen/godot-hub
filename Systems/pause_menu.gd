@@ -51,11 +51,22 @@ func _on_main_menu_button_pressed() -> void:
 
 # 3. SURRENDER BUTTON: Run definitief stoppen en buit incasseren
 func _on_surrender_button_pressed() -> void:
-	var player = get_tree().current_scene.find_child("Player", true, false)
+	var save_system = load("res://Systems/SaveSystem.gd").new()
+	
+	# REPARATIE: We zoeken de speler direct op via de actieve testwereld!
+	var level_node = get_tree().current_scene
+	var player = level_node.find_child("Player", true, false) if level_node else null
+	
 	if player:
-		var save_system = load("res://Systems/SaveSystem.gd").new()
 		# Verwerk de buit permanent en wis de tijdelijke run-save
-		save_system.add_and_save_run_loot(player.run_xp_earned, player.run_currency_earned)
+		# We pakken de opgetelde speeltijd uit het level
+		var run_time: float = 0.0
+		if "active_run_time" in level_node:
+			run_time = level_node.active_run_time
+
+			
+		# GECORRIGEERD: Staat nu netjes binnen de scope
+		save_system.add_and_save_run_loot(player.run_xp_earned, player.run_currency_earned, run_time)
 		save_system.delete_current_run_save()
 		
 	# Pas op het allerlaatst wisselen naar het hoofdmenu

@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://8hbvxiw2re6r"]
 
 [ext_resource type="Script" uid="uid://dgbvrmutattek" path="res://Systems/skill_tree.gd" id="1_nle7x"]
+[ext_resource type="Script" uid="uid://cdw7fvr7ld31g" path="res://Systems/SkillSlot.gd" id="2_ja8g2"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_2gcpv"]
 
@@ -14,12 +15,74 @@ bg_color = Color(1, 1, 1, 1)
 
 [node name="SkillTree" type="Control" unique_id=2129130494]
 layout_mode = 3
-anchors_preset = 0
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
 script = ExtResource("1_nle7x")
+
+[node name="TreeCamera" type="Camera2D" parent="." unique_id=627277465]
+position = Vector2(960, 540)
 
 [node name="Skill_Lines" type="Node" parent="." unique_id=993163485]
 
 [node name="SkillLine" type="Line2D" parent="Skill_Lines" unique_id=1184206147]
+width = 6.0
+
+[node name="SkillLine2" type="Line2D" parent="Skill_Lines" unique_id=1968037276]
+width = 6.0
+
+[node name="SkillLine3" type="Line2D" parent="Skill_Lines" unique_id=290085767]
+width = 6.0
+
+[node name="SkillLine4" type="Line2D" parent="Skill_Lines" unique_id=429410925]
+position = Vector2(-24, -19)
+width = 6.0
+
+[node name="SkillLine5" type="Line2D" parent="Skill_Lines" unique_id=1264992429]
+position = Vector2(-24, -19)
+width = 6.0
+
+[node name="SkillLine6" type="Line2D" parent="Skill_Lines" unique_id=857742013]
+position = Vector2(-24, -19)
+width = 6.0
+
+[node name="SkillLine7" type="Line2D" parent="Skill_Lines" unique_id=827238624]
+position = Vector2(-24, -19)
+width = 6.0
+
+[node name="SkillLine8" type="Line2D" parent="Skill_Lines" unique_id=689429645]
+position = Vector2(-24, -19)
+width = 6.0
+
+[node name="SkillLine9" type="Line2D" parent="Skill_Lines" unique_id=514500779]
+position = Vector2(-24, -19)
+width = 6.0
+
+[node name="SkillLine10" type="Line2D" parent="Skill_Lines" unique_id=1550204907]
+position = Vector2(-24, -19)
+width = 6.0
+
+[node name="SkillLine11" type="Line2D" parent="Skill_Lines" unique_id=1615478888]
+position = Vector2(-24, -19)
+width = 6.0
+
+[node name="SkillLine12" type="Line2D" parent="Skill_Lines" unique_id=1751534710]
+position = Vector2(-24, -19)
+width = 6.0
+
+[node name="SkillLine13" type="Line2D" parent="Skill_Lines" unique_id=1536168042]
+position = Vector2(-24, -19)
+width = 6.0
+
+[node name="SkillLine14" type="Line2D" parent="Skill_Lines" unique_id=701512418]
+position = Vector2(-24, -19)
+width = 6.0
+
+[node name="SkillLine15" type="Line2D" parent="Skill_Lines" unique_id=405301225]
+position = Vector2(-24, -19)
 width = 6.0
 
 [node name="Skill_Slots" type="Node" parent="." unique_id=77314294]
@@ -30,10 +93,16 @@ anchor_left = 0.5208333
 anchor_top = 0.8873457
 anchor_right = 0.5208333
 anchor_bottom = 0.8873457
+offset_left = -35.99994
+offset_top = -399.3333
+offset_right = -35.99994
+offset_bottom = -399.3333
 grow_horizontal = 2
 grow_vertical = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
+mouse_filter = 2
+script = ExtResource("2_ja8g2")
 
 [node name="Skill1Button" type="Button" parent="Skill_Slots/Skill1_Slot" unique_id=1441432412]
 layout_mode = 1
@@ -58,26 +127,31 @@ offset_top = -0.5
 offset_bottom = -0.5
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 theme_override_styles/background = SubResource("StyleBoxFlat_2gcpv")
 theme_override_styles/fill = SubResource("StyleBoxFlat_442fu")
 fill_mode = 3
 show_percentage = false
 
-[node name="Skill2_Slot" type="Control" parent="Skill_Slots" unique_id=1815719365]
+[node name="Skill2_Slot" type="Control" parent="Skill_Slots" unique_id=1815719365 node_paths=PackedStringArray("parent_skill_slot")]
+visible = false
 layout_mode = 3
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -149.0
-offset_top = 195.0
-offset_right = -149.0
-offset_bottom = 195.0
+offset_left = -166.0
+offset_top = 104.0
+offset_right = -166.0
+offset_bottom = 104.0
 grow_horizontal = 2
 grow_vertical = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
+mouse_filter = 1
+script = ExtResource("2_ja8g2")
+parent_skill_slot = NodePath("../Skill1_Slot")
 
 [node name="Skill2Button" type="Button" parent="Skill_Slots/Skill2_Slot" unique_id=583290530]
 layout_mode = 1
@@ -102,51 +176,316 @@ offset_top = -0.5
 offset_bottom = -0.5
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 theme_override_styles/background = SubResource("StyleBoxFlat_62hub")
 theme_override_styles/fill = SubResource("StyleBoxFlat_ovfmv")
 fill_mode = 3
 show_percentage = false
 
-[node name="MainMenuButton" type="Button" parent="." unique_id=1211369803]
-layout_mode = 1
+[node name="Skill3_Slot" type="Control" parent="Skill_Slots" unique_id=179964470 node_paths=PackedStringArray("parent_skill_slot")]
+visible = false
+layout_mode = 3
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = 552.0
-offset_top = 598.0
-offset_right = 648.0
-offset_bottom = 629.0
+offset_left = -83.0
+offset_top = -56.0
+offset_right = -83.0
+offset_bottom = -56.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+script = ExtResource("2_ja8g2")
+parent_skill_slot = NodePath("../Skill1_Slot")
+
+[node name="Skill3Button" type="Button" parent="Skill_Slots/Skill3_Slot" unique_id=26717299]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -44.0
+offset_top = -15.5
+offset_right = 44.0
+offset_bottom = 15.5
+grow_horizontal = 2
+grow_vertical = 2
+text = "Upgrade 3"
+
+[node name="Skill3_Bar" type="ProgressBar" parent="Skill_Slots/Skill3_Slot/Skill3Button" unique_id=664112332]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -0.5
+offset_bottom = -0.5
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_62hub")
+theme_override_styles/fill = SubResource("StyleBoxFlat_ovfmv")
+fill_mode = 3
+show_percentage = false
+
+[node name="Skill4_Slot" type="Control" parent="Skill_Slots" unique_id=1465586397 node_paths=PackedStringArray("parent_skill_slot")]
+visible = false
+layout_mode = 3
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -56.0
+offset_top = -150.0
+offset_right = -56.0
+offset_bottom = -150.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+script = ExtResource("2_ja8g2")
+parent_skill_slot = NodePath("../Skill3_Slot")
+
+[node name="Skill4Button" type="Button" parent="Skill_Slots/Skill4_Slot" unique_id=294333574]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -44.0
+offset_top = -15.5
+offset_right = 44.0
+offset_bottom = 15.5
+grow_horizontal = 2
+grow_vertical = 2
+text = "Upgrade 4"
+
+[node name="Skill4_Bar" type="ProgressBar" parent="Skill_Slots/Skill4_Slot/Skill4Button" unique_id=723968299]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -0.5
+offset_bottom = -0.5
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_62hub")
+theme_override_styles/fill = SubResource("StyleBoxFlat_ovfmv")
+fill_mode = 3
+show_percentage = false
+
+[node name="Skill5_Slot" type="Control" parent="Skill_Slots" unique_id=2129117569 node_paths=PackedStringArray("parent_skill_slot")]
+visible = false
+layout_mode = 3
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 137.0
+offset_top = 69.0
+offset_right = 137.0
+offset_bottom = 69.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+script = ExtResource("2_ja8g2")
+parent_skill_slot = NodePath("../Skill1_Slot")
+
+[node name="Skill5Button" type="Button" parent="Skill_Slots/Skill5_Slot" unique_id=2009122091]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -44.0
+offset_top = -15.5
+offset_right = 44.0
+offset_bottom = 15.5
+grow_horizontal = 2
+grow_vertical = 2
+text = "Upgrade 5"
+
+[node name="Skill5_Bar" type="ProgressBar" parent="Skill_Slots/Skill5_Slot/Skill5Button" unique_id=420368279]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -0.5
+offset_bottom = -0.5
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_62hub")
+theme_override_styles/fill = SubResource("StyleBoxFlat_ovfmv")
+fill_mode = 3
+show_percentage = false
+
+[node name="Skill6_Slot" type="Control" parent="Skill_Slots" unique_id=1932926106 node_paths=PackedStringArray("parent_skill_slot")]
+visible = false
+layout_mode = 3
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 213.0
+offset_top = 14.0
+offset_right = 213.0
+offset_bottom = 14.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+script = ExtResource("2_ja8g2")
+parent_skill_slot = NodePath("../Skill5_Slot")
+
+[node name="Skill6Button" type="Button" parent="Skill_Slots/Skill6_Slot" unique_id=2053722124]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -44.0
+offset_top = -15.5
+offset_right = 44.0
+offset_bottom = 15.5
+grow_horizontal = 2
+grow_vertical = 2
+text = "Upgrade 6"
+
+[node name="Skill6_Bar" type="ProgressBar" parent="Skill_Slots/Skill6_Slot/Skill6Button" unique_id=1620505751]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -0.5
+offset_bottom = -0.5
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_62hub")
+theme_override_styles/fill = SubResource("StyleBoxFlat_ovfmv")
+fill_mode = 3
+show_percentage = false
+
+[node name="Skill7_Slot" type="Control" parent="Skill_Slots" unique_id=1996089255 node_paths=PackedStringArray("parent_skill_slot")]
+visible = false
+layout_mode = 3
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 243.0
+offset_top = 118.0
+offset_right = 243.0
+offset_bottom = 118.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+mouse_filter = 1
+script = ExtResource("2_ja8g2")
+parent_skill_slot = NodePath("../Skill5_Slot")
+
+[node name="Skill7Button" type="Button" parent="Skill_Slots/Skill7_Slot" unique_id=531718292]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -44.0
+offset_top = -15.5
+offset_right = 44.0
+offset_bottom = 15.5
+grow_horizontal = 2
+grow_vertical = 2
+text = "Upgrade 7"
+
+[node name="Skill7_Bar" type="ProgressBar" parent="Skill_Slots/Skill7_Slot/Skill7Button" unique_id=1328462313]
+show_behind_parent = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -0.5
+offset_bottom = -0.5
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/background = SubResource("StyleBoxFlat_62hub")
+theme_override_styles/fill = SubResource("StyleBoxFlat_ovfmv")
+fill_mode = 3
+show_percentage = false
+
+[node name="FixedUI" type="CanvasLayer" parent="." unique_id=1522653027]
+
+[node name="Node2D" type="Node2D" parent="FixedUI" unique_id=1474996428]
+position = Vector2(951, 29)
+
+[node name="HBoxContainer" type="HBoxContainer" parent="FixedUI/Node2D" unique_id=814126702]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -157.0
+offset_right = 157.0
+offset_bottom = 23.0
+grow_horizontal = 2
+
+[node name="CurrencyLabel1" type="Label" parent="FixedUI/Node2D/HBoxContainer" unique_id=75090757]
+layout_mode = 2
+text = "Currency 1: 0"
+
+[node name="CurrencyLabel2" type="Label" parent="FixedUI/Node2D/HBoxContainer" unique_id=601992341]
+layout_mode = 2
+text = "Currency 2: 0"
+
+[node name="CurrencyLabel3" type="Label" parent="FixedUI/Node2D/HBoxContainer" unique_id=216068540]
+layout_mode = 2
+text = "Currency 3: 0"
+
+[node name="VBoxContainer" type="VBoxContainer" parent="FixedUI/Node2D" unique_id=843254292]
+offset_left = 817.0
+offset_top = 60.0
+offset_right = 919.0
+offset_bottom = 137.0
+
+[node name="CurrencyLabel4" type="Label" parent="FixedUI/Node2D/VBoxContainer" unique_id=1250855470]
+layout_mode = 2
+text = "Currency 4: 0"
+
+[node name="CurrencyLabel5" type="Label" parent="FixedUI/Node2D/VBoxContainer" unique_id=1359637399]
+layout_mode = 2
+text = "Currency 5: 0"
+
+[node name="CurrencyLabel6" type="Label" parent="FixedUI/Node2D/VBoxContainer" unique_id=856558878]
+layout_mode = 2
+text = "Currency 6: 0"
+
+[node name="MainMenuButton" type="Button" parent="FixedUI" unique_id=1211369803]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -49.0
+offset_top = 488.0
+offset_right = 47.0
+offset_bottom = 519.0
 grow_horizontal = 2
 grow_vertical = 2
 focus_mode = 0
 text = "Main Menu"
 
-[node name="Node2D" type="Node2D" parent="." unique_id=1474996428]
-position = Vector2(601, 20)
-
-[node name="HBoxContainer" type="HBoxContainer" parent="Node2D" unique_id=814126702]
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -136.0
-offset_right = 136.0
-offset_bottom = 23.0
-grow_horizontal = 2
-
-[node name="CurrencyLabel1" type="Label" parent="Node2D/HBoxContainer" unique_id=75090757]
-layout_mode = 2
-text = "Currency 1: 0"
-
-[node name="CurrencyLabel2" type="Label" parent="Node2D/HBoxContainer" unique_id=601992341]
-layout_mode = 2
-text = "Currency 2: 0"
-
-[node name="CurrencyLabel3" type="Label" parent="Node2D/HBoxContainer" unique_id=216068540]
-layout_mode = 2
-text = "Currency 3: 0"
-
 [connection signal="pressed" from="Skill_Slots/Skill1_Slot/Skill1Button" to="." method="_on_skill_1_button_pressed"]
 [connection signal="pressed" from="Skill_Slots/Skill2_Slot/Skill2Button" to="." method="_on_skill_2_button_pressed"]
-[connection signal="pressed" from="MainMenuButton" to="." method="_on_main_menu_button_pressed"]
+[connection signal="pressed" from="FixedUI/MainMenuButton" to="." method="_on_main_menu_button_pressed"]

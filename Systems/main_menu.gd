@@ -8,15 +8,22 @@ func _ready() -> void:
 
 
 func _on_continue_button_pressed() -> void:
-	# We vertellen de game dat we een bestaande run willen hervatten!
+	# REPARATIE: Dwing Godot om pauzes en focus direct op te ruimen, net als bij New Game!
+	get_tree().paused = false
+	get_viewport().gui_release_focus()
+	
+	# Jullie bestaande continue-logica:
 	Game.should_load_run = true
-	# Laad direct het level in
 	get_tree().change_scene_to_file("res://World/Levels/world_level_spawn_area.tscn")
+
 
 func _on_skill_tree_button_pressed() -> void:
 	get_tree().change_scene_to_file("res://Systems/SkillTree.tscn")
 
 func _on_new_run_button_pressed() -> void:
+	# REPARATIE: Dwing Godot om de pauzestand en focus ALTIJD op te heffen bij een frisse start!
+	get_tree().paused = false
+	get_viewport().gui_release_focus()
 	Game.should_load_run = false # Frisse start!
 	get_tree().change_scene_to_file("res://World/Levels/world_level_spawn_area.tscn")
 

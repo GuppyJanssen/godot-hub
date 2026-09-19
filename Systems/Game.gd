@@ -8,6 +8,12 @@ static var should_load_run: bool = false # Staat standaard uit bij een nieuwe ga
 
 # --- VARIABELEN ---
 var entity_data: JSON
+# DEBUG CHEATS: Extra multipliers voor tijdens het testen (Standaard 1.0 = normaal)
+var debug_speed_multiplier: float = 1.0
+# DEBUG CHEATS: InstaKill (Standaard false = uit)
+var debug_damage_multiplier: float = 1.0
+# DEBUG CHEATS: Onsterfelijkheid (Standaard false = uit)
+var debug_is_invincible: bool = false
 
 
 # --- INGEBOUWDE GODOT FUNCTIES ---

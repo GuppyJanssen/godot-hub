@@ -8,10 +8,52 @@
 [node name="SpawnArea" type="Node2D" unique_id=689702512]
 script = ExtResource("1_um4py")
 
+[node name="Node2D" type="Node2D" parent="." unique_id=1885203847]
+position = Vector2(951, 29)
+
+[node name="HBoxContainer" type="HBoxContainer" parent="Node2D" unique_id=13438252]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -157.0
+offset_right = 157.0
+offset_bottom = 23.0
+grow_horizontal = 2
+
+[node name="CurrencyLabel1" type="Label" parent="Node2D/HBoxContainer" unique_id=1872505190]
+layout_mode = 2
+text = "Currency 1: 0"
+
+[node name="CurrencyLabel2" type="Label" parent="Node2D/HBoxContainer" unique_id=583998170]
+layout_mode = 2
+text = "Currency 2: 0"
+
+[node name="CurrencyLabel3" type="Label" parent="Node2D/HBoxContainer" unique_id=1783003637]
+layout_mode = 2
+text = "Currency 3: 0"
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Node2D" unique_id=1427534939]
+offset_left = 817.0
+offset_top = 60.0
+offset_right = 919.0
+offset_bottom = 137.0
+
+[node name="CurrencyLabel4" type="Label" parent="Node2D/VBoxContainer" unique_id=356873873]
+layout_mode = 2
+text = "Currency 4: 0"
+
+[node name="CurrencyLabel5" type="Label" parent="Node2D/VBoxContainer" unique_id=1150256024]
+layout_mode = 2
+text = "Currency 5: 0"
+
+[node name="CurrencyLabel6" type="Label" parent="Node2D/VBoxContainer" unique_id=1257311280]
+layout_mode = 2
+text = "Currency 6: 0"
+
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1296384498]
 
 [node name="PlayerSpawnPoint" type="Marker2D" parent="." unique_id=174175650]
-position = Vector2(577, 325)
+position = Vector2(963, 541)
 
 [node name="Player" parent="PlayerSpawnPoint" unique_id=1754520072 instance=ExtResource("4_eghfe")]
 
@@ -20,28 +62,43 @@ position = Vector2(577, 325)
 [node name="test body" type="Node" parent="Body\'s" unique_id=884536788]
 
 [node name="test_body" parent="Body\'s/test body" unique_id=1759531373 instance=ExtResource("2_8ss51")]
-position = Vector2(16, 25)
+position = Vector2(1116, 530)
 
 [node name="test_body2" parent="Body\'s/test body" unique_id=30070285 instance=ExtResource("2_8ss51")]
-position = Vector2(29, 63)
+position = Vector2(777, 650)
 
 [node name="test_body3" parent="Body\'s/test body" unique_id=53757767 instance=ExtResource("2_8ss51")]
-position = Vector2(39, 114)
+position = Vector2(1046, 731)
 
 [node name="test_body4" parent="Body\'s/test body" unique_id=1457164206 instance=ExtResource("2_8ss51")]
-position = Vector2(81, 62)
+position = Vector2(694, 796)
 
 [node name="test_body5" parent="Body\'s/test body" unique_id=919013021 instance=ExtResource("2_8ss51")]
-position = Vector2(208, 67)
+position = Vector2(894, 400)
 
 [node name="test_body6" parent="Body\'s/test body" unique_id=1506831375 instance=ExtResource("2_8ss51")]
-position = Vector2(143, 156)
+position = Vector2(843, 520)
 
 [node name="test_body7" parent="Body\'s/test body" unique_id=344694913 instance=ExtResource("2_8ss51")]
-position = Vector2(31, 197)
+position = Vector2(864, 436)
 
 [node name="test_body8" parent="Body\'s/test body" unique_id=1017697631 instance=ExtResource("2_8ss51")]
-position = Vector2(95, 266)
+position = Vector2(808, 545)
+
+[node name="test_body9" parent="Body\'s/test body" unique_id=1624846801 instance=ExtResource("2_8ss51")]
+position = Vector2(842, 479)
+
+[node name="test_body10" parent="Body\'s/test body" unique_id=996865494 instance=ExtResource("2_8ss51")]
+position = Vector2(1064, 370)
+
+[node name="test_body11" parent="Body\'s/test body" unique_id=2132103378 instance=ExtResource("2_8ss51")]
+position = Vector2(925, 357)
+
+[node name="test_body12" parent="Body\'s/test body" unique_id=853597070 instance=ExtResource("2_8ss51")]
+position = Vector2(985, 360)
+
+[node name="test_body13" parent="Body\'s/test body" unique_id=1433812575 instance=ExtResource("2_8ss51")]
+position = Vector2(260, 803)
 
 [node name="hostile" type="Node" parent="Body\'s" unique_id=1677969206]
 

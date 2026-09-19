@@ -9,7 +9,7 @@ class_name Player
 @export var weapon_output_scene: PackedScene
 
 # De actieve data-blauwdruk van het wapen (Resource)
-@export var active_weapon_data: WeaponOutputStats
+@export var active_weapon_data: Resource
 
 
 # --- NODES ---
@@ -20,6 +20,7 @@ class_name Player
 # Dit houdt de buit van de huidige run bij. Begint elke run netjes op 0.
 var run_xp_earned: int = 0
 var run_currency_earned: int = 0
+var can_fire: bool = true
 
 
 # --- INGEBOUWDE GODOT FUNCTIES ---
@@ -28,6 +29,11 @@ func _ready() -> void:
 	# Dwing alle menu-knoppen om hun focus direct los te laten bij de start
 	get_viewport().gui_release_focus()
 	
+	# INITIALISATIE: We dwingen de live HP bij de start van de run naar de maximale gezondheid!
+	if stats:
+		stats.current_health = stats.health
+		print("SPELER STATS: Levensbalk gevuld! HP: ", stats.current_health, "/", stats.health)
+
 	if not stats:
 		push_error("Fout: player_data.tres is niet gekoppeld!")
 		
@@ -44,9 +50,10 @@ func _physics_process(delta: float) -> void:
 		
 	# 1. INPUT VERZAMELEN (WASD)
 	var input_direction: Vector2 = Input.get_vector("move_left", "move_right", "move_up", "move_down")
-	var target_velocity: Vector2 = input_direction * stats.speed
+	# GECORRIGEERD: We gebruiken nu get_calculated_speed() voor de doelsnelheid!
+	var target_velocity: Vector2 = input_direction * stats.get_calculated_speed()
 	
-	# 2. MOMENTUM BEREKENEN (ONTKOPPELDE ASSEN)
+	# 2. MOMENTUM BEREKENEN (Hieronder blijft jullie eigen code exact hetzelfde staan)
 	if input_direction.x != 0:
 		velocity.x = move_toward(velocity.x, target_velocity.x, stats.acceleration * delta)
 	else:
@@ -59,7 +66,7 @@ func _physics_process(delta: float) -> void:
 	
 	# 3. SCHIETEN CHECKEN
 	if Input.is_action_just_pressed("fire_primary"):
-		fire_weapon()
+		fire_primary_weapon()
 	
 	# 4. BEWEGING EN ROTATIE UITVOEREN
 	move_and_slide()
@@ -74,20 +81,70 @@ func aim_at_mouse(delta: float) -> void:
 
 
 # Functie voor het afvuren van de Weapon Output
-func fire_weapon() -> void:
-	if not weapon_output_scene:
-		push_error("Fout: Geen weapon_output_scene gekoppeld aan de Player node!")
-		return
-	if not active_weapon_data:
-		push_error("Fout: Geen active_weapon_data gekoppeld aan de Player node!")
+func fire_primary_weapon() -> void:
+	# DE BLOKKADE: Als can_fire op false staat, BREEKT de functie direct af.
+	# Dit stopt de dubbele kogel-spawn in ditzelfde frame onmiddellijk!
+	if not can_fire:
 		return
 		
-	var new_projectile = weapon_output_scene.instantiate()
-	new_projectile.current_stats = active_weapon_data
-	get_tree().current_scene.add_child(new_projectile)
+	if not weapon_output_scene or not active_weapon_data:
+		push_error("Fout: Geen weapon_output_scene of active_weapon_data gekoppeld!")
+		return
+		
+	# Zet de schakelaar DIRECT op false, vÓÓrdat we de kogel aanmaken!
+	can_fire = false
 	
-	new_projectile.global_position = muzzle.global_position
-	new_projectile.global_rotation = global_rotation
+	# 1. Maak EEN kogel-instantie aan
+	var bullet_instance = weapon_output_scene.instantiate()
+	bullet_instance.current_stats = active_weapon_data
+	
+	# 2. Positie en rotatie toepassen
+	bullet_instance.global_position = muzzle.global_position
+	bullet_instance.rotation = rotation
+	get_tree().current_scene.add_child(bullet_instance)
+	
+	# 3. Cooldown opvragen uit de resource
+	var cooldown_time: float = 0.3
+	if active_weapon_data.has_method("get_calculated_fire_rate"):
+		cooldown_time = active_weapon_data.get_calculated_fire_rate()
+		
+	# Start de cooldown timer
+	await get_tree().create_timer(cooldown_time, false).timeout
+	
+	# Zet de poort weer open voor het VOLGENDE schot
+	can_fire = true
+
+# --- GEZONDHEID EN SCHADE SYSTEMEN ---
+
+func take_damage(amount: int) -> void:
+	if not stats: return
+	
+	# 1. DEBUG CHEAT CHECK: Als de F1-onsterfelijkheid aanstaat, negeren we de klap volledig!
+	if Game.debug_is_invincible:
+		print("DEBUG: Klap genegeerd! Player is momenteel onsterfelijk.")
+		return
+		
+	# 2. HP VERLAGEN: Trek de schade af van de live resource variabele
+	stats.current_health = max(0, stats.current_health - amount)
+	print("SPELER GERAAKT! HP over: ", stats.current_health, "/", stats.health)
+	
+	# (Optioneel: Als jullie een rood flits-effect op de speler hebben, kun je dat hier aanroepen)
+	
+	# 3. GAME OVER CHECK: Wat gebeurt er als de speler sterft?
+	if stats.current_health <= 0:
+		_on_player_death()
+
+func _on_player_death() -> void:
+	print("DE DOOD INGEHAALD: De speler is gesneuveld!")
+	
+	# We resetten de debug multipliers voor de veiligheid bij een nieuwe run
+	Game.debug_speed_multiplier = 1.0
+	Game.debug_damage_multiplier = 1.0
+	Game.debug_is_invincible = false
+	
+	# OPTIE: Stuur de speler direct terug naar het hoofdmenu (of herstart de scène)
+	# Pas dit pad gerust aan naar jullie exacte hoofdmenu scène locatie!
+	get_tree().change_scene_to_file("res://Systems/main_menu.tscn")
 
 
 # --- ROGUELIKE RUN SAVE EN LOAD LOGICA ---
