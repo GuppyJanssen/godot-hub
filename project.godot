@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 Game="*uid://cssxe2ccio53p"
 DebugOverlay="*uid://duftho5ur2th4"
+LevelManager="*uid://dyqxx6t85knc7"
 
 [display]
 

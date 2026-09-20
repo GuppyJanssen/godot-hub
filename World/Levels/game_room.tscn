@@ -1,0 +1,136 @@
+[gd_scene format=3 uid="uid://ctt70j352upq3"]
+
+[ext_resource type="Script" uid="uid://dof7nuffiqct0" path="res://World/Levels/game_room.gd" id="1_youp0"]
+[ext_resource type="PackedScene" uid="uid://m0mslkm41ksd" path="res://Player/player.tscn" id="3_sjxhc"]
+[ext_resource type="PackedScene" uid="uid://5b1m6ciujdbd" path="res://Entities/Test Body.tscn" id="4_rekgj"]
+[ext_resource type="PackedScene" uid="uid://dswg3tjt5sdyn" path="res://Systems/pause_menu.tscn" id="5_i5mwk"]
+
+[node name="GameRoom" type="Node2D" unique_id=689702512]
+script = ExtResource("1_youp0")
+
+[node name="Background" type="TextureRect" parent="." unique_id=336786136]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_right = 1920.0
+offset_bottom = 1080.0
+grow_horizontal = 2
+grow_vertical = 2
+expand_mode = 1
+
+[node name="BarrierVisuals" type="Node2D" parent="." unique_id=848721619]
+
+[node name="TopBarrier" type="ColorRect" parent="BarrierVisuals" unique_id=579453118]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_right = 1920.0
+offset_bottom = 10.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.6392157, 0.91764706, 0.92941177, 0.7137255)
+
+[node name="BottomBarrier" type="ColorRect" parent="BarrierVisuals" unique_id=597671198]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_top = 1070.0
+offset_right = 1920.0
+offset_bottom = 1080.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.6392157, 0.91764706, 0.92941177, 0.7137255)
+
+[node name="LeftBarrier" type="ColorRect" parent="BarrierVisuals" unique_id=2022898493]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_right = 10.0
+offset_bottom = 1080.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.6392157, 0.91764706, 0.92941177, 0.7137255)
+
+[node name="RightBarrier" type="ColorRect" parent="BarrierVisuals" unique_id=1399969221]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = 1910.0
+offset_right = 1920.0
+offset_bottom = 1080.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.6392157, 0.91764706, 0.92941177, 0.7137255)
+
+[node name="UI" type="Node2D" parent="." unique_id=1885203847]
+position = Vector2(951, 29)
+
+[node name="HBoxContainer" type="HBoxContainer" parent="UI" unique_id=13438252]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -157.0
+offset_right = 157.0
+offset_bottom = 23.0
+grow_horizontal = 2
+
+[node name="CurrencyLabel1" type="Label" parent="UI/HBoxContainer" unique_id=1872505190]
+layout_mode = 2
+text = "Currency 1: 0"
+
+[node name="CurrencyLabel2" type="Label" parent="UI/HBoxContainer" unique_id=583998170]
+layout_mode = 2
+text = "Currency 2: 0"
+
+[node name="CurrencyLabel3" type="Label" parent="UI/HBoxContainer" unique_id=1783003637]
+layout_mode = 2
+text = "Currency 3: 0"
+
+[node name="VBoxContainer" type="VBoxContainer" parent="UI" unique_id=1427534939]
+offset_left = 817.0
+offset_top = 60.0
+offset_right = 919.0
+offset_bottom = 137.0
+
+[node name="CurrencyLabel4" type="Label" parent="UI/VBoxContainer" unique_id=356873873]
+layout_mode = 2
+text = "Currency 4: 0"
+
+[node name="CurrencyLabel5" type="Label" parent="UI/VBoxContainer" unique_id=1150256024]
+layout_mode = 2
+text = "Currency 5: 0"
+
+[node name="CurrencyLabel6" type="Label" parent="UI/VBoxContainer" unique_id=1257311280]
+layout_mode = 2
+text = "Currency 6: 0"
+
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1296384498]
+
+[node name="PlayerSpawnPoint" type="Marker2D" parent="." unique_id=174175650]
+position = Vector2(963, 541)
+
+[node name="Player" parent="PlayerSpawnPoint" unique_id=1754520072 instance=ExtResource("3_sjxhc")]
+
+[node name="Body\'s" type="Node" parent="." unique_id=1257329506]
+
+[node name="test body" type="Node" parent="Body\'s" unique_id=884536788]
+
+[node name="test_body" parent="Body\'s/test body" unique_id=1759531373 instance=ExtResource("4_rekgj")]
+position = Vector2(1009, 272)
+
+[node name="test_body2" parent="Body\'s/test body" unique_id=2015602488 instance=ExtResource("4_rekgj")]
+position = Vector2(808, 228)
+
+[node name="hostile" type="Node" parent="Body\'s" unique_id=1677969206]
+
+[node name="static" type="Node" parent="Body\'s" unique_id=1706655738]
+
+[node name="PauseMenu" parent="." unique_id=1334477234 instance=ExtResource("5_i5mwk")]

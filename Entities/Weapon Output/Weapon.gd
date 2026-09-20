@@ -2,7 +2,7 @@ extends Area2D
 
 # --- DYNAMIC DATA INTERFACE ---
 # Dit is de variabele waar de speler de 'Weapon_Data.tres' in stopt.
-var current_stats: WeaponOutputStats
+var current_stats: Resource
 
 
 # --- INGEBOUWDE GODOT FUNCTIES ---

@@ -9,29 +9,32 @@ var active_run_time: float = 0.0
 
 
 # --- INGEBOUWDE GODOT FUNCTIES ---
-
-# _ready() start exact één keer zodra deze scène wordt opgestart.
 func _ready() -> void:
-	# 1. Focus loslaten om kapers te voorkomen
-	get_viewport().gui_release_focus()
+	print("ZUIDPOOL: Speler start de run op de basisplaneet.")
 	
-	# 2. Roep jullie spawn-functie op de normale manier aan
-	spawn_the_player()
+	# INITIALISATIE ACHTERGROND: Dwing direct de start-kleur af via de LevelManager!
+	var bg_node = $Background as ColorRect
+	if bg_node:
+		LevelManager.update_room_background(bg_node)
+		
+	# (Laat jullie eventuele andere specifieke ready code voor de startscène hieronder gewoon staan!)
 
 
-func _process(delta: float) -> void:
-	active_run_time += delta
+func _process(_delta: float) -> void:
+	# Live-controle tijdens elke frame van het spelen
+	_check_barriers()
+
+
+func _check_barriers() -> void:
+	# We zoeken net als bij de andere scènes veilig in beide groepen naar vijanden
+	var enemies_caps = get_tree().get_nodes_in_group("Enemies")
+	var enemies_small = get_tree().get_nodes_in_group("enemies")
+	var room_is_locked: bool = (enemies_caps.size() > 0) or (enemies_small.size() > 0)
 	
-	# GECORRIGEERD: We laden de run direct en zetten de vlag DAARNA METEEN op false!
-	if Game.should_load_run:
-		var player = find_child("Player", true, false)
-		if player:
-			# Zet de vlag DIRECT uit zodat deze if-statement NU stopt en NOOIT meer herhaalt!
-			Game.should_load_run = false
-			
-			var save_system = load("res://Systems/SaveSystem.gd").new()
-			save_system.load_current_run(player)
-			print("Continue succesvol verwerkt. De laad-vlag is nu veilig vergrendeld op false.")
+	# Toon of verberg de bovenbalk live op basis van de vijanden-lock
+	var top_barrier = $BarrierVisuals/TopBarrier as ColorRect
+	if top_barrier:
+		top_barrier.visible = room_is_locked
 
 
 func _unhandled_input(event: InputEvent) -> void:
