@@ -31,16 +31,11 @@ func _ready() -> void:
 	
 	# INITIALISATIE: We dwingen de live HP bij de start van de run naar de maximale gezondheid!
 	if stats:
-		stats.current_health = stats.health
-		print("SPELER STATS: Levensbalk gevuld! HP: ", stats.current_health, "/", stats.health)
+		stats.current_health = stats.max_health
+		print("SPELER STATS: Levensbalk gevuld! HP: ", stats.current_health, "/", stats.max_health)
 
 	if not stats:
 		push_error("Fout: player_data.tres is niet gekoppeld!")
-		
-	# TIJDELIJKE TEST-SIMULATIE: 
-	# We starten fictief met wat buit om de wiskunde op de harde schijf te kunnen testen.
-	run_xp_earned = 15
-	run_currency_earned = 50
 
 	# ROOMSPAWN-POSITIONERING: We vragen de LevelManager waar we moeten starten!
 	# We geven de richting mee waar we zojuist naartoe zijn gereisd
@@ -84,35 +79,79 @@ func _physics_process(delta: float) -> void:
 	# 1. INPUT VERZAMELEN (WASD)
 	var input_direction: Vector2 = Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	
-	# --- GHOST-BLOCKING: Schakel de input-richting hard uit als je tegen een actieve muur plakt ---
+	# --- ARCADE GHOST-BLOCKING (Met frictie-neutraliserende Muur-Kick!) ---
 	if is_start_room or is_end_room or room_is_locked:
-		if global_position.x <= min_x + 32 and input_direction.x < 0:
-			input_direction.x = 0.0 # Geen extra gas naar links opbouwen
-		elif global_position.x >= max_x - 32 and input_direction.x > 0:
-			input_direction.x = 0.0 # Geen extra gas naar rechts opbouwen
-			
-		if global_position.y <= min_y + 32 and input_direction.y < 0 and not is_start_room:
-			input_direction.y = 0.0 # Geen extra gas naar boven opbouwen
-		elif global_position.y >= max_y - 32 and input_direction.y > 0 and not is_end_room:
-			input_direction.y = 0.0 # Geen extra gas naar beneden opbouwen
+		# LINKERMUUR: Als je de rand raakt EN nog verder naar links wilt sturen
+		if global_position.x <= min_x + 32:
+			if input_direction.x < 0:
+				input_direction.x = 0.0
+				velocity.x = 0.0
+			elif input_direction.x > 0:
+				# MUUR-KICK: Geef direct een kleine start-snelheid naar rechts om de frictie te breken!
+				velocity.x = stats.current_speed * 0.2
+				
+		# RECHTERMUUR: Als je de rand raakt EN noch verder naar rechts wilt sturen
+		elif global_position.x >= max_x - 32:
+			if input_direction.x > 0:
+				input_direction.x = 0.0
+				velocity.x = 0.0
+			elif input_direction.x < 0:
+				# MUUR-KICK: Geef direct een kleine start-snelheid naar links!
+				velocity.x = -stats.current_speed * 0.2
+				
+		# BOVENMUUR
+		if global_position.y <= min_y + 32 and not is_start_room:
+			if input_direction.y < 0:
+				input_direction.y = 0.0
+				velocity.y = 0.0
+			elif input_direction.y > 0:
+				# MUUR-KICK: Geef direct een kleine start-snelheid naar beneden!
+				velocity.y = stats.current_speed * 0.2
+				
+		# ONDERMUUR
+		elif global_position.y >= max_y - 32 and not is_end_room:
+			if input_direction.y > 0:
+				input_direction.y = 0.0
+				velocity.y = 0.0
+			elif input_direction.y < 0:
+				# MUUR-KICK: Geef direct een kleine start-snelheid naar boven!
+				velocity.y = -stats.current_speed * 0.2
+				
+		# ONDERMUUR (Alleen als het niet de eindkamer is)
+		elif global_position.y >= max_y - 32 and not is_end_room:
+			if input_direction.y > 0:
+				input_direction.y = 0.0
+				velocity.y = 0.0
 
-	# GECORRIGEERD: We gebruiken nu get_calculated_speed() voor de doelsnelheid met de gefilterde input!
-	var target_velocity: Vector2 = input_direction * stats.get_calculated_speed()
+	# GECORRIGEERD: We passen de MEER SPEED multiplier direct toe op de maximale snelheid!
+	var max_speed: float = stats.get_calculated_speed() * Game.debug_max_speed_multiplier
+	var target_velocity: Vector2 = input_direction * max_speed
 	
-	# 2. MOMENTUM BEREKENEN (Jullie eigen vertrouwde momentum-systeem)
+	# 2. MOMENTUM BEREKENEN
+	# GECORRIGEERD: We gebruiken nu de nieuwe naam 'current_acceleration' uit de resource!
+	var final_acceleration: float = stats.current_acceleration * Game.debug_acceleration_multiplier
+	
 	if input_direction.x != 0:
-		velocity.x = move_toward(velocity.x, target_velocity.x, stats.acceleration * delta)
+		velocity.x = move_toward(velocity.x, target_velocity.x, final_acceleration * delta)
 	else:
-		velocity.x = move_toward(velocity.x, 0, stats.friction * delta)
+		velocity.x = move_toward(velocity.x, 0, stats.current_friction * delta)
 		
 	if input_direction.y != 0:
-		velocity.y = move_toward(velocity.y, target_velocity.y, stats.acceleration * delta)
+		velocity.y = move_toward(velocity.y, target_velocity.y, final_acceleration * delta)
 	else:
-		velocity.y = move_toward(velocity.y, 0, stats.friction * delta)
+		velocity.y = move_toward(velocity.y, 0, stats.current_friction * delta)
 	
-	# 3. SCHIETEN CHECKEN
-	if Input.is_action_just_pressed("fire_primary"):
-		fire_primary_weapon()
+	# 3. SCHIETEN CHECKEN (Nu volledig gestuurd door de Wapen Resource!)
+	if active_weapon_data:
+		if active_weapon_data.is_full_auto:
+			# FULL AUTO: Zolang je de linkermuisknop INGEDRUKT HOUDT, blijft hij vuren!
+			if Input.is_action_pressed("fire_primary"):
+				fire_primary_weapon()
+		else:
+			# SEMI AUTO: Je moet voor elk schot apart klikken
+			if Input.is_action_just_pressed("fire_primary"):
+				fire_primary_weapon()
+
 	
 	# 4. BEWEGING EN ROTATIE UITVOEREN
 	move_and_slide()
@@ -184,19 +223,19 @@ func _physics_process(delta: float) -> void:
 				LevelManager.handle_room_transition("up", global_position.x)
 			elif global_position.y > max_y + 50:
 				LevelManager.handle_room_transition("down", global_position.x)
+	# Activeer het magneetsysteem voor de vallende grondstoffen
+	_handle_loot_magnet(delta)
 
 
 # --- EIGEN FUNCTIES ---
 
 func aim_at_mouse(delta: float) -> void:
 	var target_angle: float = global_position.angle_to_point(get_global_mouse_position())
-	global_rotation = lerp_angle(global_rotation, target_angle, stats.rotation_speed * delta)
+	global_rotation = lerp_angle(global_rotation, target_angle, stats.current_rotation_speed * delta)
 
 
 # Functie voor het afvuren van de Weapon Output
 func fire_primary_weapon() -> void:
-	# DE BLOKKADE: Als can_fire op false staat, BREEKT de functie direct af.
-	# Dit stopt de dubbele kogel-spawn in ditzelfde frame onmiddellijk!
 	if not can_fire:
 		return
 		
@@ -204,28 +243,68 @@ func fire_primary_weapon() -> void:
 		push_error("Fout: Geen weapon_output_scene of active_weapon_data gekoppeld!")
 		return
 		
-	# Zet de schakelaar DIRECT op false, vÓÓrdat we de kogel aanmaken!
 	can_fire = false
 	
-	# 1. Maak EEN kogel-instantie aan
+	# Maak de kogel aan
 	var bullet_instance = weapon_output_scene.instantiate()
-	bullet_instance.current_stats = active_weapon_data
+	bullet_instance.current_stats = active_weapon_data # De kogel krijgt de complete active_weapon_data mee!
 	
-	# 2. Positie en rotatie toepassen
 	bullet_instance.global_position = muzzle.global_position
 	bullet_instance.rotation = rotation
 	get_tree().current_scene.add_child(bullet_instance)
 	
-	# 3. Cooldown opvragen uit de resource
-	var cooldown_time: float = 0.3
+	# GECORRIGEERD: We halen de cooldown ALTIJD rechtstreeks uit de actieve resource!
+	var cooldown_time: float = active_weapon_data.base_fire_rate
+	
 	if active_weapon_data.has_method("get_calculated_fire_rate"):
 		cooldown_time = active_weapon_data.get_calculated_fire_rate()
 		
-	# Start de cooldown timer
+	# Start de cooldown op basis van de echte resource-waarde (1.0 = 1 seconde!)
 	await get_tree().create_timer(cooldown_time, false).timeout
-	
-	# Zet de poort weer open voor het VOLGENDE schot
 	can_fire = true
+
+
+
+
+# --- LOOT EN MAGNEET SYSTEMEN ---
+
+func _handle_loot_magnet(delta: float) -> void:
+	if not stats: 
+		return
+		
+	# VEILIGHEID: Voorkom opstart-crashes als de scene-tree nog niet klaar is
+	if not is_inside_tree() or not get_tree():
+		return
+	
+	var active_loot = get_tree().get_nodes_in_group("loot")
+	
+	for loot in active_loot:
+		if is_instance_valid(loot):
+			if not "currency_type" in loot:
+				continue
+				
+			var distance = global_position.distance_to(loot.global_position)
+			
+			# SITUATIE A: Binnen de OPPAK-straal -> Altijd direct incasseren!
+			if distance <= stats.current_pickup_radius:
+				match loot.currency_type:
+					1: stats.currency_olrite += loot.amount
+					2: stats.currency_gold += loot.amount # Metal
+					3: stats.currency_keepium += loot.amount
+					4: stats.currency_element1 += loot.amount
+					5: stats.currency_element2 += loot.amount
+					6: stats.currency_element3 += loot.amount
+					
+				print("PORTEMONNEE REFRESH: Type ", loot.currency_type, " +", loot.amount)
+				loot.queue_free()
+				
+			# SITUATIE B: Binnen de MAGNEET-straal -> Alleen zuigen als de bool AAN staat!
+			elif stats.loot_magnet_applied and distance <= stats.current_magnet_radius:
+				var direction = (global_position - loot.global_position).normalized()
+				loot.global_position += direction * stats.current_magnet_force * delta
+
+
+
 
 # --- GEZONDHEID EN SCHADE SYSTEMEN ---
 
@@ -239,7 +318,7 @@ func take_damage(amount: int) -> void:
 		
 	# 2. HP VERLAGEN: Trek de schade af van de live resource variabele
 	stats.current_health = max(0, stats.current_health - amount)
-	print("SPELER GERAAKT! HP over: ", stats.current_health, "/", stats.health)
+	print("SPELER GERAAKT! HP over: ", stats.current_health, "/", stats.max_health)
 	
 	# (Optioneel: Als jullie een rood flits-effect op de speler hebben, kun je dat hier aanroepen)
 	
@@ -258,6 +337,29 @@ func _on_player_death() -> void:
 	# OPTIE: Stuur de speler direct terug naar het hoofdmenu (of herstart de scène)
 	# Pas dit pad gerust aan naar jullie exacte hoofdmenu scène locatie!
 	get_tree().change_scene_to_file("res://Systems/main_menu.tscn")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # --- ROGUELIKE RUN SAVE EN LOAD LOGICA ---

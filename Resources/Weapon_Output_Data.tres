@@ -1,7 +1,10 @@
-[gd_resource type="Resource" script_class="BulletStats" format=3 uid="uid://e1s4pxjjcmbh"]
+[gd_resource type="Resource" script_class="WeaponOutputData" format=3 uid="uid://e1s4pxjjcmbh"]
 
 [ext_resource type="Script" uid="uid://gr5dse1ovsfq" path="res://Resources/weapon_output_stats.gd" id="1_jvysb"]
 
 [resource]
 script = ExtResource("1_jvysb")
+damage = 50
+base_fire_rate = 0.001
+is_full_auto = true
 metadata/_custom_type_script = "uid://gr5dse1ovsfq"

@@ -1,0 +1,18 @@
+[gd_scene format=3 uid="uid://dk4b0yyxsgscd"]
+
+[ext_resource type="Script" uid="uid://bm761k8x0dpsw" path="res://Entities/Objects/loot_drop.gd" id="1_ekmao"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_elb4p"]
+radius = 6.0
+
+[node name="LootDrop" type="Area2D" unique_id=1346571142]
+script = ExtResource("1_ekmao")
+
+[node name="ColorRect" type="ColorRect" parent="." unique_id=1102378590 groups=["loot"]]
+offset_left = -6.0
+offset_top = -6.0
+offset_right = 6.0
+offset_bottom = 6.0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1713043971]
+shape = SubResource("CircleShape2D_elb4p")

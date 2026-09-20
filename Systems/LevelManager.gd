@@ -86,6 +86,21 @@ func _load_current_room(coming_from_direction: String) -> void:
 		print("ROUTER: Universele procedurele GameRoom inladen... (Ring: ", current_layer, " Kamer: ", current_room_index, ")")
 		get_tree().change_scene_to_file("res://World/Levels/game_room.tscn")
 
+	# --- AUTOMATISCHE OVERKOEPELENDE HUD INSTANTIATOR ---
+	# We wachten heel even tot de engine stabiel is
+	await get_tree().process_frame
+	
+	# We zoeken direct op de allerhoogste root-node van de game!
+	var root_node = get_tree().root
+	if root_node and not root_node.has_node("hud"):
+		var hud_scene = load("res://Systems/hud.tscn")
+		if hud_scene:
+			var hud_instance = hud_scene.instantiate()
+			# We geven de HUD zijn exacte node-naam mee zodat has_node hem herkent
+			hud_instance.name = "hud"
+			root_node.add_child(hud_instance)
+			print("LEVEL MANAGER: Overkoepelend HUD-systeem rotsvast aan de root gekoppeld!")
+
 
 # Geeft de exacte start-coördinaten voor de speler terug in de nieuwe kamer
 func get_spawn_position(entered_from_direction: String) -> Vector2:

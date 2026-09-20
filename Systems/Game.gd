@@ -14,6 +14,10 @@ var debug_speed_multiplier: float = 1.0
 var debug_damage_multiplier: float = 1.0
 # DEBUG CHEATS: Onsterfelijkheid (Standaard false = uit)
 var debug_is_invincible: bool = false
+# DEBUG CHEATS: Acceleration (Standaard = 1.0)
+var debug_acceleration_multiplier: float = 1.0
+# DEBUG CHEATS: Max speed mult (Standaard = 1.0)
+var debug_max_speed_multiplier: float = 1.0
 
 
 # --- INGEBOUWDE GODOT FUNCTIES ---

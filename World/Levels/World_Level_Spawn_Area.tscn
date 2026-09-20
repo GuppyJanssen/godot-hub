@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://cdfisw6kt3q3f"]
 
 [ext_resource type="Script" uid="uid://jttaxw8irybq" path="res://World/Levels/world_level_spawn_area.gd" id="1_um4py"]
-[ext_resource type="PackedScene" uid="uid://5b1m6ciujdbd" path="res://Entities/Test Body.tscn" id="2_8ss51"]
+[ext_resource type="PackedScene" uid="uid://5b1m6ciujdbd" path="res://Entities/Objects/Test Body.tscn" id="2_8ss51"]
 [ext_resource type="Texture2D" uid="uid://dad7oj6oekx3o" path="res://Sprites Models/Backgrounds/Rocky.jpg" id="2_dhmba"]
 [ext_resource type="PackedScene" uid="uid://dswg3tjt5sdyn" path="res://Systems/pause_menu.tscn" id="3_dhmba"]
 [ext_resource type="PackedScene" uid="uid://m0mslkm41ksd" path="res://Player/player.tscn" id="4_eghfe"]
@@ -27,48 +27,6 @@ grow_horizontal = 2
 grow_vertical = 2
 texture = ExtResource("2_dhmba")
 expand_mode = 1
-
-[node name="Node2D" type="Node2D" parent="." unique_id=1885203847]
-position = Vector2(951, 29)
-
-[node name="HBoxContainer" type="HBoxContainer" parent="Node2D" unique_id=13438252]
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -157.0
-offset_right = 157.0
-offset_bottom = 23.0
-grow_horizontal = 2
-
-[node name="CurrencyLabel1" type="Label" parent="Node2D/HBoxContainer" unique_id=1872505190]
-layout_mode = 2
-text = "Currency 1: 0"
-
-[node name="CurrencyLabel2" type="Label" parent="Node2D/HBoxContainer" unique_id=583998170]
-layout_mode = 2
-text = "Currency 2: 0"
-
-[node name="CurrencyLabel3" type="Label" parent="Node2D/HBoxContainer" unique_id=1783003637]
-layout_mode = 2
-text = "Currency 3: 0"
-
-[node name="VBoxContainer" type="VBoxContainer" parent="Node2D" unique_id=1427534939]
-offset_left = 817.0
-offset_top = 60.0
-offset_right = 919.0
-offset_bottom = 137.0
-
-[node name="CurrencyLabel4" type="Label" parent="Node2D/VBoxContainer" unique_id=356873873]
-layout_mode = 2
-text = "Currency 4: 0"
-
-[node name="CurrencyLabel5" type="Label" parent="Node2D/VBoxContainer" unique_id=1150256024]
-layout_mode = 2
-text = "Currency 5: 0"
-
-[node name="CurrencyLabel6" type="Label" parent="Node2D/VBoxContainer" unique_id=1257311280]
-layout_mode = 2
-text = "Currency 6: 0"
 
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1296384498]
 

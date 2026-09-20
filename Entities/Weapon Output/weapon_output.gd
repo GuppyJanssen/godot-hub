@@ -31,14 +31,29 @@ func _ready() -> void:
 	queue_free()
 
 
-# _physics_process draait elke frame. Hier regelen we de vliegroute.
+# Voeg deze variabele toe aan de top van je kogelscript:
+var traveled_distance: float = 0.0
+
 func _physics_process(delta: float) -> void:
+	# Veiligheidscheck: als er geen stats zijn, kunnen we niet bewegen of bereik checken
 	if not current_stats:
 		return
 		
-	# 3. Kogel trajectory / vliegroute
-	var direction: Vector2 = Vector2.RIGHT.rotated(rotation)
+	# 1. BEREKEN DE BEWEGING (We halen speed nu VEILIG uit current_stats!)
+	var move_amount = current_stats.speed * delta
 	
+	# 2. JULLIE EIGEN VLIEGROUTE (Netjes gecombineerd met de move_amount)
+	var direction: Vector2 = Vector2.RIGHT.rotated(rotation)
+	global_position += direction * move_amount
+	
+	# 3. WEAPON RANGE CHECK
+	traveled_distance += move_amount
+	if "weapon_range" in current_stats:
+		if traveled_distance >= current_stats.weapon_range:
+			# Boem, maximale range bereikt! Kogel lost op in het niets.
+			queue_free()
+
+
 	# We verplaatsen de kogel over het scherm met de snelheid uit de meegegeven Resource
 	global_position += direction * current_stats.speed * delta
 
@@ -70,8 +85,12 @@ func _on_body_entered(body: Node2D) -> void:
 		elif "damage" in current_stats:
 			final_dmg = roundi(current_stats.damage * Game.debug_damage_multiplier)
 			
-		# De kogel deelt nu EENMALIG de klap uit aan de vijand!
-		body.take_damage(final_dmg)
+		# Bereken de richting waarin de kogel reist
+		var hit_direction: Vector2 = Vector2.RIGHT.rotated(rotation)
+		
+		# We geven de richting mee als nieuw, extra argument aan de vijand!
+		body.take_damage(final_dmg, false, hit_direction)
+
 		
 		# Wis de kogel direct uit de wereld
 		queue_free()
