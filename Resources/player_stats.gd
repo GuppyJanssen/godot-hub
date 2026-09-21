@@ -1,9 +1,13 @@
 extends Resource
 class_name PlayerStats
 
-@export_category("Gezondheid")
+@export_category("Gezondheid & Energie")
 @export var max_health: int = 100
 @export var current_health: int = 100
+@export var max_shield: int = 50
+@export var current_shield: int = 50
+@export var max_energy: int = 100
+@export var current_energy: int = 100
 
 @export_category("Live Portemonnee (Run)")
 @export var currency_olrite: int = 0      # Currency 1 (XP / Groen)

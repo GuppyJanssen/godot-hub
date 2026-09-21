@@ -4,6 +4,9 @@
 
 [resource]
 script = ExtResource("1_s8pag")
+current_health = 40
+max_shield = 100
+current_energy = 60
 current_acceleration = 800.0
 current_friction = 250.0
 loot_magnet_applied = true

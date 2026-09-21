@@ -2,6 +2,15 @@
 
 [ext_resource type="Script" uid="uid://bfgwngf53yw55" path="res://Systems/hud.gd" id="1_tk6fr"]
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_tk6fr"]
+bg_color = Color(0.6, 0, 0, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_i7qhi"]
+bg_color = Color(0.18342245, 0.66278374, 0.783881, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_bo302"]
+bg_color = Color(0.99, 0.9735, 0, 1)
+
 [node name="Hud" type="CanvasLayer" unique_id=1155961062]
 script = ExtResource("1_tk6fr")
 
@@ -15,38 +24,72 @@ grow_vertical = 2
 
 [node name="CurrencyContainer" type="VBoxContainer" parent="HUD_layout" unique_id=1397696332]
 layout_mode = 0
-offset_left = 1650.0
+offset_left = 1700.0
 offset_top = 40.0
-offset_right = 1690.0
+offset_right = 1740.0
 offset_bottom = 80.0
-
-[node name="HealthBar" type="ProgressBar" parent="HUD_layout" unique_id=714353265]
-layout_mode = 0
-offset_left = 40.0
-offset_top = 40.0
-offset_right = 340.0
-offset_bottom = 67.0
-
-[node name="ShieldBar" type="ProgressBar" parent="HUD_layout" unique_id=1844254166]
-layout_mode = 0
-offset_left = 40.0
-offset_top = 70.0
-offset_right = 340.0
-offset_bottom = 97.0
-
-[node name="EnergyBar" type="ProgressBar" parent="HUD_layout" unique_id=1185279029]
-layout_mode = 0
-offset_left = 40.0
-offset_top = 100.0
-offset_right = 340.0
-offset_bottom = 127.0
 
 [node name="LocationLabel" type="Label" parent="HUD_layout" unique_id=827701723]
 layout_mode = 1
-anchors_preset = 5
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -20.0
-offset_right = 180.0
-offset_bottom = 30.0
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 40.0
 grow_horizontal = 2
+text = "location"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="StatusContainer" type="VBoxContainer" parent="HUD_layout" unique_id=1053764889]
+layout_mode = 0
+offset_left = 40.0
+offset_top = 40.0
+offset_right = 80.0
+offset_bottom = 80.0
+
+[node name="HealthRow" type="HBoxContainer" parent="HUD_layout/StatusContainer" unique_id=1415774587]
+layout_mode = 2
+
+[node name="HealthIcon" type="Label" parent="HUD_layout/StatusContainer/HealthRow" unique_id=1039532474]
+layout_mode = 2
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+text = "❤️"
+
+[node name="HealthBar" type="ProgressBar" parent="HUD_layout/StatusContainer/HealthRow" unique_id=714353265]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 18
+theme_override_styles/fill = SubResource("StyleBoxFlat_tk6fr")
+
+[node name="ShieldRow" type="HBoxContainer" parent="HUD_layout/StatusContainer" unique_id=2126489047]
+layout_mode = 2
+
+[node name="ShieldIcon" type="Label" parent="HUD_layout/StatusContainer/ShieldRow" unique_id=1874056088]
+layout_mode = 2
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+text = "🛡️"
+
+[node name="ShieldBar" type="ProgressBar" parent="HUD_layout/StatusContainer/ShieldRow" unique_id=1844254166]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 18
+theme_override_styles/fill = SubResource("StyleBoxFlat_i7qhi")
+
+[node name="EnergyRow" type="HBoxContainer" parent="HUD_layout/StatusContainer" unique_id=269513592]
+layout_mode = 2
+
+[node name="EnergyIcon" type="Label" parent="HUD_layout/StatusContainer/EnergyRow" unique_id=1680254963]
+layout_mode = 2
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+text = "⚡"
+
+[node name="EnergyBar" type="ProgressBar" parent="HUD_layout/StatusContainer/EnergyRow" unique_id=1185279029]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
+theme_override_font_sizes/font_size = 18
+theme_override_styles/fill = SubResource("StyleBoxFlat_bo302")
