@@ -2,7 +2,8 @@
 
 [ext_resource type="Script" uid="uid://dof7nuffiqct0" path="res://World/Levels/game_room.gd" id="1_youp0"]
 [ext_resource type="PackedScene" uid="uid://m0mslkm41ksd" path="res://Player/player.tscn" id="3_sjxhc"]
-[ext_resource type="PackedScene" uid="uid://5b1m6ciujdbd" path="res://Entities/Objects/Test Body.tscn" id="4_rekgj"]
+[ext_resource type="Script" uid="uid://bb5bigv0ciel7" path="res://Systems/enemy_spawner.gd" id="3_youp0"]
+[ext_resource type="PackedScene" uid="uid://5b1m6ciujdbd" path="res://Entities/Objects/test_body.tscn" id="4_07jwa"]
 [ext_resource type="PackedScene" uid="uid://dswg3tjt5sdyn" path="res://Systems/pause_menu.tscn" id="5_i5mwk"]
 
 [node name="GameRoom" type="Node2D" unique_id=689702512]
@@ -73,7 +74,7 @@ color = Color(0.6392157, 0.91764706, 0.92941177, 0.7137255)
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1296384498]
 
 [node name="PlayerSpawnPoint" type="Marker2D" parent="." unique_id=174175650]
-position = Vector2(963, 541)
+position = Vector2(957, 750)
 
 [node name="Player" parent="PlayerSpawnPoint" unique_id=1754520072 instance=ExtResource("3_sjxhc")]
 
@@ -81,14 +82,20 @@ position = Vector2(963, 541)
 
 [node name="test body" type="Node" parent="Body\'s" unique_id=884536788]
 
-[node name="test_body" parent="Body\'s/test body" unique_id=1759531373 instance=ExtResource("4_rekgj")]
-position = Vector2(1009, 272)
-
-[node name="test_body2" parent="Body\'s/test body" unique_id=2015602488 instance=ExtResource("4_rekgj")]
-position = Vector2(808, 228)
-
 [node name="hostile" type="Node" parent="Body\'s" unique_id=1677969206]
 
 [node name="static" type="Node" parent="Body\'s" unique_id=1706655738]
+
+[node name="spawner" type="Node" parent="Body\'s" unique_id=1577970832]
+
+[node name="Marker2D" type="Marker2D" parent="Body\'s/spawner" unique_id=587930671]
+position = Vector2(864, 293)
+script = ExtResource("3_youp0")
+enemy_scene = ExtResource("4_07jwa")
+
+[node name="Marker2D2" type="Marker2D" parent="Body\'s/spawner" unique_id=1408325523]
+position = Vector2(1092, 597)
+script = ExtResource("3_youp0")
+enemy_scene = ExtResource("4_07jwa")
 
 [node name="PauseMenu" parent="." unique_id=1334477234 instance=ExtResource("5_i5mwk")]

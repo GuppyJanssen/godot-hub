@@ -1,74 +1,75 @@
 extends CanvasLayer
+# BEDIENING: Pauzemenu & Run Beëindiging (Volledig SSoT & Crashvrij)
+
+@onready var save_system = load("res://Systems/SaveSystem.gd").new()
+
 
 func _ready() -> void:
-	# DIT menu blijft ALTIJD wakker, ook als de rest van de wereld bevriest
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
 
 
-# De ultieme invoer-luisteraar van de engine zelf. Dit werkt ALTIJD, 
-# ook al staat de CanvasLayer op visible = false!
-func _notification(what: int) -> void:
-	# NOTIFICATION_WM_GO_BACK_REQUEST reageert op Escape (en de Back-knop op controllers/telefoons)
-	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"): # Esc-toets
 		toggle_pause()
 
 
-# Handmatige keyboard-fallback voor PC (voor het geval de OS-layer ui_cancel prefereert)
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		if not event.is_echo() and event.is_pressed():
-			# Vertel Godot direct dat deze toets hier is opgebruikt, 
-			# zodat hij niet per ongeluk een 2e keer kan vuren!
-			get_tree().root.set_input_as_handled()
-			toggle_pause()
-
-
-# De centrale toggle functie die de boel bevriest of ontdooit
 func toggle_pause() -> void:
-	get_tree().paused = !get_tree().paused
+	get_tree().paused = not get_tree().paused
 	visible = get_tree().paused
-	print("Pauzestand gewijzigd binnen Pauzemenu! Stand is nu: ", get_tree().paused)
+	if visible:
+		print("PAUZEMENU: Game gepauzeerd.")
 
-
-# --- LOGICA VOOR DE UI KNOPPEN ---
 
 func _on_continue_button_pressed() -> void:
 	toggle_pause()
 
-func _on_main_menu_button_pressed() -> void:
-	# EERST zoeken we de speler en slaan we de run + wereldstatus op!
-	var player = get_tree().current_scene.find_child("Player", true, false)
-	if player:
-		var save_system = load("res://Systems/SaveSystem.gd").new()
-		save_system.save_current_run(player)
+
+func _on_surrender_button_pressed() -> void:
+	print("PAUZEMENU: Surrender geactiveerd! Run wordt permanent afgebroken...")
+	
+	# 1. We zoeken de actieve live player in de arena om zijn buit-buffers op te vragen
+	var root_node = get_tree().root
+	var active_player = root_node.find_child("Player", true, false)
+	
+	if active_player and is_instance_valid(active_player):
+		# BEZEM DOOR HET OUDE ZEER: We sturen de 6 live grondstoffen direct door naar de permanente bank!
+		if save_system.has_method("add_and_save_run_loot"):
+			save_system.add_and_save_run_loot(
+				active_player.run_currency_olrite,
+				active_player.run_currency_gold,
+				active_player.run_currency_keepium,
+				active_player.run_currency_element1,
+				active_player.run_currency_element2,
+				active_player.run_currency_element3
+			)
+		else:
+			push_error("PAUZEMENU FOUT: add_and_save_run_loot bestaat niet in het SaveSystem!")
 	else:
-		push_error("Fout: Kon de player node niet vinden om op te slaan!")
+		print("PAUZEMENU WAARSCHUWING: Geen actieve Player gevonden, buit overdracht overgeslagen.")
 		
-	# PAS DAARNA halen we de game van pauze af en wisselen we van scène!
+	# 2. Wis de tijdelijke run-save van de schijf zodat de Continue-knop straks een schone lei laadt
+	if save_system.has_method("delete_current_run_save"):
+		save_system.delete_current_run_save()
+		
+	# 3. Schoon de LevelManager-cache onvoorwaardelijk op naar Ring 0 Kamer 0
+	if is_instance_valid(LevelManager):
+		LevelManager.reset_manager_for_new_run()
+		
+	# 4. Ontdooi de game-engine en flits terug naar het Hoofdmenu
 	get_tree().paused = false
 	get_tree().change_scene_to_file("res://Systems/main_menu.tscn")
 
-# 3. SURRENDER BUTTON: Run definitief stoppen en buit incasseren
-func _on_surrender_button_pressed() -> void:
-	var save_system = load("res://Systems/SaveSystem.gd").new()
-	
-	# REPARATIE: We zoeken de speler direct op via de actieve testwereld!
-	var level_node = get_tree().current_scene
-	var player = level_node.find_child("Player", true, false) if level_node else null
-	
-	if player:
-		# Verwerk de buit permanent en wis de tijdelijke run-save
-		# We pakken de opgetelde speeltijd uit het level
-		var run_time: float = 0.0
-		if "active_run_time" in level_node:
-			run_time = level_node.active_run_time
 
+func _on_main_menu_button_pressed() -> void:
+	# Bij een normale klik naar het hoofdmenu slaan we de actuele run WEL tussentijds op!
+	var root_node = get_tree().root
+	var active_player = root_node.find_child("Player", true, false)
+	
+	if active_player and is_instance_valid(active_player):
+		if save_system.has_method("save_current_run"):
+			save_system.save_current_run(active_player)
+			print("PAUZEMENU: Tussentijdse run-save succesvol weggeschreven.")
 			
-		# GECORRIGEERD: Staat nu netjes binnen de scope
-		save_system.add_and_save_run_loot(player.run_xp_earned, player.run_currency_earned, run_time)
-		save_system.delete_current_run_save()
-		
-	# Pas op het allerlaatst wisselen naar het hoofdmenu
 	get_tree().paused = false
 	get_tree().change_scene_to_file("res://Systems/main_menu.tscn")

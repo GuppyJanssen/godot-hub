@@ -1,195 +1,194 @@
 extends CanvasLayer
+# BEDIENING: Het Ultieme Gecentraliseerde Global Master Dashboard Panel
 
-var debug_panel: Panel
-var current_meta = null
-
-# Bestaande cheats
-var btn_dmg: Button
-var btn_inv: Button
-var btn_auto: Button
-var btn_rate: Button
-var btn_range: Button
-var btn_mag: Button
-var btn_bsize: Button
-var btn_bspeed: Button
-
-# DRIE APARTE ACCELERATIE (MEEEAAAUUWW) KNOPPEN
-var btn_acc_x1: Button
-var btn_acc_x4: Button
-var btn_acc_x10: Button
-
-# TWEE APARTE MAX SPEED (MEER SPEED) KNOPPEN
-var btn_max_x1: Button
-var btn_max_x10: Button
+var panel: PanelContainer
+var vbox: VBoxContainer
 
 func _ready() -> void:
-	layer = 128
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	
-	debug_panel = Panel.new()
-	debug_panel.size = Vector2(340, 600) # Paneel op 600 gezet voor alle knoppen
-	debug_panel.position = Vector2(20, 20)
-	debug_panel.visible = false
-	add_child(debug_panel)
-	
-	var vbox = VBoxContainer.new()
-	vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, 10)
-	debug_panel.add_child(vbox)
-	
-	# Knop 1: Currency Cheat
-	var btn_cur = Button.new()
-	btn_cur.text = "We're Rich!"
-	btn_cur.pressed.connect(_cheat_currencies)
-	vbox.add_child(btn_cur)
-	
-	# --- ACCELERATIE (MEEEAAAUUWW) KNOPPEN ---
-	btn_acc_x1 = Button.new()
-	btn_acc_x1.pressed.connect(func(): Game.debug_acceleration_multiplier = 1.0; _update_button_texts())
-	vbox.add_child(btn_acc_x1)
-	
-	btn_acc_x4 = Button.new()
-	btn_acc_x4.pressed.connect(func(): Game.debug_acceleration_multiplier = 4.0; _update_button_texts())
-	vbox.add_child(btn_acc_x4)
-	
-	btn_acc_x10 = Button.new()
-	btn_acc_x10.pressed.connect(func(): Game.debug_acceleration_multiplier = 10.0; _update_button_texts())
-	vbox.add_child(btn_acc_x10)
-	
-	# --- MAX SPEED (MEER SPEED) KNOPPEN ---
-	btn_max_x1 = Button.new()
-	btn_max_x1.pressed.connect(func(): Game.debug_max_speed_multiplier = 1.0; _update_button_texts())
-	vbox.add_child(btn_max_x1)
-	
-	btn_max_x10 = Button.new()
-	btn_max_x10.pressed.connect(func(): Game.debug_max_speed_multiplier = 10.0; _update_button_texts())
-	vbox.add_child(btn_max_x10)
-	
-	# Rest van de gevechtsknoppen
-	btn_dmg = Button.new()
-	btn_dmg.pressed.connect(_toggle_damage)
-	vbox.add_child(btn_dmg)
-	
-	btn_inv = Button.new()
-	btn_inv.pressed.connect(_toggle_invincibility)
-	vbox.add_child(btn_inv)
-	
-	btn_auto = Button.new()
-	btn_auto.pressed.connect(_toggle_full_auto)
-	vbox.add_child(btn_auto)
-	
-	btn_rate = Button.new()
-	btn_rate.pressed.connect(_cycle_fire_rate)
-	vbox.add_child(btn_rate)
-	
-	btn_range = Button.new()
-	btn_range.pressed.connect(_cycle_weapon_range)
-	vbox.add_child(btn_range)
-	
-	btn_mag = Button.new()
-	btn_mag.pressed.connect(_toggle_loot_magnet)
-	vbox.add_child(btn_mag)
-	
-	btn_bsize = Button.new()
-	btn_bsize.pressed.connect(_cycle_bullet_size)
-	vbox.add_child(btn_bsize)
-	
-	btn_bspeed = Button.new()
-	btn_bspeed.pressed.connect(_cycle_bullet_speed)
-	vbox.add_child(btn_bspeed)
-	
-	_update_button_texts()
+	visible = false
+	layer = 100
+	_build_debug_ui()
 
-
-func _input(event: InputEvent) -> void:
+func _unhandled_input(event: InputEvent) -> void:
+	# GECORRIGEERD: Luistert STRIKT en alleen naar de fysieke F1-toets. Sluit Esc-overlaps volledig uit!
 	if event is InputEventKey and event.pressed and event.keycode == KEY_F1:
-		debug_panel.visible = not debug_panel.visible
-		if debug_panel.visible:
-			_update_button_texts()
+		visible = not visible
 		get_viewport().set_input_as_handled()
+		if visible:
+			_update_dashboard()
 
+func _build_debug_ui() -> void:
+	panel = PanelContainer.new()
+	panel.position = Vector2(50, 50)
+	panel.custom_minimum_size = Vector2(500, 650)
+	add_child(panel)
+	
+	var margin = MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 20)
+	margin.add_theme_constant_override("margin_top", 20)
+	margin.add_theme_constant_override("margin_right", 20)
+	margin.add_theme_constant_override("margin_bottom", 20)
+	panel.add_child(margin)
+	
+	vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 12)
+	margin.add_child(vbox)
+	
+	_update_dashboard()
 
-func _update_button_texts() -> void:
-	# Update de MEEEAAAUUWW (Acceleratie) knoppen
-	btn_acc_x1.text = "MEEEAAAUUWW: 1x (Normaal) [AAN]" if Game.debug_acceleration_multiplier == 1.0 else "MEEEAAAUUWW: 1x"
-	btn_acc_x4.text = "MEEEAAAUUWW: 4x [AAN]" if Game.debug_acceleration_multiplier == 4.0 else "MEEEAAAUUWW: 4x"
-	btn_acc_x10.text = "MEEEAAAUUWW: 10x [AAN]" if Game.debug_acceleration_multiplier == 10.0 else "MEEEAAAUUWW: 10x"
-	
-	# Update de MEER SPEED (Max Speed) knoppen
-	btn_max_x1.text = "MEER SPEED: 1x (Normaal) [AAN]" if Game.debug_max_speed_multiplier == 1.0 else "MEER SPEED: 1x"
-	btn_max_x10.text = "MEER SPEED: 10x (SONIC) [AAN]" if Game.debug_max_speed_multiplier == 10.0 else "MEER SPEED: 10x"
-	
-	btn_dmg.text = "ONE PUNCH! [AAN]" if Game.debug_damage_multiplier > 1.0 else "ONE PUNCH! [UIT]"
-	btn_inv.text = "INVINCIBILE: [AAN]" if Game.debug_is_invincible else "INVINCIBILE: [UIT]"
-	
-	var player = get_tree().current_scene.find_child("Player", true, false)
-	if player and "active_weapon_data" in player and player.active_weapon_data:
-		var w_data = player.active_weapon_data
-		btn_auto.text = "WEAPON MODE: [FULL-AUTO]" if w_data.is_full_auto else "WEAPON MODE: [SEMI-AUTO]"
-		btn_rate.text = "BASE FIRE RATE: " + str(w_data.base_fire_rate) + "s"
-		btn_range.text = "WEAPON RANGE: " + str(w_data.weapon_range) + "px"
-		btn_bsize.text = "BULLET SIZE: " + str(w_data.size_multiplier) + "x"
-		btn_bspeed.text = "BULLET SPEED: " + str(w_data.speed) + " px/s"
+func _update_dashboard() -> void:
+	for child in vbox.get_children():
+		child.queue_free()
 		
-	if player and "stats" in player and player.stats:
-		btn_mag.text = "LOOT MAGNET: [AAN]" if player.stats.loot_magnet_applied else "LOOT MAGNET: [UIT]"
+	var title = Label.new()
+	title.text = "=== SSoT LIVE PHYSICS DASHBOARD ==="
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+	
+	var current_auto_raw = 0.0
+	# GECORRIGEERD: We pakken direct de wereldwijde actieve speler!
+	if is_instance_valid(Game) and Game.active_player:
+		current_auto_raw = float(Game.active_player.current_weapon_stats.get("is_full_auto", 0.0))
 
+	_add_dashboard_row("God Mode", "Status: Live", "Toggle: " + ("AAN" if Game.debug_is_invincible else "UIT"), _toggle_invincible)
+	_add_dashboard_row("One Punch", "Status: Live", "Toggle: " + ("AAN" if Game.debug_damage_multiplier > 1.0 else "UIT"), _toggle_damage)
+	_add_dashboard_row("Weapon Mode", "Stand", "Toggle: [" + ("AUTO" if current_auto_raw > 0.5 else "SEMI") + "]", _toggle_weapon_mode)
+	_add_dashboard_row("Mirror Spawn", "Transitielogica", "Modus: [" + ("MIRROR" if Game.debug_use_mirror_spawn else "CENTER") + "]", _toggle_mirror_spawn)
+	
+	_add_dashboard_row("Max Speed", "Multiplier", "Mult: [" + str(Game.debug_max_speed_multiplier) + "x]", _cycle_max_speed)
+	_add_dashboard_row("Acceleration", "Multiplier", "Mult: [" + str(Game.debug_acceleration_multiplier) + "x]", _cycle_accel)
+	_add_dashboard_row("Friction", "Multiplier", "Mult: [" + str(Game.debug_friction_multiplier) + "x]", _cycle_friction)
+	
+	_add_dashboard_row("Bullet Speed", "Multiplier", "Mult: [" + str(Game.debug_bullet_speed_multiplier) + "x]", _cycle_bullet_speed)
+	_add_dashboard_row("Bullet Size", "Multiplier", "Mult: [" + str(Game.debug_bullet_size_multiplier) + "x]", _cycle_bullet_size)
+	_add_dashboard_row("Muzzles Spawn", "Live Aantal", "Aantal: [" + str(Game.debug_muzzle_count) + "]", _cycle_muzzles)
 
-func _cheat_currencies() -> void:
-	var save_system = load("res://Systems/SaveSystem.gd").new()
-	current_meta = save_system.get_loaded_meta_progress()
-	current_meta.currency_1 += 1000
-	current_meta.currency_2 += 1000
-	current_meta.currency_3 += 1000
-	current_meta.currency_4 += 1000
-	current_meta.currency_5 += 1000
-	current_meta.currency_6 += 1000
-	save_system.save_meta_progress(current_meta)
-	_update_button_texts()
+	var money_label = Label.new()
+	money_label.text = "--- ECONOMIE CHEATS ---"
+	money_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(money_label)
+	
+	var econ_hbox = HBoxContainer.new()
+	vbox.add_child(econ_hbox)
+	
+	var btn_rich = Button.new()
+	btn_rich.text = "💰 WE'RE RICH! (9999)"
+	btn_rich.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_rich.pressed.connect(_make_rich)
+	econ_hbox.add_child(btn_rich)
+	
+	var btn_del_money = Button.new()
+	btn_del_money.text = "🗑️ RESET TO 0"
+	btn_del_money.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_del_money.pressed.connect(_reset_money)
+	econ_hbox.add_child(btn_del_money)
+
+func _add_dashboard_row(label_name: String, status_text: String, button_text: String, click_callable: Callable) -> void:
+	var hbox = HBoxContainer.new()
+	vbox.add_child(hbox)
+	
+	var lbl_title = Label.new()
+	lbl_title.text = label_name + ":"
+	lbl_title.custom_minimum_size = Vector2(110, 0)
+	hbox.add_child(lbl_title)
+	
+	var lbl_status = Label.new()
+	lbl_status.text = status_text
+	lbl_status.custom_minimum_size = Vector2(120, 0)
+	hbox.add_child(lbl_status)
+	
+	var btn = Button.new()
+	btn.text = button_text
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn.pressed.connect(click_callable)
+	hbox.add_child(btn)
+
+func _toggle_invincible() -> void:
+	Game.debug_is_invincible = not Game.debug_is_invincible
+	_update_dashboard()
+
+func _toggle_mirror_spawn() -> void:
+	Game.debug_use_mirror_spawn = not Game.debug_use_mirror_spawn
+	print("F1 SANDBOX: Mirror Spawn gewijzigd naar: ", Game.debug_use_mirror_spawn)
+	_update_dashboard()
 
 func _toggle_damage() -> void:
-	Game.debug_damage_multiplier = 1.0 if Game.debug_damage_multiplier > 1.0 else 5.0
-	_update_button_texts()
+	Game.debug_damage_multiplier = 9999.0 if Game.debug_damage_multiplier == 1.0 else 1.0
+	_update_dashboard()
 
-func _toggle_invincibility() -> void:
-	Game.debug_is_invincible = not Game.debug_is_invincible
-	_update_button_texts()
+func _toggle_weapon_mode() -> void:
+	# GECORRIGEERD: Klapt de modus direct om in de wereldwijd geregistreerde speler!
+	if is_instance_valid(Game) and Game.active_player:
+		var current_raw = float(Game.active_player.current_weapon_stats.get("is_full_auto", 0.0))
+		Game.active_player.current_weapon_stats["is_full_auto"] = 1.0 if current_raw < 0.5 else 0.0
+	_update_dashboard()
 
-func _toggle_full_auto() -> void:
-	var player = get_tree().current_scene.find_child("Player", true, false)
-	if player and "active_weapon_data" in player and player.active_weapon_data:
-		player.active_weapon_data.is_full_auto = not player.active_weapon_data.is_full_auto
-	_update_button_texts()
+func _cycle_max_speed() -> void: _cycle_multiplier("debug_max_speed_multiplier")
+func _cycle_accel() -> void: _cycle_multiplier("debug_acceleration_multiplier")
+func _cycle_friction() -> void: _cycle_multiplier("debug_friction_multiplier")
+func _cycle_bullet_speed() -> void: _cycle_multiplier("debug_bullet_speed_multiplier")
+func _cycle_bullet_size() -> void: _cycle_multiplier("debug_bullet_size_multiplier")
 
-func _cycle_fire_rate() -> void:
-	var player = get_tree().current_scene.find_child("Player", true, false)
-	if player and "active_weapon_data" in player and player.active_weapon_data:
-		var w_data = player.active_weapon_data
-		w_data.base_fire_rate = 0.1 if w_data.base_fire_rate == 0.3 else (0.03 if w_data.base_fire_rate == 0.1 else (1.0 if w_data.base_fire_rate == 0.03 else 0.3))
-	_update_button_texts()
+func _cycle_multiplier(prop_name: String) -> void:
+	var cur = float(Game.get(prop_name))
+	if cur == 0.3: Game.set(prop_name, 1.0)
+	elif cur == 1.0: Game.set(prop_name, 2.0)
+	elif cur == 2.0: Game.set(prop_name, 5.0)
+	elif cur == 5.0: Game.set(prop_name, 10.0)
+	else: Game.set(prop_name, 0.3)
+	_update_dashboard()
 
-func _cycle_weapon_range() -> void:
-	var player = get_tree().current_scene.find_child("Player", true, false)
-	if player and "active_weapon_data" in player and player.active_weapon_data:
-		var w_data = player.active_weapon_data
-		w_data.weapon_range = 200.0 if w_data.weapon_range == 600.0 else (2000.0 if w_data.weapon_range == 200.0 else 600.0)
-	_update_button_texts()
+func _cycle_muzzles() -> void:
+	var cur = int(Game.debug_muzzle_count)
+	if cur == 14: Game.debug_muzzle_count = 1
+	elif cur == 1: Game.debug_muzzle_count = 2
+	elif cur == 2: Game.debug_muzzle_count = 4
+	else: Game.debug_muzzle_count = 14
+	_update_dashboard()
 
-func _toggle_loot_magnet() -> void:
-	var player = get_tree().current_scene.find_child("Player", true, false)
-	if player and "stats" in player and player.stats:
-		player.stats.loot_magnet_applied = not player.stats.loot_magnet_applied
-	_update_button_texts()
+func _make_rich() -> void: _set_money_values(9999)
+func _reset_money() -> void: _set_money_values(0)
 
-func _cycle_bullet_size() -> void:
-	var player = get_tree().current_scene.find_child("Player", true, false)
-	if player and "active_weapon_data" in player and player.active_weapon_data:
-		var w_data = player.active_weapon_data
-		w_data.size_multiplier = 3.0 if w_data.size_multiplier == 1.0 else (0.3 if w_data.size_multiplier == 3.0 else 1.0)
-	_update_button_texts()
+func _set_money_values(target_amount: int) -> void:
+	# 1. Schrijf keihard naar de .tres resource
+	var p_data = load("res://Resources/Player_Data.tres")
+	if p_data:
+		p_data.currency_olrite = target_amount
+		p_data.currency_gold = target_amount
+		p_data.currency_keepium = target_amount
+		p_data.currency_element1 = target_amount
+		p_data.currency_element2 = target_amount
+		p_data.currency_element3 = target_amount
+		
+	# 2. Overschrijf de actieve runtime buffers van de Global Player
+	if is_instance_valid(Game) and Game.active_player:
+		Game.active_player.run_currency_olrite = target_amount
+		Game.active_player.run_currency_gold = target_amount
+		Game.active_player.run_currency_keepium = target_amount
+		Game.active_player.run_currency_element1 = target_amount
+		Game.active_player.run_currency_element2 = target_amount
+		Game.active_player.run_currency_element3 = target_amount
+		if Game.active_player.stats:
+			Game.active_player.stats.currency_olrite = target_amount
 
-func _cycle_bullet_speed() -> void:
-	var player = get_tree().current_scene.find_child("Player", true, false)
-	if player and "active_weapon_data" in player and player.active_weapon_data:
-		var w_data = player.active_weapon_data
-		w_data.speed = 200.0 if w_data.speed == 700.0 else (2500.0 if w_data.speed == 200.0 else 700.0)
-	_update_button_texts()
+	# 3. Overschrijf ook direct de Meta-Save voor het Skill Tree menu
+	var save_system = load("res://Systems/SaveSystem.gd").new()
+	var meta = save_system.get_loaded_meta_progress()
+	if meta:
+		meta.currency_1 = target_amount
+		meta.currency_2 = target_amount
+		meta.currency_3 = target_amount
+		meta.currency_4 = target_amount
+		meta.currency_5 = target_amount
+		meta.currency_6 = target_amount
+		save_system.save_meta_progress(meta)
+		
+	_force_hud_refresh()
+	_update_dashboard()
+
+func _force_hud_refresh() -> void:
+	var active_hud = get_tree().current_scene.find_child("*hud*", true, false)
+	if not active_hud: active_hud = get_tree().root.find_child("*hud*", true, false)
+	if active_hud and active_hud.has_method("_ready"):
+		active_hud._ready()

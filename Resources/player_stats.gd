@@ -35,21 +35,22 @@ class_name PlayerStats
 func get_calculated_speed() -> float:
 	var final_speed: float = current_speed
 	
-	# 1. LOGICA VOOR DE ÉCHTE SKILL TREE UPGRADES (Zonder cheats!)
-	# We laden de opgeslagen stand van de schijf in
+	# # 1. LIVE UPGRADE BEREKENING VANUIT DE META PROGRESSIE
 	var save_system = load("res://Systems/SaveSystem.gd").new()
 	var current_meta = save_system.get_loaded_meta_progress()
 	
-	# Als de speler punten heeft gekocht in 'Skill1_Slot' (Loopsnelheid)
-	if current_meta and current_meta.skills_data.has("Skill1_Slot"):
-		var speed_points: int = current_meta.skills_data["Skill1_Slot"]["level"]
+	# GECORRIGEERD: Haalt het level crashvrij op, ook bij een New Game!
+	if current_meta and current_meta.skills_data:
+		var raw_speed = current_meta.skills_data.get("skill_speed", 0)
+		var speed_level: int = int(raw_speed["level"]) if raw_speed is Dictionary else int(raw_speed)
 		
-		# CONCEPT: Elk gekocht punt (0 t/m 100) geeft bijvoorbeeld +0.5% extra loopsnelheid!
-		# 60 punten = +30% snelheid. (Pas de 0.005 gerust aan naar jullie eigen balans dadelijk!)
-		var upgrade_bonus: float = 1.0 + (speed_points * 0.005)
+		# Elk level geeft de bonus die we straks in de modifiers van de Master-CSV hangen
+		var upgrade_bonus: float = 1.0 + (speed_level * 0.005) # +0.5% per level
 		final_speed *= upgrade_bonus
+
 	
-	# 2. DEBUG CHEATS: We wegen de F1-cheat multiplier hier overal direct in mee!
-	final_speed *= Game.debug_speed_multiplier
+	# 2. DEBUG CHEATS: De F1-cheat multiplier weegt onvoorwaardelijk mee!
+	final_speed *= Game.debug_current_speed_multiplier
+	
 	
 	return final_speed

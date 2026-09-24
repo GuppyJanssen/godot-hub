@@ -18,8 +18,9 @@ config/icon="res://icon.svg"
 [autoload]
 
 Game="*uid://cssxe2ccio53p"
-DebugOverlay="*uid://duftho5ur2th4"
+MasterDatabase="*uid://dod8taonfbsvu"
 LevelManager="*uid://dyqxx6t85knc7"
+DebugOverlay="*uid://duftho5ur2th4"
 
 [display]
 
@@ -32,6 +33,10 @@ window/stretch/aspect="expand"
 
 version_control/plugin_name="GitPlugin"
 version_control/autoload_on_startup=true
+
+[editor_plugins]
+
+enabled=PackedStringArray()
 
 [input]
 
@@ -69,6 +74,16 @@ cancel={
 [physics]
 
 3d/physics_engine="Jolt Physics"
+
+[plugins]
+
+ai_assistant_hub/options/debug_mode=0
+ai_assistant_hub/llm_api="ollama_api"
+ai_assistant_hub/preferences/thinking_target=0
+ai_assistant_hub/preferences/skip_greeting=false
+ai_assistant_hub/preferences/always_scroll_to_bottom=false
+ai_assistant_hub/preferences/audio_hints=true
+ai_assistant_hub/options/debug_http_content=false
 
 [rendering]
 

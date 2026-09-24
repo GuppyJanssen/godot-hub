@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ry2ar1aepb4o"
-path="res://.godot/imported/Jungle.jpg-d917c7944bd102fc4eaa5565995225a7.ctex"
+path="res://.godot/imported/jungle.jpg-71f640011c47ce40e826aab91ad220c5.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Sprites Models/Backgrounds/Jungle.jpg"
-dest_files=["res://.godot/imported/Jungle.jpg-d917c7944bd102fc4eaa5565995225a7.ctex"]
+source_file="res://Sprites Models/Backgrounds/jungle.jpg"
+dest_files=["res://.godot/imported/jungle.jpg-71f640011c47ce40e826aab91ad220c5.ctex"]
 
 [params]
 
