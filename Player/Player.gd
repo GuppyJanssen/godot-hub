@@ -349,3 +349,33 @@ func fire_primary_weapon() -> void:
 	# Herlaad-afkoeltijd op basis van de fire rate uit de CSV
 	await get_tree().create_timer(current_weapon_stats.get("base_fire_rate", 0.3)).timeout
 	can_fire = true
+
+
+# UNIVERSELE HITBOX: Regelt de contact-schade
+func _on_player_hitbox_body_entered(body: Node2D) -> void:
+	if not is_instance_valid(body): return
+	
+	# GECORRIGEERD: Luistert nu naar mobiele vijanden ('enemies') EN gebouwen/spawners ('targets')!
+	if body.is_in_group("enemies") or body.is_in_group("targets"):
+		print("BOTSING: Astronaut en ", body.name, " hebben elkaar geraakt!")
+		
+		# --- 1. SCHADE AAN DE SPELER ---
+		if stats and not Game.debug_is_invincible:
+			stats.current_health = max(0, stats.current_health - 10)
+			print("-> Player incasseert 10 contact-damage. HP over: ", stats.current_health)
+			if has_method("update_hud"): 
+				call_deferred("update_hud")
+				
+		# --- 2. SCHADE AAN DE VIJAND / FABRIEK (Wederkerig!) ---
+		if body.has_method("take_damage"):
+			var hit_direction = (body.global_position - global_position).normalized()
+			
+			# Deelt ook direct 10 schade uit aan de fabriek/spawner bij een crash!
+			body.take_damage(10, true, hit_direction)
+			print("-> ", body.name, " incasseert 10 wederkerige contact-damage.")
+			
+		# --- 3. ARCADE JUICE KNOCKBACK ---
+		var knockback_dir = (global_position - body.global_position).normalized()
+		velocity = knockback_dir * 350.0
+		if "velocity" in body:
+			body.velocity = -knockback_dir * 250.0

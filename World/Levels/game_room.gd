@@ -126,6 +126,7 @@ func _check_barriers() -> void:
 	var current_layer = LevelManager.current_layer
 	var max_layer_index = LevelManager.LAYER_WIDTHS.size() - 1
 	
+	# Weer terug naar de basis: telt puur de targets en enemies!
 	var enemies = get_tree().get_nodes_in_group("targets").size() + get_tree().get_nodes_in_group("enemies").size()
 	var enemies_alive: bool = enemies > 0
 	

@@ -15,8 +15,11 @@ rotation = 2.0420353
 scale = Vector2(0.109375, 0.109375)
 texture = ExtResource("1_l8h54")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1422617417]
-position = Vector2(3, 0.19999999)
+[node name="Area2D" type="Area2D" parent="." unique_id=155803145]
+position = Vector2(0, -1.1920929e-07)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D" unique_id=1422617417]
+position = Vector2(3, 0.2000001)
 rotation = 1.5707964
 shape = SubResource("CapsuleShape2D_wdaq0")
 
@@ -63,3 +66,5 @@ position = Vector2(-16, 18)
 
 [node name="Muzzle_14" type="Marker2D" parent="Muzzles" unique_id=1918447479 groups=["muzzles"]]
 position = Vector2(-13, 0)
+
+[connection signal="body_entered" from="Area2D" to="." method="_on_player_hitbox_body_entered"]

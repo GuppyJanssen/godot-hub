@@ -2,9 +2,13 @@
 
 [ext_resource type="Script" uid="uid://dof7nuffiqct0" path="res://World/Levels/game_room.gd" id="1_youp0"]
 [ext_resource type="PackedScene" uid="uid://m0mslkm41ksd" path="res://Player/player.tscn" id="3_sjxhc"]
-[ext_resource type="Script" uid="uid://bb5bigv0ciel7" path="res://Systems/enemy_spawner.gd" id="3_youp0"]
+[ext_resource type="Script" uid="uid://bb5bigv0ciel7" path="res://Entities/Spawners/basic_spawner.gd" id="3_youp0"]
 [ext_resource type="PackedScene" uid="uid://5b1m6ciujdbd" path="res://Entities/Objects/test_body.tscn" id="4_07jwa"]
 [ext_resource type="PackedScene" uid="uid://dswg3tjt5sdyn" path="res://Systems/pause_menu.tscn" id="5_i5mwk"]
+[ext_resource type="Texture2D" uid="uid://c4bvglccawcuj" path="res://icon.svg" id="5_n4s3p"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_elb4p"]
+size = Vector2(124, 124)
 
 [node name="GameRoom" type="Node2D" unique_id=689702512]
 script = ExtResource("1_youp0")
@@ -88,14 +92,28 @@ position = Vector2(957, 750)
 
 [node name="spawner" type="Node" parent="Body\'s" unique_id=1577970832]
 
-[node name="Marker2D" type="Marker2D" parent="Body\'s/spawner" unique_id=587930671]
+[node name="spawner1" type="CharacterBody2D" parent="Body\'s/spawner" unique_id=2026981453 groups=["targets"]]
 position = Vector2(864, 293)
 script = ExtResource("3_youp0")
 enemy_scene = ExtResource("4_07jwa")
+total_enemies_to_spawn = 2
 
-[node name="Marker2D2" type="Marker2D" parent="Body\'s/spawner" unique_id=1408325523]
-position = Vector2(1092, 597)
+[node name="Sprite2D" type="Sprite2D" parent="Body\'s/spawner/spawner1" unique_id=1648281324]
+texture = ExtResource("5_n4s3p")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Body\'s/spawner/spawner1" unique_id=1956836610]
+shape = SubResource("RectangleShape2D_elb4p")
+
+[node name="spawner2" type="CharacterBody2D" parent="Body\'s/spawner" unique_id=1743154347 groups=["targets"]]
+position = Vector2(1206, 409)
 script = ExtResource("3_youp0")
 enemy_scene = ExtResource("4_07jwa")
+total_enemies_to_spawn = 1
+
+[node name="Sprite2D" type="Sprite2D" parent="Body\'s/spawner/spawner2" unique_id=2054544549]
+texture = ExtResource("5_n4s3p")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Body\'s/spawner/spawner2" unique_id=160931702]
+shape = SubResource("RectangleShape2D_elb4p")
 
 [node name="PauseMenu" parent="." unique_id=1334477234 instance=ExtResource("5_i5mwk")]
