@@ -26,7 +26,7 @@ script = ExtResource("1_nle7x")
 [node name="TreeCamera" type="Camera2D" parent="." unique_id=627277465]
 position = Vector2(960, 540)
 
-[node name="Skill_Lines" type="Node" parent="." unique_id=993163485]
+[node name="Skill_Lines" type="Node2D" parent="." unique_id=360231511]
 
 [node name="SkillLine" type="Line2D" parent="Skill_Lines" unique_id=1184206147]
 width = 6.0
@@ -85,7 +85,7 @@ width = 6.0
 position = Vector2(-24, -19)
 width = 6.0
 
-[node name="Skill_Slots" type="Node" parent="." unique_id=77314294]
+[node name="Skill_Slots" type="Node2D" parent="." unique_id=1230483812]
 
 [node name="Skill1_Slot" type="Control" parent="Skill_Slots" unique_id=1741902644]
 layout_mode = 3

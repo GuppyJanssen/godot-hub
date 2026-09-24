@@ -1,56 +1,92 @@
 extends Control
 
+# --- GECORRIGEERD: Main Menu Opstart-as ---
 func _ready() -> void:
-	get_viewport().gui_release_focus()
+	print("MAIN MENU: Hoofdmenu geladen voor slot: ", Game.active_save_slot)
 	
-	# WATERDICHTE HUD-OPRUIMING: Wist de visuele teller-balk onvoorwaardelijk van het scherm!
-	var root_node = get_tree().root
-	if root_node:
-		var oude_hud = root_node.find_child("*hud*", true, false)
-		if oude_hud:
-			oude_hud.queue_free()
-			print("MAIN MENU: Oude run-HUD succesvol van het scherm gewist.")
+	# Forceer direct dat de hub weet dat we de run niet automatisch kapen, tenzij we op continue drukken
+	Game.should_load_run = false
+	
+	var continue_btn = find_child("ContinueButton", true, false) as Button
+	if not continue_btn:
+		continue_btn = find_child("*Continue*", true, false) as Button
+		
+	if is_instance_valid(continue_btn):
+		var slot_folder = "user://" + Game.active_save_slot + "/"
+		var path_camel = slot_folder + "current_run.json"
+		var path_lower = "user://" + Game.active_save_slot.to_lower() + "/current_run.json"
+		
+		# HIER GECORRIGEERD: We kijken UITSLUITEND of het bestand fysiek op de schijf bestaat!
+		var file_exists: bool = FileAccess.file_exists(path_camel) or FileAccess.file_exists(path_lower)
+		
+		if file_exists:
+			continue_btn.visible = true
+			print("MAIN MENU: Fysieke run-save gevonden. Continue is ZICHTBAAR.")
+		else:
+			continue_btn.visible = false
+			print("MAIN MENU: Geen run-save gevonden op de schijf. Continue is ONZICHTBAAR.")
 
 
-
+# --- SAMENGEVOEGD: De Sluitende Continue Motor ---
 func _on_continue_button_pressed() -> void:
-	print("MAIN MENU: Continue geactiveerd. Run laden van schijf...")
-	get_tree().paused = false
-	Game.should_load_run = true
+	print("MAIN MENU: Continue geactiveerd. Laden van bestaande run...")
 	
-	# GECORRIGEERD: Zorg dat we 'game_room.tscn' onvoorwaardelijk inladen, 
-	# de LevelManager logica stuurt de player dadelijk zelf naar de juiste ring!
+	var full_path = "user://" + Game.active_save_slot + "/current_run.json"
+	
+	if FileAccess.file_exists(full_path):
+		var file = FileAccess.open(full_path, FileAccess.READ)
+		var json = JSON.new()
+		if json.parse(file.get_as_text()) == OK:
+			var run_data = json.get_data()
+			
+			# SSoT GEHEUGENSTREEK: Haal de opgeslagen Ring en Kamer live van de schijf!
+			if is_instance_valid(LevelManager):
+				if run_data.has("current_layer"):
+					LevelManager.current_layer = int(run_data["current_layer"])
+				elif run_data.has("level_index"): 
+					LevelManager.current_layer = int(run_data["level_index"])
+					
+				if run_data.has("current_room_index"):
+					LevelManager.current_room_index = int(run_data["current_room_index"])
+				elif run_data.has("room_index"):
+					LevelManager.current_room_index = int(run_data["room_index"])
+					
+				print("MAIN MENU: Locatie succesvol hersteld! Router gezet op Ring: ", LevelManager.current_layer, " | Kamer: ", LevelManager.current_room_index)
+		file.close()
+	
+	# Vertel de hub en de Player dat we een bestaande run hervatten (dit activeert de pixel-spawn en herstelt de +winst!)
+	Game.should_load_run = true
 	get_tree().change_scene_to_file("res://World/Levels/game_room.tscn")
 
+
+# --- GECORRIGEERD: De Beveiligde New Run Opschoner ---
+func _on_new_run_button_pressed() -> void:
+	print("MAIN MENU: New Run geactiveerd. Forceer schone lei...")
+	
+	# HARD-LOCK RESETS: Wis de runtime-buffers in de Global Hub onvoorwaardelijk naar 0!
+	# Dit garandeert dat de run start met (+0) winst op je scherm.
+	if is_instance_valid(Game):
+		Game.set_meta("run_loot_olrite", 0)
+		Game.set_meta("run_loot_metal", 0)
+		Game.set_meta("run_loot_keepium", 0)
+		Game.set_meta("run_loot_element1", 0)
+		Game.set_meta("run_loot_element2", 0)
+		Game.set_meta("run_loot_element3", 0)
+		Game.should_load_run = false
+		
+	# Wis ook de JSON van de schijf zodat continue wegblijft
+	var slot_folder = "user://" + Game.active_save_slot + "/"
+	var run_file = slot_folder + "current_run.json"
+	if FileAccess.file_exists(run_file):
+		DirAccess.remove_absolute(run_file)
+		
+	get_tree().change_scene_to_file("res://World/Levels/game_room.tscn")
 
 
 func _on_skill_tree_button_pressed() -> void:
 	get_tree().change_scene_to_file("res://Systems/SkillTree.tscn")
 
 
-
-func _on_new_run_button_pressed() -> void:
-	print("MAIN MENU: New Run geactiveerd. Forceer schone schijf...")
-	
-	if is_instance_valid(LevelManager):
-		LevelManager.reset_manager_for_new_run()
-		# BINGO: We wissen de opgeslagen achtergrond-cache zodat de nieuwe run een FRISSE random keuze krijgt!
-		if LevelManager.has_meta("active_run_background"):
-			LevelManager.remove_meta("active_run_background")
-		
-	get_tree().paused = false
-	get_viewport().gui_release_focus()
-	Game.should_load_run = false
-	
-	var active_slot = Game.active_save_slot if Game.active_save_slot != "" else "Slot_3"
-	var run_file_path = "user://" + active_slot + "/current_run.json"
-	
-	if DirAccess.dir_exists_absolute("user://" + active_slot):
-		if FileAccess.file_exists(run_file_path):
-			DirAccess.remove_absolute(run_file_path)
-			print("MAIN MENU: Oude run-cache met succes van de harde schijf GEWIST.")
-			
-	get_tree().change_scene_to_file("res://World/Levels/game_room.tscn")
 
 func _on_new_game_button_pressed() -> void:
 	print("MAIN MENU: New Game geactiveerd. Permanente slot-cache wordt gewist...")

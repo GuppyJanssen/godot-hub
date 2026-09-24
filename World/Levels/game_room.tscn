@@ -80,20 +80,18 @@ color = Color(0.6392157, 0.91764706, 0.92941177, 0.7137255)
 
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1296384498]
 
-[node name="PlayerSpawnPoint" type="Marker2D" parent="." unique_id=174175650]
-position = Vector2(957, 750)
+[node name="Player" parent="." unique_id=1754520072 instance=ExtResource("3_sjxhc")]
+position = Vector2(279, 485)
 
-[node name="Player" parent="PlayerSpawnPoint" unique_id=1754520072 instance=ExtResource("3_sjxhc")]
+[node name="Body\'s" type="Node2D" parent="." unique_id=773991381]
 
-[node name="Body\'s" type="Node" parent="." unique_id=1257329506]
+[node name="test body" type="Node2D" parent="Body\'s" unique_id=1770359895]
 
-[node name="test body" type="Node" parent="Body\'s" unique_id=884536788]
+[node name="hostile" type="Node2D" parent="Body\'s" unique_id=414099694]
 
-[node name="hostile" type="Node" parent="Body\'s" unique_id=1677969206]
+[node name="static" type="Node2D" parent="Body\'s" unique_id=710993925]
 
-[node name="static" type="Node" parent="Body\'s" unique_id=1706655738]
-
-[node name="spawner" type="Node" parent="Body\'s" unique_id=1577970832]
+[node name="spawner" type="Node2D" parent="Body\'s" unique_id=670926701]
 
 [node name="spawner1" type="CharacterBody2D" parent="Body\'s/spawner" unique_id=2026981453 groups=["targets"]]
 position = Vector2(864, 293)
@@ -120,3 +118,5 @@ texture = ExtResource("5_n4s3p")
 shape = SubResource("RectangleShape2D_elb4p")
 
 [node name="PauseMenu" parent="." unique_id=1334477234 instance=ExtResource("5_i5mwk")]
+
+[editable path="Player"]

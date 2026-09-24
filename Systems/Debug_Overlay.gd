@@ -155,7 +155,7 @@ func _set_money_values(target_amount: int) -> void:
 	var p_data = load("res://Resources/Player_Data.tres")
 	if p_data:
 		p_data.currency_olrite = target_amount
-		p_data.currency_gold = target_amount
+		p_data.currency_metal = target_amount
 		p_data.currency_keepium = target_amount
 		p_data.currency_element1 = target_amount
 		p_data.currency_element2 = target_amount
@@ -165,7 +165,7 @@ func _set_money_values(target_amount: int) -> void:
 	if is_instance_valid(Game) and Game.active_player:
 		var p = Game.active_player
 		p.run_currency_olrite = target_amount
-		p.run_currency_gold = target_amount
+		p.run_currency_metal = target_amount
 		p.run_currency_keepium = target_amount
 		p.run_currency_element1 = target_amount
 		p.run_currency_element2 = target_amount
@@ -174,7 +174,7 @@ func _set_money_values(target_amount: int) -> void:
 		# SSSoT WATERDICHT GUARD: Brand de waarden direct in elkaars actieve registers!
 		if p.stats:
 			p.stats.currency_olrite = target_amount
-			p.stats.currency_gold = target_amount
+			p.stats.currency_metal = target_amount
 			p.stats.currency_keepium = target_amount
 			p.stats.currency_element1 = target_amount
 			p.stats.currency_element2 = target_amount

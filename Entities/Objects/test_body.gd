@@ -125,22 +125,52 @@ func _deferred_death(hit_dir: Vector2) -> void:
 
 
 # --- 5. SAPPIGE LOOT EXPLOSIE ---
+# --- SSoT GEWOGEN LOOT EXPLOSIE ---
 func _drop_specific_loot(hit_dir: Vector2) -> void:
 	var loot_scene = load("res://Entities/Objects/loot_drop.tscn")
 	if not loot_scene: 
 		return
 	
-	var total_drops = get_meta("loot_blocks", 3)
+	# --- 1. MATS-WISKUNDE: GEWOGEN KANS VOOR AANTAL BLOKJES (3 t/m 10) ---
+	# We rollen een willekeurige float tussen 0.0 en 1.0
+	var roll = randf()
+	var total_drops: int = 3 # De absolute, veelvoorkomende basis stand
 	
+	if roll < 0.50:
+		total_drops = 3     # 50% kans op exact 3 blokjes
+	elif roll < 0.75:
+		total_drops = 4     # 25% kans op 4 blokjes
+	elif roll < 0.88:
+		total_drops = 5     # 13% kans op 5 blokjes
+	elif roll < 0.94:
+		total_drops = 6     # 6% kans op 6 blokjes
+	elif roll < 0.97:
+		total_drops = 7     # 3% kans op 7 blokjes
+	elif roll < 0.99:
+		total_drops = 8     # 2% kans op 8 blokjes
+	elif roll < 0.995:
+		total_drops = 9     # 0.5% kans op 9 blokjes
+	else:
+		total_drops = 10    # SLECHTS 0.5% KANS: De absolute Jackpot van 10 blokjes!
+		print("JACKPOT! De database rolt een zeldzame 10-blokjes drop!")
+
+	# --- 2. DE FYSIEKE SPAWN LUS ---
 	for i in range(total_drops):
 		var loot_instance = loot_scene.instantiate()
-		var rand_amount = randi_range(5, 15)
-		loot_instance.init_loot(test_body_type, rand_amount)
 		
+		# SSoT HARD-LOCK: Elk fysiek blokje is vanaf nu exact 1 eenheid waard!
+		# Hierdoor is het aantal blokjes dat je ziet vliegen, exact gelijk aan de HUD-optelsom.
+		var crystal_value = 1
+		loot_instance.init_loot(test_body_type, crystal_value)
+		
+		# ARCADE JUICE IMPULS: Waaier-effect in de richting van het dodelijke schot
 		if loot_instance.has_method("set_impact_direction"):
 			var scatter = Vector2(randf_range(-0.5, 0.5), randf_range(-0.5, 0.5))
 			var final_impulse = (hit_dir + scatter).normalized()
 			loot_instance.set_impact_direction(final_impulse)
 		
+		# Plaats het blokje rondom de positie van de gesloopte vijand
 		loot_instance.global_position = global_position + Vector2(randf_range(-15, 15), randf_range(-15, 15))
 		get_tree().current_scene.add_child(loot_instance)
+		
+	print("VIJAND DROP: '", name, "' heeft succesvol ", total_drops, " losse SSoT-kristallen op het veld geworpen.")

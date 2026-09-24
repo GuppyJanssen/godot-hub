@@ -11,7 +11,7 @@ class_name PlayerStats
 
 @export_category("Live Portemonnee (Run)")
 @export var currency_olrite: int = 0      # Currency 1 (XP / Groen)
-@export var currency_gold: int = 0        # Currency 2 (Metal / Grijs)
+@export var currency_metal: int = 0        # Currency 2 (Metal / Grijs)
 @export var currency_keepium: int = 0     # Currency 3 (Paars)
 @export var currency_element1: int = 0    # Currency 4 (Blauw)
 @export var currency_element2: int = 0    # Currency 5 (Geel)

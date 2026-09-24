@@ -194,21 +194,35 @@ func _check_software_transitions() -> void:
 			get_tree().change_scene_to_file("res://World/Levels/game_room.tscn")
 			return
 
-	# HORIZONTALE TRANSITIES (Links / Rechts)
+	# GECORRIGEERD: Horizontale transities slaan NU ook de run-winst en stats op via het SaveSystem!
+	# Dit voorkomt dat je winst-tellers leeglopen zodra je zijwaarts door een poort vliegt.
 	if current_layer > 0 and current_layer < max_layer_index:
+		# LINKS-TRANSITIE
 		if active_player.global_position.x < 15.0:
 			LevelManager.set_meta("coming_from", "right")
 			LevelManager.set_meta("player_exit_y", active_player.global_position.y)
 			LevelManager.current_room_index -= 1
 			if LevelManager.current_room_index < 0:
 				LevelManager.current_room_index = LevelManager.LAYER_WIDTHS[current_layer] - 1
+				
+			# SSoT GUARD: Schrijf de live status en winst NU naar de schijf voordat de scene wisselt!
+			if save_instance and save_instance.has_method("save_current_run"): 
+				save_instance.save_current_run(active_player)
+				
 			get_tree().change_scene_to_file("res://World/Levels/game_room.tscn")
 			return
+			
+		# RECHTS-TRANSITIE
 		elif active_player.global_position.x > screen_width - 15.0:
 			LevelManager.set_meta("coming_from", "left")
 			LevelManager.set_meta("player_exit_y", active_player.global_position.y)
 			LevelManager.current_room_index += 1
 			if LevelManager.current_room_index >= LevelManager.LAYER_WIDTHS[current_layer]:
 				LevelManager.current_room_index = 0
+				
+			# SSoT GUARD: Schrijf de live status en winst NU naar de schijf voordat de scene wisselt!
+			if save_instance and save_instance.has_method("save_current_run"): 
+				save_instance.save_current_run(active_player)
+				
 			get_tree().change_scene_to_file("res://World/Levels/game_room.tscn")
 			return

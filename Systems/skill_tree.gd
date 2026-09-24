@@ -1,30 +1,27 @@
 extends Control
-# BEDIENING: Skill Tree Regisseur (Volledig Gecorrigeerd, SSoT & Bulk-Toggle)
 
 var current_meta: MetaProgress = null
 
-# GECOORDINEERD: Bepaalt hoeveel levels er per klik worden gekocht (1 of 10)
+# GECORRIGEERD: Bepaalt hoeveel levels er per klik worden gekocht (1 of 10)
 var buy_amount: int = 1
 
-# --- GECORRIGEERD (Prio 1): Hardcoded paden naar jullie exacte scene-labels! ---
-@onready var c1_label: Label = $FixedUI/Node2D/HBoxContainer/CurrencyLabel1
-@onready var c2_label: Label = $FixedUI/Node2D/HBoxContainer/CurrencyLabel2
-@onready var c3_label: Label = $FixedUI/Node2D/HBoxContainer/CurrencyLabel3
-@onready var c4_label: Label = $FixedUI/Node2D/VBoxContainer/CurrencyLabel4
-@onready var c5_label: Label = $FixedUI/Node2D/VBoxContainer/CurrencyLabel5
-@onready var c6_label: Label = $FixedUI/Node2D/VBoxContainer/CurrencyLabel6
+# GECORRIGEERD: We hebben de 6 losse crashende onready-labels verwijderd! 
+# We synchroniseren de valuta-balken in de Skill Tree nu direct via de Live HUD of de schijf-resource.
+var currency_labels_ref: Array = []
 
 @onready var tree_camera: Camera2D = $TreeCamera
-@onready var skill_slots_container: Node = $Skill_Slots
-@onready var skill_lines_container: Node = $Skill_Lines
+@onready var skill_slots_container: Node = find_child("*Skill_Slots*", true, false)
+@onready var skill_lines_container: Node = find_child("*Skill_Lines*", true, false)
 
-# GECOORDINEERD: UI-Label om de speler te tonen of +1 of +10 actief is
-@onready var bulk_status_label: Label = $FixedUI/Node2D/BulkStatusLabel if has_node("FixedUI/Node2D/BulkStatusLabel") else null
+
+# GECORRIGEERD: UI-Label om de speler te tonen of +1 of +10 actief is
+@onready var bulk_status_label: Label = find_child("BulkStatusLabel", true, false) as Label
 
 var min_zoom: float = 0.5
 var max_zoom: float = 2.0
 var zoom_speed: float = 0.1
 var is_dragging: bool = false
+
 
 
 func _ready() -> void:
@@ -54,18 +51,13 @@ func _refresh_from_disk() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if not is_instance_valid(tree_camera): return
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
-		is_dragging = event.is_pressed()
-	if event is InputEventMouseMotion and is_dragging:
-		tree_camera.global_position -= event.relative / tree_camera.zoom
-	if event is InputEventMouseButton and event.is_pressed():
-		var current_zoom = tree_camera.zoom.x
-		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			current_zoom = clamp(current_zoom + zoom_speed, min_zoom, max_zoom)
-		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			current_zoom = clamp(current_zoom - zoom_speed, min_zoom, max_zoom)
-		tree_camera.zoom = Vector2(current_zoom, current_zoom)
+	if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.keycode == KEY_ESCAPE):
+		if event.is_pressed() and not event.is_echo():
+			# GECORRIGEERD: Sluit de Skill Tree en stop het event direct (MARK AS HANDLED)
+			# Dit voorkomt dat de escape-toets doorvliegt naar het F1 Debug-menu!
+			get_tree().root.set_input_as_handled()
+			_on_back_to_main_menu_pressed()
+			return
 
 
 # GECOORDINEERD: Deze functie koppelen jullie aan de nieuwe Bulk-Toggle Knop in de UI!
@@ -124,13 +116,18 @@ func _on_any_skill_button_pressed(slot_name: String) -> void:
 func update_skill_tree_visuals() -> void:
 	if not current_meta: return
 	
-	# PREVENTIEVE CRASH GUARD: Controleer of alle labels fysiek bestaan voordat we ze beschrijven
-	if is_instance_valid(c1_label): c1_label.text = "Olrite: " + str(current_meta.currency_1)
-	if is_instance_valid(c2_label): c2_label.text = "Gold: " + str(current_meta.currency_2)
-	if is_instance_valid(c3_label): c3_label.text = "Keepium: " + str(current_meta.currency_3)
-	if is_instance_valid(c4_label): c4_label.text = "Element 1: " + str(current_meta.currency_4)
-	if is_instance_valid(c5_label): c5_label.text = "Element 2: " + str(current_meta.currency_5)
-	if is_instance_valid(c6_label): c6_label.text = "Element 3: " + str(current_meta.currency_6)
+	# --- GECORRIGEERD: Dynamische SSoT-sync met de nieuwe HUD-labels! ---
+	# We zoeken de actieve live Hud node op het scherm op om zijn labels te lenen
+	var live_hud = get_tree().root.find_child("Hud", true, false)
+	
+	if is_instance_valid(live_hud) and "currency_labels" in live_hud and live_hud.currency_labels.size() >= 6:
+		# Als de live HUD in beeld staat, schrijven we de cijfers direct live naar die labels!
+		live_hud.currency_labels[0].text = "Olrite: " + str(current_meta.currency_1)
+		live_hud.currency_labels[1].text = "Metal: " + str(current_meta.currency_2) # Gecorrigeerd: 'Metal' i.p.v. metal
+		live_hud.currency_labels[2].text = "Keepium: " + str(current_meta.currency_3)
+		live_hud.currency_labels[3].text = "Element 1: " + str(current_meta.currency_4)
+		live_hud.currency_labels[4].text = "Element 2: " + str(current_meta.currency_5)
+		live_hud.currency_labels[5].text = "Element 3: " + str(current_meta.currency_6)
 	
 	if not is_instance_valid(skill_slots_container): return
 	var all_slots = skill_slots_container.get_children()
@@ -160,6 +157,11 @@ func _unhandled_input(event: InputEvent) -> void:
 				_refresh_from_disk()
 
 
-func _on_main_menu_button_pressed() -> void:
-	if is_inside_tree() and get_tree() != null:
-		get_tree().change_scene_to_file("res://Systems/main_menu.tscn")
+func _on_back_to_main_menu_pressed() -> void:
+	print("SKILL TREE: Terugkeren naar het hoofdmenu...")
+	# Sla de meta-progressie voor alle zekerheid nog een keer op voordat we scéne wisselen
+	var save_system = load("res://Systems/SaveSystem.gd").new()
+	if save_system and current_meta:
+		save_system.save_meta_progress(current_meta)
+		
+	get_tree().change_scene_to_file("res://Systems/main_menu.tscn")

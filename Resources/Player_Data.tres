@@ -4,15 +4,15 @@
 
 [resource]
 script = ExtResource("1_s8pag")
-current_health = 90
 max_shield = 100
 current_energy = 60
-currency_olrite = 9999
-currency_gold = 9999
-currency_keepium = 9999
-currency_element1 = 9999
-currency_element2 = 9999
-currency_element3 = 9999
 current_acceleration = 800.0
 current_friction = 250.0
 metadata/_custom_type_script = "uid://d0euo360aowlp"
+metadata/run_loot_olrite = 0
+metadata/run_loot_gold = 0
+metadata/run_loot_keepium = 0
+metadata/run_loot_element1 = 0
+metadata/run_loot_element2 = 0
+metadata/run_loot_element3 = 0
+metadata/run_loot_metal = 0

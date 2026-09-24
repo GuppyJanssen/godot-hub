@@ -32,13 +32,13 @@ grow_vertical = 2
 layout_mode = 2
 text = "Continue"
 
-[node name="SkillTreeButton" type="Button" parent="VBoxContainer" unique_id=578418225]
-layout_mode = 2
-text = "Skill Tree"
-
 [node name="NewRunButton" type="Button" parent="VBoxContainer" unique_id=2023670650]
 layout_mode = 2
 text = "New Run"
+
+[node name="SkillTreeButton" type="Button" parent="VBoxContainer" unique_id=578418225]
+layout_mode = 2
+text = "Skill Tree"
 
 [node name="NewGameButton" type="Button" parent="VBoxContainer" unique_id=2020964446]
 layout_mode = 2
@@ -49,7 +49,7 @@ layout_mode = 2
 text = "Exit To Desktop"
 
 [connection signal="pressed" from="VBoxContainer/ContinueButton" to="." method="_on_continue_button_pressed"]
-[connection signal="pressed" from="VBoxContainer/SkillTreeButton" to="." method="_on_skill_tree_button_pressed"]
 [connection signal="pressed" from="VBoxContainer/NewRunButton" to="." method="_on_new_run_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/SkillTreeButton" to="." method="_on_skill_tree_button_pressed"]
 [connection signal="pressed" from="VBoxContainer/NewGameButton" to="." method="_on_new_game_button_pressed"]
 [connection signal="pressed" from="VBoxContainer/ExitButton" to="." method="_on_exit_button_pressed"]
