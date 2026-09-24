@@ -2,26 +2,27 @@ extends CanvasLayer
 # BEDIENING: HUD (Live In-Game Interface Regisseur)
 
 @onready var currency_container: VBoxContainer = find_child("CurrencyContainer", true, false) as VBoxContainer
-@onready var health_bar: ProgressBar = find_child("HealthBar", true, false) as ProgressBar
 @onready var location_label: Label = find_child("LocationLabel", true, false) as Label
-@onready var shield_bar: ProgressBar = find_child("ShieldBar", true, false) as ProgressBar
-@onready var energy_bar: ProgressBar = find_child("EnergyBar", true, false) as ProgressBar
 
+# TextureProgressBar koppeling voor de batterij-icoontjes
+@onready var health_bar: TextureProgressBar = find_child("HealthBar", true, false) as TextureProgressBar
+@onready var shield_bar: TextureProgressBar = find_child("ShieldBar", true, false) as TextureProgressBar
+@onready var energy_bar: TextureProgressBar = find_child("EnergyBar", true, false) as TextureProgressBar
+
+var active_player_node: CharacterBody2D = null
 var player_stats: PlayerStats = null
 var currency_labels: Array[Label] = []
 
+
 func _ready() -> void:
-	layer = 50
+	layer = 100
+	visible = true
 	
-	# --- DE REDDENDE PAUZEMENU FIX ---
-	# We vertellen de HUD-laag dat hij muisklikken ijskoud moet negeren en doorlaten!
-	# Dit voorkomt dat de HUD het scherm gijzelt en de pauzeknoppen blokkeert.
 	if currency_container:
 		currency_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	
-	_find_active_player_stats()
+	_find_active_player()
 	
-	# AUTOMATISCHE GRONDSTOFFEN HUD OPBOUW
 	var currencies = [
 		{"name": "Olrite", "color": Color(0.0, 0.564, 0.275, 1.0)},
 		{"name": "Metal", "color": Color(0.556, 0.556, 0.556, 1.0)},
@@ -32,7 +33,6 @@ func _ready() -> void:
 	]
 	
 	if currency_container:
-		currency_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		for child in currency_container.get_children():
 			child.queue_free()
 	
@@ -63,45 +63,48 @@ func _ready() -> void:
 		currency_labels.append(lbl)
 
 
-func _find_active_player_stats() -> void:
-	# GECORRIGEERD: We controleren eerst of current_scene wel echt bestaat om de opstartcrash te tackelen!
+func _find_active_player() -> void:
 	if get_tree() and get_tree().current_scene:
-		var player = get_tree().current_scene.find_child("Player", true, false)
-		if player and "stats" in player and player.stats:
-			player_stats = player.stats
+		var player = get_tree().current_scene.find_child("Player", true, false) as CharacterBody2D
+		if is_instance_valid(player):
+			active_player_node = player
+			if "stats" in player and player.stats:
+				player_stats = player.stats
 			return
-
-	# Als we in het hoofdmenu staan of de speler laadt nog in, pakken we de veilige fallback
+			
 	player_stats = load("res://Resources/Player_Data.tres")
 
 
 func _process(_delta: float) -> void:
-	# Als de referentie leeg is of kwijt is door een kamerwissel, zoeken we de speler opnieuw
-	if not player_stats or not is_instance_valid(player_stats):
-		_find_active_player_stats()
+	if not is_instance_valid(active_player_node):
+		_find_active_player()
 		
-	if player_stats:
+	# 1. STATUS BALKEN REFRESH (Direct live gekoppeld aan de actieve speler-resource)
+	if is_instance_valid(active_player_node) and active_player_node.stats:
+		var p_stats = active_player_node.stats
+		
 		if health_bar and is_instance_valid(health_bar):
-			health_bar.max_value = player_stats.max_health
-			health_bar.value = player_stats.current_health
+			health_bar.max_value = p_stats.max_health
+			health_bar.value = p_stats.current_health
+			
 		if shield_bar and is_instance_valid(shield_bar):
-			shield_bar.max_value = player_stats.max_shield
-			shield_bar.value = player_stats.current_shield
+			shield_bar.max_value = p_stats.max_shield
+			shield_bar.value = p_stats.current_shield
+			
 		if energy_bar and is_instance_valid(energy_bar):
-			energy_bar.max_value = player_stats.max_energy
-			energy_bar.value = player_stats.current_energy
+			energy_bar.max_value = p_stats.max_energy
+			energy_bar.value = p_stats.current_energy
 		
-		# --- KOGELVRIJE PORTEMONNEE REFRESH (GEEN PREVIOUSLY FREED CRASHES MEER!) ---
-		# GECORRIGEERD: We controleren of het EERSTE label in de array geldig is, in plaats van de array zelf!
-		if currency_labels.size() >= 6 and is_instance_valid(currency_labels[0]):
-			currency_labels[0].text = "Olrite: " + str(player_stats.currency_olrite)
-			currency_labels[1].text = "Metal: " + str(player_stats.currency_gold)
-			currency_labels[2].text = "Keepium: " + str(player_stats.currency_keepium)
-			currency_labels[3].text = "Element 1: " + str(player_stats.currency_element1)
-			currency_labels[4].text = "Element 2: " + str(player_stats.currency_element2)
-			currency_labels[5].text = "Element 3: " + str(player_stats.currency_element3)
+	# 2. BINGO: Live text-updates via de unieke, gescheiden array-indexen!
+	if is_instance_valid(active_player_node) and currency_labels.size() >= 6:
+		if is_instance_valid(currency_labels[0]): currency_labels[0].text = "Olrite: " + str(active_player_node.run_currency_olrite)
+		if is_instance_valid(currency_labels[1]): currency_labels[1].text = "Metal: " + str(active_player_node.run_currency_gold)
+		if is_instance_valid(currency_labels[2]): currency_labels[2].text = "Keepium: " + str(active_player_node.run_currency_keepium)
+		if is_instance_valid(currency_labels[3]): currency_labels[3].text = "Element 1: " + str(active_player_node.run_currency_element1)
+		if is_instance_valid(currency_labels[4]): currency_labels[4].text = "Element 2: " + str(active_player_node.run_currency_element2)
+		if is_instance_valid(currency_labels[5]): currency_labels[5].text = "Element 3: " + str(active_player_node.run_currency_element3)
 		
-	# LOCATIE TEKST BIJWERKEN (Ook extra beveiligd op geldigheid!)
+	# 3. LOCATIE TEKST BIJWERKEN
 	if is_instance_valid(LevelManager) and location_label and is_instance_valid(location_label):
 		if LevelManager.current_layer == 0:
 			location_label.text = "LOCATIE: Zuidpool (Startbasis)"

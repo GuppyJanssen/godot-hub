@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://ctt70j352upq3"]
 
 [ext_resource type="Script" uid="uid://dof7nuffiqct0" path="res://World/Levels/game_room.gd" id="1_youp0"]
+[ext_resource type="PackedScene" uid="uid://dpl1t8aw48l35" path="res://Systems/hud.tscn" id="2_sjxhc"]
 [ext_resource type="PackedScene" uid="uid://m0mslkm41ksd" path="res://Player/player.tscn" id="3_sjxhc"]
 [ext_resource type="Script" uid="uid://bb5bigv0ciel7" path="res://Entities/Spawners/basic_spawner.gd" id="3_youp0"]
 [ext_resource type="PackedScene" uid="uid://5b1m6ciujdbd" path="res://Entities/Objects/test_body.tscn" id="4_07jwa"]
@@ -12,6 +13,8 @@ size = Vector2(124, 124)
 
 [node name="GameRoom" type="Node2D" unique_id=689702512]
 script = ExtResource("1_youp0")
+
+[node name="Hud" parent="." unique_id=1155961062 instance=ExtResource("2_sjxhc")]
 
 [node name="Background" type="TextureRect" parent="." unique_id=336786136]
 anchors_preset = 15

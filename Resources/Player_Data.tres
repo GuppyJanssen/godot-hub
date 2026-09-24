@@ -1,13 +1,18 @@
-[gd_resource type="Resource" script_class="PlayerStats" format=3 uid="uid://7w076jmos4po"]
+[gd_resource type="Resource" script_class="PlayerStats" format=3]
 
-[ext_resource type="Script" uid="uid://d0euo360aowlp" path="res://Resources/player_stats.gd" id="1_s8pag"]
+[ext_resource type="Script" path="res://Resources/player_stats.gd" id="1_s8pag"]
 
 [resource]
 script = ExtResource("1_s8pag")
-current_health = 40
+current_health = 90
 max_shield = 100
 current_energy = 60
+currency_olrite = 9999
+currency_gold = 9999
+currency_keepium = 9999
+currency_element1 = 9999
+currency_element2 = 9999
+currency_element3 = 9999
 current_acceleration = 800.0
 current_friction = 250.0
-loot_magnet_applied = true
 metadata/_custom_type_script = "uid://d0euo360aowlp"

@@ -24,29 +24,33 @@ func _ready() -> void:
 		Game.active_player = self
 		print("PLAYER: Succesvol gekoppeld aan de Game Global Hub.")
 		
-	# 2. INLADEN RESOURCE DATA (BEHOUDEN: Dit houdt je portemonnee en grondstoffen intact!)
+	# 2. INLADEN RESOURCE DATA
 	stats = load("res://Resources/Player_Data.tres")
 	
 	if stats:
+		# VEILIGHEIDS-AS: Mocht max_health in de .tres per ongeluk op 0 staan, 
+		# forceren we hier een gezonde basiswaarde van 100 zodat de HUD niet op 0% bevriest!
+		if stats.max_health <= 0: stats.max_health = 100
+		if stats.max_shield <= 0: stats.max_shield = 50
+		if stats.max_energy <= 0: stats.max_energy = 100
+		
 		stats.current_health = stats.max_health
 		stats.loot_magnet_applied = false
 		
-		if stats.currency_olrite > 0:
-			run_currency_olrite = stats.currency_olrite
-			run_currency_gold = stats.currency_gold
-			run_currency_keepium = stats.currency_keepium
-			run_currency_element1 = stats.currency_element1
-			run_currency_element2 = stats.currency_element2
-			run_currency_element3 = stats.currency_element3
+		# TIMING & TRANSITIE CHECK: 
+		# We wissen de stats ALLEEN als we op Layer 0 staan EN we niet expliciet een run laden!
+		if is_instance_valid(LevelManager) and LevelManager.current_layer == 0 and not Game.should_load_run:
+			print("PLAYER: Nieuwe run gedetecteerd op Zuidpool. Reset portemonnee...")
+			stats.currency_olrite = 0
+			stats.currency_gold = 0
+			stats.currency_keepium = 0
+			stats.currency_element1 = 0
+			stats.currency_element2 = 0
+			stats.currency_element3 = 0
 		else:
-			if is_instance_valid(LevelManager) and LevelManager.current_layer == 0 and not Game.should_load_run:
-				stats.currency_olrite = 0
-				stats.currency_gold = 0
-				stats.currency_keepium = 0
-				stats.currency_element1 = 0
-				stats.currency_element2 = 0
-				stats.currency_element3 = 0
-				
+			print("PLAYER: Schermtransitie gedetecteerd. Synchroniseer portemonnee-data...")
+			
+		# Laad de live run-variabelen direct in vanuit de stabiele schijf-resource
 		run_currency_olrite = stats.currency_olrite
 		run_currency_gold = stats.currency_gold
 		run_currency_keepium = stats.currency_keepium
@@ -54,43 +58,34 @@ func _ready() -> void:
 		run_currency_element2 = stats.currency_element2
 		run_currency_element3 = stats.currency_element3
 
-	# 3. TIMING FIX: We wachten hier verplicht tot het SaveSystem klaar is met overschrijven!
+	# 3. TIMING FIX: We wachten tot de LevelManager én het SaveSystem klaar zijn
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	# 4. LEIDENDE AS: Pas NU laden we de onwrikbare wapenstats uit de CSV-database in
+	if stats:
+		# BINGO: Als de debug-knop de live run_currencies heeft veranderd, 
+		# drukken we ze hier direct terug in de stats-resource zodat de transities werken!
+		if stats.currency_olrite != run_currency_olrite: stats.currency_olrite = run_currency_olrite
+		if stats.currency_gold != run_currency_gold: stats.currency_gold = run_currency_gold
+		if stats.currency_keepium != run_currency_keepium: stats.currency_keepium = run_currency_keepium
+		if stats.currency_element1 != run_currency_element1: stats.currency_element1 = run_currency_element1
+		if stats.currency_element2 != run_currency_element2: stats.currency_element2 = run_currency_element2
+		if stats.currency_element3 != run_currency_element3: stats.currency_element3 = run_currency_element3
+
+	# 4. LEIDENDE AS: Wapenstats inladen uit de CSV
 	var active_weapon_key = Game.active_weapon_key
-	
 	if active_weapon_key in MasterDatabase.weapon_data:
 		var csv_row = MasterDatabase.weapon_data[active_weapon_key]
-		
-		# Laad de basistekst-stats (damage, fire_rate, size_multiplier)
 		current_weapon_stats = csv_row["base_stats"].duplicate()
-		
-		# Laad de 4 nieuwe losse kolommen onvoorwaardelijk in voor de live physics
 		current_weapon_stats["is_full_auto"] = csv_row.get("is_full_auto", 1.0)
 		current_weapon_stats["bullet_per_shot"] = csv_row.get("bullet_per_shot", 1)
 		current_weapon_stats["muzzle_count"] = csv_row.get("muzzle_count", 1)
 		current_weapon_stats["bullet_spread"] = csv_row.get("bullet_spread", 0.0)
-		
-		print("PLAYER: Wapendata '" + active_weapon_key + "' permanent vergrendeld na transitie.")
-		print("-> Modus: ", "Auto" if current_weapon_stats["is_full_auto"] == 1.0 else "Semi")
-		print("-> Schade: ", current_weapon_stats.get("damage", 10.0), " | Kogels per schot: ", current_weapon_stats["bullet_per_shot"])
 	else:
 		current_weapon_stats = {"damage": 10.0, "base_fire_rate": 0.3, "is_full_auto": 1.0, "bullet_per_shot": 1, "muzzle_count": 1, "bullet_spread": 0.0}
 		
-	# === JULLIE BESTAANDE HUD REFRESH LOGICA ===
 	get_tree().call_group("projectiles", "queue_free")
-	
-	var active_scene = get_tree().current_scene
-	if active_scene and is_instance_valid(active_scene):
-		var all_labels = active_scene.find_children("*", "Label", true, false)
-		for lbl in all_labels:
-			if "1" in lbl.name or "olrite" in lbl.name.to_lower():
-				lbl.text = "Olrite: " + str(run_currency_olrite)
-				print("HUD FIX: Live Olrite-cijfers geforceerd op label node: ", lbl.name)
-
 
 
 func _physics_process(delta: float) -> void:

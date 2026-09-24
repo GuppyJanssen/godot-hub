@@ -151,7 +151,7 @@ func _make_rich() -> void: _set_money_values(9999)
 func _reset_money() -> void: _set_money_values(0)
 
 func _set_money_values(target_amount: int) -> void:
-	# 1. Schrijf keihard naar de .tres resource
+	# 1. Schrijf keihard naar de centrale basis-resource op de schijf
 	var p_data = load("res://Resources/Player_Data.tres")
 	if p_data:
 		p_data.currency_olrite = target_amount
@@ -161,16 +161,27 @@ func _set_money_values(target_amount: int) -> void:
 		p_data.currency_element2 = target_amount
 		p_data.currency_element3 = target_amount
 		
-	# 2. Overschrijf de actieve runtime buffers van de Global Player
+	# 2. GECORRIGEERD: Overschrijf direct de actieve buffers EN de live-resource van het schip
 	if is_instance_valid(Game) and Game.active_player:
-		Game.active_player.run_currency_olrite = target_amount
-		Game.active_player.run_currency_gold = target_amount
-		Game.active_player.run_currency_keepium = target_amount
-		Game.active_player.run_currency_element1 = target_amount
-		Game.active_player.run_currency_element2 = target_amount
-		Game.active_player.run_currency_element3 = target_amount
-		if Game.active_player.stats:
-			Game.active_player.stats.currency_olrite = target_amount
+		var p = Game.active_player
+		p.run_currency_olrite = target_amount
+		p.run_currency_gold = target_amount
+		p.run_currency_keepium = target_amount
+		p.run_currency_element1 = target_amount
+		p.run_currency_element2 = target_amount
+		p.run_currency_element3 = target_amount
+		
+		# SSSoT WATERDICHT GUARD: Brand de waarden direct in elkaars actieve registers!
+		if p.stats:
+			p.stats.currency_olrite = target_amount
+			p.stats.currency_gold = target_amount
+			p.stats.currency_keepium = target_amount
+			p.stats.currency_element1 = target_amount
+			p.stats.currency_element2 = target_amount
+			p.stats.currency_element3 = target_amount
+			
+			# FORCEER DIRECT: Vertel de ResourceSaver van Godot dat hij deze data NU moet opslaan!
+			ResourceSaver.save(p.stats, "res://Resources/Player_Data.tres")
 
 	# 3. Overschrijf ook direct de Meta-Save voor het Skill Tree menu
 	var save_system = load("res://Systems/SaveSystem.gd").new()
@@ -186,6 +197,7 @@ func _set_money_values(target_amount: int) -> void:
 		
 	_force_hud_refresh()
 	_update_dashboard()
+
 
 func _force_hud_refresh() -> void:
 	var active_hud = get_tree().current_scene.find_child("*hud*", true, false)
