@@ -1,11 +1,13 @@
-entry_id,data_type,ingame_name,description,base_value,base_stats_or_targets,target_modifiers,unlock_requirements,fill_costs_per_point
-player_base,Speler_Base,Space Skater,De basisstatistieken van het speler-skate-lichaam.,0,"max_health:100,current_speed:300,current_acceleration:1600,current_friction:300,current_rotation_speed:10",0,0,0
-player_magnet,Speler_Magneet,Buitzuiger module,De reikwijdte van je automatische resourcesluis.,0,"current_pickup_radius:10,current_magnet_radius:150,current_magnet_force:400",0,0,0
-weapon_gatling,Wapen_Base,Plasma Gatling,Standaard snelvurend plasmawapen.,700,"damage:10,base_fire_rate:0.3,weapon_range:600,size_multiplier:1.0,is_full_auto:0",0,0,0
-enemy_test_1,Vijand_Base,Olrite Grunt,Basis test-body die Olrite-materiaal bij zich draagt.,0,"health:50,speed:120,test_body_type:1,loot_amount_blocks:3",flash_white:1,0,0
-enemy_test_2,Vijand_Base,Metal Scrapper,Zwaardere test-body die Metal-schroot dropt.,0,"health:80,speed:120,test_body_type:2,loot_amount_blocks:3",flash_white:1,0,0
-skill_1,Upgrade_Skill,Skaters Momentum,Verhoogt acceleratie en topsnelheid.,0,"current_speed,current_acceleration","current_speed:2.5,current_acceleration:15.0","metal:20,element1:1",olrite:5
-skill_2,Upgrade_Skill,Carbon Shielding,Verhoogt maximale schildcapaciteit en regeneratie.,0,"max_shield,shield_regen_rate","max_shield:5.0,shield_regen_rate:0.5","metal:30,element2:1",olrite:8
-skill_3,Upgrade_Skill,Gatling Mechanism,Verkort de tussentijd tussen schoten (schiet sneller!).,0,base_fire_rate,base_fire_rate:-0.005,"metal:50,element3:1",olrite:15
-skill_4,Upgrade_Skill,Titanium Hull,Verhoogt maximale spelergezondheid.,0,max_health,max_health:10.0,metal:15,olrite:4
-skill_5,Upgrade_Skill,Hyper Overdrive,Verhoogt kogelbereik en maakt het wapen Full-Auto.,0,"weapon_range,is_full_auto","weapon_range:50.0,is_full_auto:1.0","metal:40,element1:2",olrite:10
+entry_id,data_type,ingame_name,description,base_stats_or_targets,target_modifiers,unlock_requirements,fill_costs_per_point,is_full_auto,bullet_per_shot,muzzle_count,bullet_spread
+player_base,Speler_Base,Space Skater,De basisstatistieken van het speler-skate-lichaam.,"max_health:100,current_speed:300,current_acceleration:1600,current_friction:300,current_rotation_speed:10",0,0,0,0,0,0,0
+player_magnet,Speler_Magneet,Buitzuiger module,De reikwijdte van je automatische resourcesluis.,"current_pickup_radius:10,current_magnet_radius:150,current_magnet_force:400",0,0,0,0,0,0,0
+weapon_pistol,Wapen_Base,Pistol,Standaard semi-auto wapen.,"damage:5,base_fire_rate:0.2,weapon_range:400,size_multiplier:0.5,",0,0,0,0,1,1,0
+weapon_gatling,Wapen_Base,Plasma Gatling,Snelvurend plasmawapen.,"damage:10,base_fire_rate:0.08,weapon_range:300,size_multiplier:1.0",0,"olrite:500,metal:200",10,1,1,1,0
+weapon_shotgun,Wapen_Base,Shotgun,Shotgun,"damage:4,base_fire_rate:0.25,weapon_range:300,size_multiplier:1.0,",0,"olrite:300,metal:100",5,0,5,1,30
+enemy_test_1,Vijand_Base,Olrite Grunt,Basis test-body die Olrite-materiaal bij zich draagt.,"health:50,speed:120,test_body_type:1,loot_amount_blocks:3",flash_white:1,0,0,0,0,0,0
+enemy_test_2,Vijand_Base,Metal Scrapper,Zwaardere test-body die Metal-schroot dropt.,"health:80,speed:120,test_body_type:2,loot_amount_blocks:3",flash_white:1,0,0,0,0,0,0
+skill_1,Upgrade_Skill,Skaters Momentum,Verhoogt acceleratie en topsnelheid.,"current_speed,current_acceleration","current_speed:2.5,current_acceleration:15.0","metal:20,element1:1",olrite:5,0,0,0,0
+skill_2,Upgrade_Skill,Carbon Shielding,Verhoogt maximale schildcapaciteit en regeneratie.,"max_shield,shield_regen_rate","max_shield:5.0,shield_regen_rate:0.5","metal:30,element2:1",olrite:8,0,0,0,0
+skill_3,Upgrade_Skill,Gatling Mechanism,Verkort de tussentijd tussen schoten (schiet sneller!).,base_fire_rate,base_fire_rate:-0.005,"metal:50,element3:1",olrite:15,0,0,0,0
+skill_4,Upgrade_Skill,Titanium Hull,Verhoogt maximale spelergezondheid.,max_health,max_health:10.0,metal:15,olrite:4,0,0,0,0
+skill_5,Upgrade_Skill,Hyper Overdrive,Verhoogt kogelbereik en maakt het wapen Full-Auto.,"weapon_range,is_full_auto","weapon_range:50.0,is_full_auto:1.0","metal:40,element1:2",olrite:10,0,0,0,0
