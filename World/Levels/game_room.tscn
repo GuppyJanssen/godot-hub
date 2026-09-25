@@ -81,7 +81,7 @@ color = Color(0.6392157, 0.91764706, 0.92941177, 0.7137255)
 [node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1296384498]
 
 [node name="Player" parent="." unique_id=1754520072 instance=ExtResource("3_sjxhc")]
-position = Vector2(279, 485)
+position = Vector2(350, 771)
 
 [node name="Body\'s" type="Node2D" parent="." unique_id=773991381]
 

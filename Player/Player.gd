@@ -204,7 +204,6 @@ func _ready() -> void:
 	health_regen_timer.start()
 
 
-
 func _physics_process(delta: float) -> void:
 	if not is_inside_tree() or get_tree() == null: return
 	if get_tree().paused: return

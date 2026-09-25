@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://8hbvxiw2re6r"]
 
 [ext_resource type="Script" uid="uid://dgbvrmutattek" path="res://Systems/skill_tree.gd" id="1_nle7x"]
+[ext_resource type="PackedScene" uid="uid://dpl1t8aw48l35" path="res://Systems/hud.tscn" id="2_2dmkb"]
 [ext_resource type="Script" uid="uid://cdw7fvr7ld31g" path="res://Systems/SkillSlot.gd" id="2_ja8g2"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_2gcpv"]
@@ -18,15 +19,35 @@ layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_left = 3428.0
+offset_top = 1741.0
+offset_right = 3428.0
+offset_bottom = 1741.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("1_nle7x")
 
 [node name="TreeCamera" type="Camera2D" parent="." unique_id=627277465]
-position = Vector2(960, 540)
+position = Vector2(-2468, -1201)
 
-[node name="Skill_Lines" type="Node2D" parent="." unique_id=360231511]
+[node name="Hud" parent="." unique_id=1155961062 instance=ExtResource("2_2dmkb")]
+
+[node name="CurrencyContainer" parent="Hud/HUD_layout" parent_id_path=PackedInt32Array(1155961062, 1161523818) index="0" unique_id=1397696332]
+mouse_filter = 2
+
+[node name="StatusContainer" parent="Hud/HUD_layout" parent_id_path=PackedInt32Array(1155961062, 1161523818) index="2" unique_id=1053764889]
+mouse_filter = 2
+
+[node name="back_to_main_menu" type="Button" parent="." unique_id=1292662051]
+layout_mode = 0
+offset_left = -2469.0
+offset_top = -734.0
+offset_right = -2424.0
+offset_bottom = -703.0
+text = "Back"
+
+[node name="Skill_Lines" type="Node" parent="." unique_id=409825942]
 
 [node name="SkillLine" type="Line2D" parent="Skill_Lines" unique_id=1184206147]
 width = 6.0
@@ -85,7 +106,7 @@ width = 6.0
 position = Vector2(-24, -19)
 width = 6.0
 
-[node name="Skill_Slots" type="Node2D" parent="." unique_id=1230483812]
+[node name="Skill_Slots" type="Node" parent="." unique_id=553911224]
 
 [node name="Skill1_Slot" type="Control" parent="Skill_Slots" unique_id=1741902644]
 layout_mode = 3
@@ -93,10 +114,10 @@ anchor_left = 0.5208333
 anchor_top = 0.8873457
 anchor_right = 0.5208333
 anchor_bottom = 0.8873457
-offset_left = -35.99994
-offset_top = -399.3333
-offset_right = -35.99994
-offset_bottom = -399.3333
+offset_left = -22.999939
+offset_top = -419.3333
+offset_right = -22.999939
+offset_bottom = -419.3333
 grow_horizontal = 2
 grow_vertical = 2
 size_flags_horizontal = 4
@@ -141,10 +162,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -166.0
-offset_top = 104.0
-offset_right = -166.0
-offset_bottom = 104.0
+offset_left = -135.0
+offset_top = 85.0
+offset_right = -135.0
+offset_bottom = 85.0
 grow_horizontal = 2
 grow_vertical = 2
 size_flags_horizontal = 4
@@ -427,5 +448,8 @@ theme_override_styles/fill = SubResource("StyleBoxFlat_ovfmv")
 fill_mode = 3
 show_percentage = false
 
+[connection signal="pressed" from="back_to_main_menu" to="." method="_on_back_to_main_menu_pressed"]
 [connection signal="pressed" from="Skill_Slots/Skill1_Slot/Skill1Button" to="." method="_on_skill_1_button_pressed"]
 [connection signal="pressed" from="Skill_Slots/Skill2_Slot/Skill2Button" to="." method="_on_skill_2_button_pressed"]
+
+[editable path="Hud"]
