@@ -23,6 +23,13 @@ var run_loot_element1: int = 0
 var run_loot_element2: int = 0
 var run_loot_element3: int = 0
 
+# --- REGENERATIE EN ENERGIE MOTOR ---
+var shield_regen_timer: Timer
+var health_regen_timer: Timer
+var can_regen_shield: bool = false
+var shield_accumulator: float = 0.0
+
+
 var current_weapon_stats: Dictionary = {}
 
 
@@ -49,13 +56,34 @@ func _ready() -> void:
 	if raw_stats:
 		stats = raw_stats.duplicate()
 		print("PLAYER ENGINE: Unieke, slot-geïsoleerde resource-kopie online via schijf: ", custom_tres_path)
-	
+
+	var is_absolute_start = (LevelManager.current_layer == 0 and LevelManager.current_room_index == 0 and not Game.should_load_run)
+
 	if stats:
-		# Veiligheids-as voor de HUD balken
 		if stats.max_health <= 0: stats.max_health = 100
 		if stats.max_shield <= 0: stats.max_shield = 50
 		if stats.max_energy <= 0: stats.max_energy = 100
-		stats.current_health = stats.max_health
+		
+		# SSoT DRIFT-BEVEILIGING: Laad direct de overgedragen status in als de Hub metadata bezit!
+		if is_instance_valid(Game) and Game.has_meta("transit_health"):
+			stats.current_health = int(Game.get_meta("transit_health"))
+			stats.current_shield = int(Game.get_meta("transit_shield"))
+			stats.current_energy = int(Game.get_meta("transit_energy"))
+			print("PLAYER ENGINE: Status succesvol herstelt bij schermtransitie! HP: ", stats.current_health)
+		else:
+			# Triggert uitsluitend bij een absolute, schone start vanaf het hoofdmenu
+			print("PLAYER ENGINE: Geen transitie-data aanwezig. Start op met MAX status.")
+			stats.current_health = stats.max_health
+			stats.current_shield = stats.max_shield
+			stats.current_energy = stats.max_energy
+		
+		# Laad het basissaldo in uit de database-resource
+		run_currency_olrite = stats.currency_olrite
+		run_currency_metal = stats.currency_metal if "currency_metal" in stats else (stats.currency_gold if "currency_gold" in stats else 0)
+		run_currency_keepium = stats.currency_keepium
+		run_currency_element1 = stats.currency_element1
+		run_currency_element2 = stats.currency_element2
+		run_currency_element3 = stats.currency_element3
 		
 		# 1. Directe SSoT-sync van het basissaldo met de Meta Progress database voor alle 6 de slots!
 		var save_sys = load("res://Systems/SaveSystem.gd").new()
@@ -82,8 +110,6 @@ func _ready() -> void:
 				
 				print("PLAYER ENGINE: Vaste portemonnee succesvol gesynchroniseerd met Meta Progress. Olrite: ", run_currency_olrite)
 
-		# 2. De multi-transitie check om de tijdelijke winst-tellers te beheren
-		var is_absolute_start = (LevelManager.current_layer == 0 and LevelManager.current_room_index == 0 and not Game.should_load_run)
 		
 		if is_absolute_start:
 			print("PLAYER: Absolute start van een New Run. Reset winst-buffers naar +0")
@@ -154,6 +180,31 @@ func _ready() -> void:
 	get_tree().call_group("projectiles", "queue_free")
 
 
+	# --- INITIALISATIE REGENERATIE EN ENERGIE TIMERS ---
+	# --- INITIALISATIE REGENERATIE EN ENERGIE TIMERS ---
+	# 1. Schild Timer: Regelt de 3 seconden afkoeltijd na het incasseren van schade
+	shield_regen_timer = Timer.new()
+	shield_regen_timer.wait_time = 3.0
+	shield_regen_timer.one_shot = true
+	shield_regen_timer.timeout.connect(func(): can_regen_shield = true)
+	add_child(shield_regen_timer)
+	
+	# BINGO: Als we uit een transitie komen, starten we de timer direct!
+	# Dit garandeert dat de 3 seconden klok gaat lopen en het opladen daarna direct hervat.
+	if is_instance_valid(Game) and Game.has_meta("transit_health"):
+		shield_regen_timer.start()
+	
+	
+	# 2. Health Timer: Tikt onvoorwaardelijk elke 3 seconden voor de 33% kans-check
+	health_regen_timer = Timer.new()
+	health_regen_timer.wait_time = 3.0
+	health_regen_timer.one_shot = false
+	health_regen_timer.timeout.connect(_on_health_regen_tick)
+	add_child(health_regen_timer)
+	health_regen_timer.start()
+
+
+
 func _physics_process(delta: float) -> void:
 	if not is_inside_tree() or get_tree() == null: return
 	if get_tree().paused: return
@@ -189,6 +240,35 @@ func _physics_process(delta: float) -> void:
 
 	# Voer de officiële verplaatsing uit van de engine
 	move_and_slide()
+
+	# --- REALTIME SCHILD REGENERATIE (GEKOPPELD AAN INTEGER ENERGIE) ---
+	if can_regen_shield and stats:
+		if stats.current_shield < stats.max_shield and stats.current_energy > 0:
+			shield_accumulator += 10 * delta #tijd per punt regen
+			
+			if shield_accumulator >= 1.0:
+				var points_to_add = int(shield_accumulator)
+				shield_accumulator -= points_to_add
+				
+				var space_left = stats.max_shield - stats.current_shield
+				var final_add = min(points_to_add, space_left)
+				
+				if final_add > 0:
+					stats.current_shield += final_add
+					
+					# WISSELKOERS FIX: We trekken pas 1 energiepunt af zodra er cumulatief 10 schildpunten zijn gevuld!
+					if stats.current_shield % 10 == 0:
+						# GECORRIGEERD: Harde integer-afname tegen zwevende floating-point spookgetallen!
+						var new_energy = int(stats.current_energy) - 1
+						if new_energy <= 0:
+							new_energy = 0
+						stats.current_energy = new_energy
+						
+						# Werk de Global Hub direct live en type-veilig bij
+						if is_instance_valid(Game):
+							Game.set_meta("transit_shield", stats.current_shield)
+							Game.set_meta("transit_energy", stats.current_energy)
+						print("ENERGIE-ACCU: 10 schildpunten gevuld! 1 Energiepunt afgerekend. Rest: ", stats.current_energy)
 
 	# 4. CSV-GESTUURDE INPUT-KOPPELING: Schieten via fire_primary
 	# We kijken eerst of de CSV of de debug-multiplier zegt dat het wapen Full Auto is
@@ -314,6 +394,7 @@ func _physics_process(delta: float) -> void:
 	elif Input.is_key_pressed(KEY_2): new_target = "weapon_shotgun"
 	elif Input.is_key_pressed(KEY_3): new_target = "weapon_gatling"
 	
+	# 1. DE WAPENWISSEL AS (1, 2, 3 INPUTS)
 	if new_target != "" and Game.active_weapon_key != new_target:
 		if new_target in MasterDatabase.weapon_data:
 			# Overschrijf de wereldwijde SSoT sleutel direct!
@@ -328,112 +409,202 @@ func _physics_process(delta: float) -> void:
 			
 			print("TEST-SWAP: Live gewisseld naar " + Game.active_weapon_key + " | Kogels: " + str(current_weapon_stats["bullet_per_shot"]))
 
-
-	# B. CSV-GESTUURDE VUURMODUS
+	# =========================================================================
+	# 2. GECORRIGEERDE SCHIETMOTOR: Nu met harde herlaad-beveiliging!
+	# =========================================================================
+	# De herlaad-as is vanaf nu de baas: als de timer loopt, mag er NIET geschoten worden.
+	# Dit haalt de dubbele/viervoudige schade onvoorwaardelijk weg bij alle wapens!
+	if not can_fire: return
+	
+	# B. CSV-GESTUURDE VUURMODUS (We gebruiken jullie bestaande globale variabele)
 	weapon_is_auto = current_weapon_stats.get("is_full_auto", 1.0) == 1.0
 	
 	if weapon_is_auto:
+		# AUTOMATISCH: Vuren zolang je de knop ingedrukt houdt
 		if Input.is_action_pressed("fire_primary") or Input.is_action_pressed("ui_accept"):
 			fire_primary_weapon()
 	else:
+		# SEMI-AUTOMATISCH: Je moet de knop herhaaldelijk EENMALIG indrukken per schot
 		if Input.is_action_just_pressed("fire_primary") or Input.is_action_just_pressed("ui_accept"):
 			fire_primary_weapon()
+			
+			
+				# --- REALTIME SSoT HUB SYNCHRONISATIE ---
+	# Dit garandeert dat ELK los puntje HP, Schild of Energie (zoals 77 of 88) 
+	# direct wereldwijd bekend is, wat afrondings-terugval bij poorten 100% uitsluit!
+	if is_instance_valid(Game) and stats:
+		Game.set_meta("transit_health", int(stats.current_health))
+		Game.set_meta("transit_shield", int(stats.current_shield))
+		Game.set_meta("transit_energy", int(stats.current_energy))
+
 	# =========================================================================
 
 
+# --- SCHIETMOTOR: 100% Uitgelijnd op de SSoT CSV Kolommen ---
 func fire_primary_weapon() -> void:
-	if not can_fire or not is_inside_tree() or get_tree() == null: return
+	if not weapon_output_scene or not stats: return
 	
-	var active_scene = get_tree().current_scene
-	if not active_scene or not is_instance_valid(active_scene): return
+	# Controleer energieverbruik voor speciale wapens (alles behalve het startpistool)
+	var active_key = str(Game.active_weapon_key).to_lower()
+	var is_special_weapon = "pistol" not in active_key and active_key != ""
 	
+	if is_special_weapon and stats.current_energy <= 0:
+		print("WAPEN GEBLOKKEERD: Geen energie meer! Schakel terug naar je startpistool.")
+		return
+		
 	can_fire = false
 	
-	var muzzles_parent = find_child("Muzzles", true, false)
-	var active_muzzles: Array = []
-	if muzzles_parent:
-		for m in muzzles_parent.get_children():
-			if is_instance_valid(m): active_muzzles.append(m)
-
-	# --- 1. DATA UIT DE GENERIEKE STATS EN DEBUG-MULTIPLIERS ---
-	var csv_bullets_per_shot: int = int(current_weapon_stats.get("bullet_per_shot", 1))
-	var csv_bullet_spread: float = float(current_weapon_stats.get("bullet_spread", 0.0))
+	# BINGO: We halen de waarden RECHTSTREEKS uit de achterste kolommen van de actieve CSV-rij!
+	# Als de dictionary de kolommen niet heeft, vallen we veilig terug op de stabiele standaarden (1 kogel, 0 spread)
+	var bullets_to_spawn = int(current_weapon_stats.get("bullet_per_shot", 1))
+	var spread = float(current_weapon_stats.get("bullet_spread", 0.0))
 	
-	# Haal de specifieke schade en kogelgrootte uit de CSV, inclusief de F1 debug-multipliers
-	var final_damage = current_weapon_stats.get("damage", 10.0) * Game.debug_damage_multiplier
-	var final_size = current_weapon_stats.get("size_multiplier", 1.0) * Game.debug_bullet_size_multiplier
-	var final_speed = current_weapon_stats.get("weapon_range", 400.0) # Of jullie eigen bullet_speed key
-
-	# --- 2. DE SOFTWAREMATIGE SCHIET- EN WAAIERLOOP ---
-	if active_muzzles.is_empty():
-		for i in range(csv_bullets_per_shot):
-			var bullet_instance = weapon_output_scene.instantiate()
-			bullet_instance.global_position = global_position
+	# De schade halen we uit de 'base_stats_or_targets' string die jullie in _ready() hebben geparsed
+	var dmg = float(current_weapon_stats.get("damage", 5.0))
+	
+	# Converteer de spread van graden naar radialen als er spreiding in de kolom staat
+	var spread_rad = deg_to_rad(spread) if spread > 0.0 else 0.0
+	
+	# De exacte vuurlus: schiet exact 1 kogel voor het pistool (5 dmg) en exact 5 voor de shotgun!
+	for i in range(bullets_to_spawn):
+		var bullet = weapon_output_scene.instantiate()
+		
+		var final_spread = 0.0
+		if bullets_to_spawn > 1:
+			# Verdeelt de kogels netjes in een waaier-kegel op basis van de CSV-hoek
+			final_spread = lerp(-spread_rad, spread_rad, float(i) / float(bullets_to_spawn - 1))
 			
-			var spread_offset = 0.0
-			if csv_bullet_spread > 0.0 and csv_bullets_per_shot > 1:
-				var step = csv_bullet_spread / (csv_bullets_per_shot - 1)
-				spread_offset = deg_to_rad(-csv_bullet_spread / 2.0 + (i * step))
-				
-			bullet_instance.global_rotation = global_rotation + spread_offset
+		bullet.global_position = global_position
+		bullet.global_rotation = global_rotation + final_spread
+		
+		# Geef de exacte schade door aan het projectiel
+		if bullet.has_method("init_projectile"):
+			bullet.init_projectile(dmg)
+		elif "damage" in bullet:
+			bullet.damage = dmg
 			
-			# DYNAMIC INJECTIE: Geef de specifieke CSV-waarden direct mee aan deze kogel!
-			if "damage" in bullet_instance: bullet_instance.damage = final_damage
-			if "scale" in bullet_instance: bullet_instance.scale = Vector2(final_size, final_size)
-			if "speed" in bullet_instance: bullet_instance.speed = final_speed
+		get_tree().current_scene.add_child(bullet)
+	
+	# --- ENERGIEAFNAME BIJ SCHIETEN ---
+	if is_special_weapon:
+		stats.current_energy = max(0, stats.current_energy - 2)
+		print("SPECIAL SHOT: Energie verbruikt! Rest-energie: ", stats.current_energy)
+	
+	# --- SSoT VUURSNELHEID EXTRACTOR ---
+	var fire_rate = 0.3 # Veilige standaard fallback
+	
+	# Controleer flexibel alle mogelijke SSoT naamgevingen uit de database
+	if current_weapon_stats.has("base fire rate"):
+		fire_rate = float(current_weapon_stats["base fire rate"])
+	elif current_weapon_stats.has("base_fire_rate"):
+		fire_rate = float(current_weapon_stats["base_fire_rate"])
+	elif current_weapon_stats.has("base_stats") and current_weapon_stats["base_stats"] is Dictionary:
+		var sub_stats = current_weapon_stats["base_stats"]
+		if sub_stats.has("base fire rate"):
+			fire_rate = float(sub_stats["base fire rate"])
+		elif sub_stats.has("base_fire_rate"):
+			fire_rate = float(sub_stats["base_fire_rate"])
 			
-			active_scene.add_child(bullet_instance)
-	else:
-		var m_node = active_muzzles[0]
-		if is_instance_valid(m_node):
-			for i in range(csv_bullets_per_shot):
-				var bullet_instance = weapon_output_scene.instantiate()
-				
-				var local_offset = m_node.position
-				var rotated_offset = local_offset.rotated(global_rotation)
-				bullet_instance.global_position = global_position + rotated_offset
-				
-				var spread_offset = 0.0
-				if csv_bullet_spread > 0.0 and csv_bullets_per_shot > 1:
-					var step = csv_bullet_spread / (csv_bullets_per_shot - 1)
-					spread_offset = deg_to_rad(-csv_bullet_spread / 2.0 + (i * step))
-				
-				bullet_instance.global_rotation = global_rotation + m_node.rotation + spread_offset
-				
-				# DYNAMIC INJECTIE: Geef de specifieke CSV-waarden direct mee aan deze kogel!
-				if "damage" in bullet_instance: bullet_instance.damage = final_damage
-				if "scale" in bullet_instance: bullet_instance.scale = Vector2(final_size, final_size)
-				if "speed" in bullet_instance: bullet_instance.speed = final_speed
-				
-				active_scene.add_child(bullet_instance)
-			
-	# Herlaad-afkoeltijd op basis van de fire rate uit de CSV
-	await get_tree().create_timer(current_weapon_stats.get("base_fire_rate", 0.3)).timeout
+	print("PLAYER GUN: Vuren geaccepteerd! Wachttijd tot volgend schot: ", fire_rate, " seconden.")
+	
+	# Activeer de herlaad-pauze conform de database
+	await get_tree().create_timer(fire_rate).timeout
+	can_fire = true
+	
+	# Activeer de herlaad-pauze conform de database
+	await get_tree().create_timer(fire_rate).timeout
 	can_fire = true
 
 
-# UNIVERSELE HITBOX: Regelt de contact-schade
+
+
+# UNIVERSELE HITBOX: Regelt de contact-schade met schild-absorptie en regeneratie-resets
 func _on_player_hitbox_body_entered(body: Node2D) -> void:
 	if not is_instance_valid(body): return
 	
-	# GECORRIGEERD: Luistert nu naar mobiele vijanden ('enemies') EN gebouwen/spawners ('targets')!
 	if body.is_in_group("enemies") or body.is_in_group("targets"):
 		print("BOTSING: Astronaut en ", body.name, " hebben elkaar geraakt!")
 		
-		# --- 1. SCHADE AAN DE SPELER ---
+		# --- 1. SCHADE AAN DE SPELER MET SCHILD-ABSORPTIE ---
 		if stats and not Game.debug_is_invincible:
-			stats.current_health = max(0, stats.current_health - 10)
-			print("-> Player incasseert 10 contact-damage. HP over: ", stats.current_health)
+			# Onderbreek het opladen direct en herstart de 3 seconden klok
+			can_regen_shield = false
+			if is_instance_valid(shield_regen_timer):
+				shield_regen_timer.start()
+				
+			var incoming_damage: int = 10
+			
+			if stats.current_shield > 0:
+				if stats.current_shield >= incoming_damage:
+					stats.current_shield -= incoming_damage
+					incoming_damage = 0
+					print("-> Schild vangt de klap op! Schild over: ", stats.current_shield)
+				else:
+					incoming_damage -= stats.current_shield
+					stats.current_shield = 0
+					print("-> Schild BREEKT! Resterende schade voor HP: ", incoming_damage)
+					
+			if incoming_damage > 0:
+				stats.current_health = max(0, stats.current_health - incoming_damage)
+				print("-> HP incasseert schade. HP over: ", stats.current_health)
+				
+				if is_instance_valid(Game):
+					Game.set_meta("transit_health", stats.current_health)
+					Game.set_meta("transit_shield", stats.current_shield)
+				
 			if has_method("update_hud"): 
 				call_deferred("update_hud")
+				
+			# DOODSCHECK
+			if stats.current_health <= 0:
+				print("PLAYER: Astronaut is overleden. Start run-afhandeling via Global Hub...")
+				var save_sys = load("res://Systems/SaveSystem.gd").new()
+				if save_sys and save_sys.has_method("get_loaded_meta_progress") and is_instance_valid(Game):
+					var meta = save_sys.get_loaded_meta_progress()
+					if meta:
+						var w_olrite = int(Game.get_meta("run_loot_olrite")) if Game.has_meta("run_loot_olrite") else 0
+						var w_metal  = int(Game.get_meta("run_loot_metal"))  if Game.has_meta("run_loot_metal")  else 0
+						var w_keep   = int(Game.get_meta("run_loot_keepium")) if Game.has_meta("run_loot_keepium") else 0
+						
+						if "currency_olrite" in meta: meta.currency_olrite += w_olrite
+						elif "currency_1" in meta: meta.currency_1 += w_olrite
+						if "currency_metal" in meta: meta.currency_metal += w_metal
+						elif "currency_2" in meta: meta.currency_2 += w_metal
+						if "currency_keepium" in meta: meta.currency_keepium += w_keep
+						elif "currency_3" in meta: meta.currency_3 += w_keep
+						
+						if save_sys.has_method("save_meta_progress"):
+							save_sys.save_meta_progress(meta)
+							
+						if stats:
+							stats.currency_olrite += w_olrite
+							stats.currency_metal = meta.currency_metal if "currency_metal" in meta else (meta.currency_2 if "currency_2" in meta else stats.currency_metal + w_metal)
+							stats.currency_keepium += w_keep
+							
+							var slot_folder = "user://" + Game.active_save_slot + "/"
+							ResourceSaver.save(stats, slot_folder + "Player_Data.tres")
+
+					Game.set_meta("run_loot_olrite", 0)
+					Game.set_meta("run_loot_metal", 0)
+					Game.set_meta("run_loot_keepium", 0)
+					Game.set_meta("run_loot_element1", 0)
+					Game.set_meta("run_loot_element2", 0)
+					Game.set_meta("run_loot_element3", 0)
+					Game.should_load_run = false
+
+				if save_sys and save_sys.has_method("delete_current_run_save"):
+					save_sys.delete_current_run_save()
+					
+				if is_instance_valid(LevelManager):
+					LevelManager.reset_manager_for_new_run()
+					
+				get_tree().call_deferred("change_scene_to_file", "res://Systems/main_menu.tscn")
+				return
 				
 		# --- 2. SCHADE AAN DE VIJAND / FABRIEK (Wederkerig!) ---
 		if body.has_method("take_damage"):
 			var hit_direction = (body.global_position - global_position).normalized()
-			
-			# Deelt ook direct 10 schade uit aan de fabriek/spawner bij een crash!
 			body.take_damage(10, true, hit_direction)
-			print("-> ", body.name, " incasseert 10 wederkerige contact-damage.")
 			
 		# --- 3. ARCADE JUICE KNOCKBACK ---
 		var knockback_dir = (global_position - body.global_position).normalized()
@@ -478,3 +649,68 @@ func _force_continue_position() -> void:
 		if run_data.has("run_loot_element3"): Game.set_meta("run_loot_element3", int(float(run_data["run_loot_element3"])))
 		
 	c_file.close()
+
+# --- SSoT HEALTH TICK: Tikt elke 3 seconden met 33% kans op 1 HP herstel ---
+func _on_health_regen_tick() -> void:
+	if not stats or stats.current_health <= 0: return
+	
+	if stats.current_health < stats.max_health and randf() <= 0.33:
+		stats.current_health = min(stats.max_health, stats.current_health + 1)
+		print("HEALTH REGEN: Geluksrol geslaagd! 1 HP hersteld. Actueel HP: ", stats.current_health)
+
+# --- SSoT GLOBAL SAVE ENGINE: Beveiligt live X/Y coördinaten, de balken én alle 6 de winst-tellers ---
+func save_live_run_state_to_disk() -> void:
+	if not stats: return
+	
+	# ERNSTIG: Sla de EXACTE waarden van DIT milliseconde-frame op in de Global Hub metadata!
+	# Dit garandeert dat de volgende kamer exact de juiste stand overneemt.
+	if is_instance_valid(Game):
+		Game.set_meta("transit_health", int(stats.current_health))
+		Game.set_meta("transit_shield", int(stats.current_shield))
+		Game.set_meta("transit_energy", int(stats.current_energy))
+		
+		Game.set_meta("run_loot_olrite", run_loot_olrite)
+		Game.set_meta("run_loot_metal", run_loot_metal)
+		Game.set_meta("run_loot_keepium", run_loot_keepium)
+		Game.set_meta("run_loot_element1", run_loot_element1)
+		Game.set_meta("run_loot_element2", run_loot_element2)
+		Game.set_meta("run_loot_element3", run_loot_element3)
+	
+	# Schrijf de winst en status ook direct mee in de resource metadata
+	stats.set_meta("transit_health", int(stats.current_health))
+	stats.set_meta("transit_shield", int(stats.current_shield))
+	stats.set_meta("transit_energy", int(stats.current_energy))
+	
+	var slot_folder = "user://" + Game.active_save_slot + "/"
+	ResourceSaver.save(stats, slot_folder + "Player_Data.tres")
+	
+	# Vanaf hier gaat de rest van jullie bestaande JSON-opslag (coördinaten etc.) ongewijzigd verder...
+	var full_path = slot_folder + "current_run.json"
+	var run_data = {}
+
+
+	
+	if FileAccess.file_exists(full_path):
+		var file = FileAccess.open(full_path, FileAccess.READ)
+		var json = JSON.new()
+		if json.parse(file.get_as_text()) == OK:
+			run_data = json.get_data()
+		file.close()
+		
+	run_data["current_layer"] = LevelManager.current_layer
+	run_data["current_room_index"] = LevelManager.current_room_index
+	run_data["player_x"] = global_position.x
+	run_data["player_y"] = global_position.y
+	
+	run_data["run_loot_olrite"] = run_loot_olrite
+	run_data["run_loot_metal"] = run_loot_metal
+	run_data["run_loot_keepium"] = run_loot_keepium
+	run_data["run_loot_element1"] = run_loot_element1
+	run_data["run_loot_element2"] = run_loot_element2
+	run_data["run_loot_element3"] = run_loot_element3
+	
+	var write_file = FileAccess.open(full_path, FileAccess.WRITE)
+	if write_file:
+		write_file.store_string(JSON.stringify(run_data, "\t"))
+		write_file.close()
+		print("PLAYER SYSTEM: Complete run-status én statusbalken waterdicht opgeslagen op schijf!")

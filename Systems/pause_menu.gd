@@ -73,6 +73,12 @@ func _on_surrender_button_pressed() -> void:
 			var w_elem2  = int(Game.get_meta("run_loot_element2")) if Game.has_meta("run_loot_element2") else 0
 			var w_elem3  = int(Game.get_meta("run_loot_element3")) if Game.has_meta("run_loot_element3") else 0
 			
+					# Wis de statusbalken-cache onvoorwaardelijk bij opgeven
+			Game.remove_meta("transit_health")
+			Game.remove_meta("transit_shield")
+			Game.remove_meta("transit_energy")
+
+			
 			# A: We verhogen de waarden in de Meta Progress kluis van de Skill Tree
 			if "currency_olrite" in meta: meta.currency_olrite += w_olrite
 			elif "currency_1" in meta: meta.currency_1 += w_olrite

@@ -80,6 +80,11 @@ func _on_new_run_button_pressed() -> void:
 	if FileAccess.file_exists(run_file):
 		DirAccess.remove_absolute(run_file)
 		
+				# Schoon de statusbalken-cache op voor de nieuwe run
+		Game.remove_meta("transit_health")
+		Game.remove_meta("transit_shield")
+		Game.remove_meta("transit_energy")
+		
 	get_tree().change_scene_to_file("res://World/Levels/game_room.tscn")
 
 

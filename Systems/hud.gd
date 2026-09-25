@@ -4,10 +4,10 @@ extends CanvasLayer
 @onready var currency_container: VBoxContainer = find_child("CurrencyContainer", true, false) as VBoxContainer
 @onready var location_label: Label = find_child("LocationLabel", true, false) as Label
 
-# TextureProgressBar koppeling voor de batterij-icoontjes
-@onready var health_bar: TextureProgressBar = find_child("HealthBar", true, false) as TextureProgressBar
-@onready var shield_bar: TextureProgressBar = find_child("ShieldBar", true, false) as TextureProgressBar
-@onready var energy_bar: TextureProgressBar = find_child("EnergyBar", true, false) as TextureProgressBar
+# GECORRIGEERD: Omgezet naar reguliere ProgressBar conform de echte scéneboom van de editor!
+@onready var health_bar: ProgressBar = find_child("HealthBar", true, false) as ProgressBar
+@onready var shield_bar: ProgressBar = find_child("ShieldBar", true, false) as ProgressBar
+@onready var energy_bar: ProgressBar = find_child("EnergyBar", true, false) as ProgressBar
 
 var active_player_node: CharacterBody2D = null
 var player_stats: PlayerStats = null
@@ -78,25 +78,27 @@ func _find_active_player() -> void:
 func _process(_delta: float) -> void:
 	if not is_instance_valid(active_player_node):
 		_find_active_player()
+		return
 		
-	# 1. STATUS BALKEN REFRESH (Gekoppeld aan live resource-data)
+	# 1. VISUELE BALKEN REFRESH (HP, Schild, Energie live gekoppeld aan de ProgressBar nodes!)
 	if is_instance_valid(active_player_node) and active_player_node.stats:
 		var p_stats = active_player_node.stats
-		if health_bar and is_instance_valid(health_bar):
+		
+		if is_instance_valid(health_bar):
 			health_bar.max_value = p_stats.max_health
 			health_bar.value = p_stats.current_health
-		if shield_bar and is_instance_valid(shield_bar):
+		if is_instance_valid(shield_bar):
 			shield_bar.max_value = p_stats.max_shield
 			shield_bar.value = p_stats.current_shield
-		if energy_bar and is_instance_valid(energy_bar):
+		if is_instance_valid(energy_bar):
 			energy_bar.max_value = p_stats.max_energy
 			energy_bar.value = p_stats.current_energy
-		
-	# 2. BINGO: Universele 'Saldo (+Winst)' weergave via de Global Hub metadata!
+			
+	# 2. SSoT LIVE PORTEMONNEE TEXT-UPDATES VIA GLOBAL HUB
 	if is_instance_valid(active_player_node) and currency_labels.size() >= 6:
 		var p = active_player_node
 		
-		# Haal de live run-winst veilig en crash-vrij op uit de Global Hub
+		# Haal de live run-winst veilig op uit de Global Hub metadata
 		var w_olrite = str(Game.get_meta("run_loot_olrite")) if Game.has_meta("run_loot_olrite") else "0"
 		var w_metal  = str(Game.get_meta("run_loot_metal"))  if Game.has_meta("run_loot_metal")  else "0"
 		var w_keep   = str(Game.get_meta("run_loot_keepium")) if Game.has_meta("run_loot_keepium") else "0"
@@ -104,16 +106,16 @@ func _process(_delta: float) -> void:
 		var w_elem2  = str(Game.get_meta("run_loot_element2")) if Game.has_meta("run_loot_element2") else "0"
 		var w_elem3  = str(Game.get_meta("run_loot_element3")) if Game.has_meta("run_loot_element3") else "0"
 		
-		# Schrijf de labels onvoorwaardelijk en loepzuiver naar het scherm
+		# Schrijf de labels onvoorwaardelijk naar de 6 losse HUD-regels in jullie container
 		if is_instance_valid(currency_labels[0]): currency_labels[0].text = "Olrite: " + str(p.run_currency_olrite) + " (+" + w_olrite + ")"
-		if is_instance_valid(currency_labels[1]): currency_labels[1].text = "Metal: " + str(p.run_currency_metal if "run_currency_metal" in p else p.run_currency_gold) + " (+" + w_metal + ")"
+		if is_instance_valid(currency_labels[1]): currency_labels[1].text = "Metal: " + str(p.run_currency_metal) + " (+" + w_metal + ")"
 		if is_instance_valid(currency_labels[2]): currency_labels[2].text = "Keepium: " + str(p.run_currency_keepium) + " (+" + w_keep + ")"
 		if is_instance_valid(currency_labels[3]): currency_labels[3].text = "Element 1: " + str(p.run_currency_element1) + " (+" + w_elem1 + ")"
 		if is_instance_valid(currency_labels[4]): currency_labels[4].text = "Element 2: " + str(p.run_currency_element2) + " (+" + w_elem2 + ")"
 		if is_instance_valid(currency_labels[5]): currency_labels[5].text = "Element 3: " + str(p.run_currency_element3) + " (+" + w_elem3 + ")"
-		
-	# 3. LOCATIE TEKST BIJWERKEN
-	if is_instance_valid(LevelManager) and location_label and is_instance_valid(location_label):
+
+	# 3. LOCATIE LABEL BIJWERKEN
+	if is_instance_valid(LevelManager) and is_instance_valid(location_label):
 		if LevelManager.current_layer == 0:
 			location_label.text = "LOCATIE: Zuidpool (Startbasis)"
 		elif LevelManager.current_layer == LevelManager.LAYER_WIDTHS.size() - 1:
