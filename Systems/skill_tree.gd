@@ -47,8 +47,11 @@ func _ready() -> void:
 			var button = slot.find_child("*Button*", true, false)
 			var bar = slot.find_child("*Bar*", true, false)
 			if bar: bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			
+			# REPARATIE: We binden nu de 'skill_id' van het slot in plaats van slot.name!
 			if button and not button.pressed.is_connected(_on_any_skill_button_pressed):
-				button.pressed.connect(_on_any_skill_button_pressed.bind(slot.name))
+				var s_id = slot.skill_id if "skill_id" in slot else slot.name
+				button.pressed.connect(_on_any_skill_button_pressed.bind(s_id))
 				
 	await get_tree().process_frame
 	update_skill_tree_visuals()
@@ -87,22 +90,27 @@ func _input(event: InputEvent) -> void:
 # =========================================================================
 # --- DYNAMISCHE DUAL-MODUS KOOP EN SPENDERINGS AFHANDELING ---
 # =========================================================================
-func _on_any_skill_button_pressed(slot_name: String) -> void:
+func _on_any_skill_button_pressed(skill_id: String) -> void:
 	if not current_meta or not is_instance_valid(skill_slots_container): return
 	
-	var slot_node = skill_slots_container.find_child(slot_name, true, false)
+	# Zoek het visuele slot op basis van de skill_id property
+	var slot_node: Node = null
+	for child in skill_slots_container.get_children():
+		if "skill_id" in child and child.skill_id == skill_id:
+			slot_node = child
+			break
+			
 	if not slot_node: return
 	
-	# Haal de sub-dictionary veilig op conform jullie Git goudstand
-	var current_data = current_meta.skills_data.get(slot_name, {"level": 0, "currency_type": 1})
+	# Haal de sub-dictionary veilig op conform de goudstandaard (0-indexed valuta)
+	var current_data = current_meta.skills_data.get(skill_id, {"level": 0, "currency_type": 0})
 	var current_level = int(current_data["level"])
 	
 	if current_level >= 100: return
 	
-	# Haal de dynamische prijs en valuta op uit de Inspector van het slot
-	var cost: int = slot_node.cost_per_click if "cost_per_click" in slot_node else 1
-	# Godot enums beginnen bij 0, de database telt vanaf 1
-	var c_type: int = slot_node.currency_type + 1 if "currency_type" in slot_node else 1
+	# Haal de live variabelen op uit de node (gevuld vanuit de Master CSV)
+	var cost: int = slot_node.cost_per_click if "cost_per_click" in slot_node else 5
+	var c_type: int = slot_node.currency_type if "currency_type" in slot_node else 0
 	
 	# Bepaal de bulk-afname op basis van buy_amount (+1 of +10)
 	var actual_buy_qty = buy_amount
@@ -113,35 +121,46 @@ func _on_any_skill_button_pressed(slot_name: String) -> void:
 	var total_bulk_cost = cost * actual_buy_qty
 	var can_afford: bool = false
 	
-	# SSoT INTEGRATIE: Trek de kosten type-veilig af van de actieve Meta Wallet
-	if c_type == 1 and current_meta.currency_1 >= total_bulk_cost:
+	# SSoT INTEGRATIE: Trek de kosten type-veilig af op basis van Godot enums (0 = currency_1)
+	if c_type == 0 and current_meta.currency_1 >= total_bulk_cost:
 		current_meta.currency_1 -= total_bulk_cost
 		can_afford = true
-	elif c_type == 2 and current_meta.currency_2 >= total_bulk_cost:
+	elif c_type == 1 and current_meta.currency_2 >= total_bulk_cost:
 		current_meta.currency_2 -= total_bulk_cost
 		can_afford = true
-	elif c_type == 3 and current_meta.currency_3 >= total_bulk_cost:
+	elif c_type == 2 and current_meta.currency_3 >= total_bulk_cost:
 		current_meta.currency_3 -= total_bulk_cost
 		can_afford = true
-	elif c_type == 4 and current_meta.currency_4 >= total_bulk_cost:
+	elif c_type == 3 and current_meta.currency_4 >= total_bulk_cost:
 		current_meta.currency_4 -= total_bulk_cost
 		can_afford = true
-	elif c_type == 5 and current_meta.currency_5 >= total_bulk_cost:
+	elif c_type == 4 and current_meta.currency_5 >= total_bulk_cost:
 		current_meta.currency_5 -= total_bulk_cost
 		can_afford = true
-	elif c_type == 6 and current_meta.currency_6 >= total_bulk_cost:
+	elif c_type == 5 and current_meta.currency_6 >= total_bulk_cost:
 		current_meta.currency_6 -= total_bulk_cost
 		can_afford = true
 		
 	if can_afford:
-		current_meta.skills_data[slot_name]["level"] = current_level + actual_buy_qty
-		print("SKILL TREE: Succesvol gekocht! ", slot_name, " level is nu: ", current_meta.skills_data[slot_name]["level"])
+		# REPARATIE: Dupliceer de dictionary om Godot te dwingen de nested data-update op te slaan
+		var updated_slot_data = current_meta.skills_data.get(skill_id, {"level": 0, "currency_type": c_type}).duplicate()
+		updated_slot_data["level"] = current_level + actual_buy_qty
+		current_meta.skills_data[skill_id] = updated_slot_data
 		
+		print("SKILL TREE: Succesvol gekocht! ", skill_id, " level is nu: ", current_meta.skills_data[skill_id]["level"])
+		
+		# Sla de progressie direct op
 		var save_system = load("res://Systems/SaveSystem.gd").new()
 		if save_system and save_system.has_method("save_meta_progress"):
 			save_system.save_meta_progress(current_meta)
 			
+		# Sync ook de lokale runtime variabele op het slot zelf
+		if "current_level" in slot_node:
+			slot_node.current_level = current_meta.skills_data[skill_id]["level"]
+			
 		update_skill_tree_visuals()
+	else:
+		print("SKILL TREE: Onvoldoende saldo voor ", skill_id, " (Kosten: ", total_bulk_cost, ")")
 
 
 # =========================================================================
@@ -160,50 +179,53 @@ func update_skill_tree_visuals() -> void:
 	var line_index: int = 0
 	var all_slots = skill_slots_container.get_children()
 	
-	# Database controle & initialisatie via de Inspector-waarden
+	# Database controle & initialisatie via de Inspector/CSV-waarden
 	for slot in all_slots:
-		var c_type: int = 1
-		var loss_rate: int = 1
-		if "currency_type" in slot: c_type = slot.currency_type + 1
-		if "points_lost_per_minute" in slot: loss_rate = slot.points_lost_per_minute
+		var s_id = slot.skill_id if "skill_id" in slot else slot.name
+		var c_type: int = slot.currency_type if "currency_type" in slot else 0
+		var loss_rate: int = slot.loss_per_minute if "loss_per_minute" in slot else 1
 			
-		if not current_meta.skills_data.has(slot.name) or not (current_meta.skills_data[slot.name] is Dictionary):
-			current_meta.skills_data[slot.name] = {
+		if not current_meta.skills_data.has(s_id) or not (current_meta.skills_data[s_id] is Dictionary):
+			current_meta.skills_data[s_id] = {
 				"level": 0, 
 				"currency_type": c_type,
 				"loss_per_minute": loss_rate
 			}
 		else:
-			current_meta.skills_data[slot.name]["currency_type"] = c_type
-			current_meta.skills_data[slot.name]["loss_per_minute"] = loss_rate
+			current_meta.skills_data[s_id]["currency_type"] = c_type
+			current_meta.skills_data[s_id]["loss_per_minute"] = loss_rate
 
 	# Universele check van de stamboom (Zorgt voor zichtbaarheids-resets en lijnen)
 	for slot in all_slots:
-		var bar = slot.find_child("*Bar*", true, false)
-		var button = slot.find_child("*Button*", true, false)
-		var level = int(current_meta.skills_data[slot.name]["level"])
+		var s_id = slot.skill_id if "skill_id" in slot else slot.name
+		var bar = slot.find_child("*Bar*", true, false) as ProgressBar
+		var button = slot.find_child("*Button*", true, false) as Button
+		var level = int(current_meta.skills_data[s_id]["level"])
 		
 		# Controleer of dit slot een ouder-slot heeft waaraan hij vastgeketend zit
 		var parent_node = slot.get("parent_skill_slot") if "parent_skill_slot" in slot else null
 		
 		if is_instance_valid(parent_node):
+			var parent_id = parent_node.skill_id if "skill_id" in parent_node else parent_node.name
 			var parent_level: int = 0
-			if current_meta.skills_data.has(parent_node.name):
-				parent_level = int(current_meta.skills_data[parent_node.name]["level"])
+			if current_meta.skills_data.has(parent_id):
+				parent_level = int(current_meta.skills_data[parent_id]["level"])
 			
 			if parent_level > 0:
 				slot.visible = true
-				_apply_skill_visual_rules(bar, button, level, slot.name)
+				if button: button.disabled = false
+				_apply_skill_visual_rules(bar, button, level, s_id)
 				if is_instance_valid(skill_lines_container) and line_index < skill_lines_container.get_child_count():
 					draw_line_between(skill_lines_container.get_child(line_index), parent_node, slot)
 					line_index += 1
 			else:
 				slot.visible = false
+				if button: button.disabled = true
 		else:
 			# Slots zonder parent zijn de start-skills; die staan altijd aan!
 			slot.visible = true
-			_apply_skill_visual_rules(bar, button, level, slot.name)
-
+			if button: button.disabled = false
+			_apply_skill_visual_rules(bar, button, level, s_id)
 
 # --- RECHTSTREEKSE VERTALING VAN JULLIE INTERNE INKLEURINGS-LOGICA ---
 func _apply_skill_visual_rules(bar: ProgressBar, button: Button, level: int, slot_name: String) -> void:
@@ -242,8 +264,8 @@ func _apply_skill_visual_rules(bar: ProgressBar, button: Button, level: int, slo
 func draw_line_between(line: Line2D, parent_slot: Control, child_slot: Control) -> void:
 	if not line or not parent_slot or not child_slot: return
 	
-	var p_bar = parent_slot.find_child("*Bar*", true, false)
-	var c_bar = child_slot.find_child("*Bar*", true, false)
+	var p_bar = parent_slot.find_child("Bar", true, false)
+	var c_bar = child_slot.find_child("Bar", true, false)
 	
 	if p_bar and c_bar:
 		line.clear_points()
@@ -251,22 +273,19 @@ func draw_line_between(line: Line2D, parent_slot: Control, child_slot: Control) 
 		line.default_color = Color.GOLD
 		line.z_index = -1 # Dwingt de goudlijn ALTIJD achter de vakjes te zakken!
 		
-		# Omrekening naar lokale coördinaten voor de Line2D node
 		var start_pos: Vector2 = line.to_local(p_bar.global_position + Vector2(p_bar.size.x / 2, p_bar.size.y - 3))
 		var end_pos: Vector2 = line.to_local(c_bar.global_position + Vector2(c_bar.size.x / 2, 3))
 		
-		# Bereken de perfecte haakse trap-bocht (Z-vorm)
 		var mid_y: float = start_pos.y + ((end_pos.y - start_pos.y) / 2)
 		var knik_1: Vector2 = Vector2(start_pos.x, mid_y)
 		var knik_2: Vector2 = Vector2(end_pos.x, mid_y)
 		
-		# Voeg de vier hoekpunten op volgorde toe aan de Line2D
 		line.add_point(start_pos)
 		line.add_point(knik_1)
 		line.add_point(knik_2)
 		line.add_point(end_pos)
 
-# GECORRIGEERD: De naam klopt nu 1-op-1 met de signaalkoppeling op regel 41 en 42!
+
 func _on_back_to_main_menu_pressed() -> void:
 	print("SKILL TREE: Terugkeren naar het hoofdmenu...")
 	var save_system = load("res://Systems/SaveSystem.gd").new()

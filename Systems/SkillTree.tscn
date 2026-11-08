@@ -110,14 +110,14 @@ width = 6.0
 
 [node name="Skill1_Slot" type="Control" parent="Skill_Slots" unique_id=1741902644]
 layout_mode = 3
-anchor_left = 0.5208333
-anchor_top = 0.8873457
-anchor_right = 0.5208333
-anchor_bottom = 0.8873457
-offset_left = -22.999939
-offset_top = -419.3333
-offset_right = -22.999939
-offset_bottom = -419.3333
+anchor_left = 0.509
+anchor_top = 0.499
+anchor_right = 0.509
+anchor_bottom = 0.499
+offset_left = -0.2800293
+offset_top = 0.079956055
+offset_right = -0.2800293
+offset_bottom = 0.079956055
 grow_horizontal = 2
 grow_vertical = 2
 size_flags_horizontal = 4
@@ -155,7 +155,6 @@ fill_mode = 3
 show_percentage = false
 
 [node name="Skill2_Slot" type="Control" parent="Skill_Slots" unique_id=1815719365 node_paths=PackedStringArray("parent_skill_slot")]
-visible = false
 layout_mode = 3
 anchors_preset = 8
 anchor_left = 0.5
@@ -172,6 +171,7 @@ size_flags_horizontal = 4
 size_flags_vertical = 4
 mouse_filter = 1
 script = ExtResource("2_ja8g2")
+skill_id = "skill_damage"
 parent_skill_slot = NodePath("../Skill1_Slot")
 
 [node name="Skill2Button" type="Button" parent="Skill_Slots/Skill2_Slot" unique_id=583290530]
@@ -204,7 +204,6 @@ fill_mode = 3
 show_percentage = false
 
 [node name="Skill3_Slot" type="Control" parent="Skill_Slots" unique_id=179964470 node_paths=PackedStringArray("parent_skill_slot")]
-visible = false
 layout_mode = 3
 anchors_preset = 8
 anchor_left = 0.5
@@ -221,6 +220,7 @@ size_flags_horizontal = 4
 size_flags_vertical = 4
 mouse_filter = 1
 script = ExtResource("2_ja8g2")
+skill_id = "skill_shot_speed"
 parent_skill_slot = NodePath("../Skill1_Slot")
 
 [node name="Skill3Button" type="Button" parent="Skill_Slots/Skill3_Slot" unique_id=26717299]
@@ -253,7 +253,6 @@ fill_mode = 3
 show_percentage = false
 
 [node name="Skill4_Slot" type="Control" parent="Skill_Slots" unique_id=1465586397 node_paths=PackedStringArray("parent_skill_slot")]
-visible = false
 layout_mode = 3
 anchors_preset = 8
 anchor_left = 0.5
@@ -270,6 +269,7 @@ size_flags_horizontal = 4
 size_flags_vertical = 4
 mouse_filter = 1
 script = ExtResource("2_ja8g2")
+skill_id = "skill_fire_rate"
 parent_skill_slot = NodePath("../Skill3_Slot")
 
 [node name="Skill4Button" type="Button" parent="Skill_Slots/Skill4_Slot" unique_id=294333574]
@@ -302,7 +302,6 @@ fill_mode = 3
 show_percentage = false
 
 [node name="Skill5_Slot" type="Control" parent="Skill_Slots" unique_id=2129117569 node_paths=PackedStringArray("parent_skill_slot")]
-visible = false
 layout_mode = 3
 anchors_preset = 8
 anchor_left = 0.5
@@ -319,6 +318,7 @@ size_flags_horizontal = 4
 size_flags_vertical = 4
 mouse_filter = 1
 script = ExtResource("2_ja8g2")
+skill_id = "skill_jump"
 parent_skill_slot = NodePath("../Skill1_Slot")
 
 [node name="Skill5Button" type="Button" parent="Skill_Slots/Skill5_Slot" unique_id=2009122091]
@@ -351,7 +351,6 @@ fill_mode = 3
 show_percentage = false
 
 [node name="Skill6_Slot" type="Control" parent="Skill_Slots" unique_id=1932926106 node_paths=PackedStringArray("parent_skill_slot")]
-visible = false
 layout_mode = 3
 anchors_preset = 8
 anchor_left = 0.5
@@ -368,6 +367,7 @@ size_flags_horizontal = 4
 size_flags_vertical = 4
 mouse_filter = 1
 script = ExtResource("2_ja8g2")
+skill_id = "skill_loot_magnet"
 parent_skill_slot = NodePath("../Skill5_Slot")
 
 [node name="Skill6Button" type="Button" parent="Skill_Slots/Skill6_Slot" unique_id=2053722124]
@@ -400,7 +400,6 @@ fill_mode = 3
 show_percentage = false
 
 [node name="Skill7_Slot" type="Control" parent="Skill_Slots" unique_id=1996089255 node_paths=PackedStringArray("parent_skill_slot")]
-visible = false
 layout_mode = 3
 anchors_preset = 8
 anchor_left = 0.5
@@ -417,6 +416,7 @@ size_flags_horizontal = 4
 size_flags_vertical = 4
 mouse_filter = 1
 script = ExtResource("2_ja8g2")
+skill_id = "skill_idk"
 parent_skill_slot = NodePath("../Skill5_Slot")
 
 [node name="Skill7Button" type="Button" parent="Skill_Slots/Skill7_Slot" unique_id=531718292]
