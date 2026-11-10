@@ -4,6 +4,9 @@
 [ext_resource type="PackedScene" uid="uid://dpl1t8aw48l35" path="res://Systems/hud.tscn" id="2_2dmkb"]
 [ext_resource type="Script" uid="uid://cdw7fvr7ld31g" path="res://Systems/SkillSlot.gd" id="2_ja8g2"]
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_2dmkb"]
+bg_color = Color(0.4408223, 0.65306795, 0.572601, 1)
+
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_2gcpv"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_442fu"]
@@ -39,13 +42,35 @@ mouse_filter = 2
 [node name="StatusContainer" parent="Hud/HUD_layout" parent_id_path=PackedInt32Array(1155961062, 1161523818) index="2" unique_id=1053764889]
 mouse_filter = 2
 
-[node name="back_to_main_menu" type="Button" parent="." unique_id=1292662051]
+[node name="back_to_main_menu" type="Button" parent="Hud/HUD_layout" parent_id_path=PackedInt32Array(1155961062, 1161523818) index="3" unique_id=1292662051]
 layout_mode = 0
-offset_left = -2469.0
-offset_top = -734.0
-offset_right = -2424.0
-offset_bottom = -703.0
+offset_left = 959.0
+offset_top = 1007.0
+offset_right = 1004.0
+offset_bottom = 1038.0
 text = "Back"
+
+[node name="SkillPopup" type="PanelContainer" parent="Hud" unique_id=2007187025]
+custom_minimum_size = Vector2(200, 0)
+custom_maximum_size = Vector2(200, -1)
+offset_left = 70.0
+offset_top = 212.0
+offset_right = 110.0
+offset_bottom = 262.0
+scale = Vector2(1.2799975, 1.1200022)
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_2dmkb")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Hud/SkillPopup" unique_id=816845429]
+layout_mode = 2
+
+[node name="PopupTitle" type="Label" parent="Hud/SkillPopup/VBoxContainer" unique_id=2143659806]
+layout_mode = 2
+autowrap_mode = 3
+
+[node name="PopupDescription" type="Label" parent="Hud/SkillPopup/VBoxContainer" unique_id=1998316792]
+layout_mode = 2
+autowrap_mode = 3
 
 [node name="Skill_Lines" type="Node" parent="." unique_id=409825942]
 
@@ -448,7 +473,7 @@ theme_override_styles/fill = SubResource("StyleBoxFlat_ovfmv")
 fill_mode = 3
 show_percentage = false
 
-[connection signal="pressed" from="back_to_main_menu" to="." method="_on_back_to_main_menu_pressed"]
+[connection signal="pressed" from="Hud/HUD_layout/back_to_main_menu" to="." method="_on_back_to_main_menu_pressed"]
 [connection signal="pressed" from="Skill_Slots/Skill1_Slot/Skill1Button" to="." method="_on_skill_1_button_pressed"]
 [connection signal="pressed" from="Skill_Slots/Skill2_Slot/Skill2Button" to="." method="_on_skill_2_button_pressed"]
 

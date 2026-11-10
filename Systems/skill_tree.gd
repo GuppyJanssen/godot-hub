@@ -11,6 +11,11 @@ var buy_amount: int = 1
 @onready var skill_slots_container: Node = $Skill_Slots
 @onready var skill_lines_container: Node = $Skill_Lines
 @onready var back_button: Button = find_child("back_to_main_menu", true, false) as Button
+#skill pop up info
+@onready var skill_popup: PanelContainer = find_child("SkillPopup", true, false) as PanelContainer
+@onready var popup_title: Label = find_child("PopupTitle", true, false) as Label
+@onready var popup_description: Label = find_child("PopupDescription", true, false) as Label
+
 
 # --- CAMERA ZOOM & PAN INSTELLINGEN ---
 var min_zoom: float = 0.5
@@ -42,19 +47,37 @@ func _ready() -> void:
 			back_button.pressed.connect(_on_back_to_main_menu_pressed)
 	
 	# Dynamische signaalkoppeling voor de klik-knoppen van álle slots in de map
+	# Dynamische signaalkoppeling voor de klik- EN hover-knoppen van álle slots
 	if is_instance_valid(skill_slots_container):
 		for slot in skill_slots_container.get_children():
-			var button = slot.find_child("*Button*", true, false)
+			var button = slot.find_child("*Button*", true, false) as Button
 			var bar = slot.find_child("*Bar*", true, false)
 			if bar: bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			
-			# REPARATIE: We binden nu de 'skill_id' van het slot in plaats van slot.name!
-			if button and not button.pressed.is_connected(_on_any_skill_button_pressed):
+			if button:
 				var s_id = slot.skill_id if "skill_id" in slot else slot.name
-				button.pressed.connect(_on_any_skill_button_pressed.bind(s_id))
+				
+				# Bestaande klik-koppeling
+				if not button.pressed.is_connected(_on_any_skill_button_pressed):
+					button.pressed.connect(_on_any_skill_button_pressed.bind(s_id))
+				
+				# NIEUW: Koppel mouse_entered en mouse_exited voor het popup-scherm!
+				if not button.mouse_entered.is_connected(_on_skill_button_hover_entered):
+					button.mouse_entered.connect(_on_skill_button_hover_entered.bind(s_id))
+				if not button.mouse_exited.is_connected(_on_skill_button_hover_exited):
+					button.mouse_exited.connect(_on_skill_button_hover_exited)
 				
 	await get_tree().process_frame
 	update_skill_tree_visuals()
+
+func _process(_delta: float) -> void:
+	# REALTIME POPUP MUIS-TRACKING
+	if is_instance_valid(skill_popup) and skill_popup.visible:
+		var mouse_pos = get_global_mouse_position()
+		
+		# We zetten hem op een vaste, comfortabele afstand rechtsonder de cursor (X: 25, Y: 25)
+		# Doordat het vak nu maximaal 200 breed is en wrapt, valt er niks meer buiten beeld!
+		skill_popup.global_position = mouse_pos + Vector2(25, 25)
 
 
 func setup_slot_anchors() -> void:
@@ -88,7 +111,7 @@ func _input(event: InputEvent) -> void:
 
 
 # =========================================================================
-# --- DYNAMISCHE DUAL-MODUS KOOP EN SPENDERINGS AFHANDELING ---
+# --- JULLIE ORIGINELE DUAL-MODUS KOOP EN SPENDERINGS AFHANDELING ---
 # =========================================================================
 func _on_any_skill_button_pressed(skill_id: String) -> void:
 	if not current_meta or not is_instance_valid(skill_slots_container): return
@@ -142,7 +165,7 @@ func _on_any_skill_button_pressed(skill_id: String) -> void:
 		can_afford = true
 		
 	if can_afford:
-		# REPARATIE: Dupliceer de dictionary om Godot te dwingen de nested data-update op te slaan
+		# Dupliceer de dictionary om Godot te dwingen de nested data-update op te slaan
 		var updated_slot_data = current_meta.skills_data.get(skill_id, {"level": 0, "currency_type": c_type}).duplicate()
 		updated_slot_data["level"] = current_level + actual_buy_qty
 		current_meta.skills_data[skill_id] = updated_slot_data
@@ -164,7 +187,7 @@ func _on_any_skill_button_pressed(skill_id: String) -> void:
 
 
 # =========================================================================
-# --- VISUELE SYNC EN TRAP-BOCHTEN DRAW UPDATE LOOP ---
+# --- VISUELE SYNC EN TRAP-BOCHTEN DRAW UPDATE LOOP (MET VERRE BLIK) ---
 # =========================================================================
 func update_skill_tree_visuals() -> void:
 	if not current_meta or not is_instance_valid(skill_slots_container): return
@@ -179,7 +202,7 @@ func update_skill_tree_visuals() -> void:
 	var line_index: int = 0
 	var all_slots = skill_slots_container.get_children()
 	
-	# Database controle & initialisatie via de Inspector/CSV-waarden
+	# 1. Database controle & initialisatie via de Inspector/CSV-waarden
 	for slot in all_slots:
 		var s_id = slot.skill_id if "skill_id" in slot else slot.name
 		var c_type: int = slot.currency_type if "currency_type" in slot else 0
@@ -195,40 +218,62 @@ func update_skill_tree_visuals() -> void:
 			current_meta.skills_data[s_id]["currency_type"] = c_type
 			current_meta.skills_data[s_id]["loss_per_minute"] = loss_rate
 
-	# Universele check van de stamboom (Zorgt voor zichtbaarheids-resets en lijnen)
+	# 2. BEPAAL DE REIKWIJDTE VAN JOUW VISUELE KIJKER (DYNAMISCH)
+	var vision_range: int = 1
+	if current_meta.skills_data.has("skill_vision"):
+		var vision_data = current_meta.skills_data["skill_vision"]
+		var vision_level = int(vision_data["level"]) if vision_data is Dictionary else int(vision_data)
+		if vision_level > 0:
+			vision_range = 2
+
+	# 3. Universele check van de stamboom (Zorgt voor zichtbaarheids-resets en lijnen)
 	for slot in all_slots:
 		var s_id = slot.skill_id if "skill_id" in slot else slot.name
 		var bar = slot.find_child("*Bar*", true, false) as ProgressBar
 		var button = slot.find_child("*Button*", true, false) as Button
 		var level = int(current_meta.skills_data[s_id]["level"])
 		
-		# Controleer of dit slot een ouder-slot heeft waaraan hij vastgeketend zit
+		# Check of de overkoepelende ouders belicht zijn binnen onze range
+		var is_visible_by_fog: bool = false
 		var parent_node = slot.get("parent_skill_slot") if "parent_skill_slot" in slot else null
 		
-		if is_instance_valid(parent_node):
-			var parent_id = parent_node.skill_id if "skill_id" in parent_node else parent_node.name
-			var parent_level: int = 0
-			if current_meta.skills_data.has(parent_id):
-				parent_level = int(current_meta.skills_data[parent_id]["level"])
+		if parent_node == null:
+			is_visible_by_fog = true
+		else:
+			var current_check_parent = parent_node
+			var steps_away: int = 1
 			
-			if parent_level > 0:
-				slot.visible = true
-				if button: button.disabled = false
-				_apply_skill_visual_rules(bar, button, level, s_id)
+			while current_check_parent != null and steps_away <= vision_range:
+				var p_id = current_check_parent.skill_id if "skill_id" in current_check_parent else current_check_parent.name
+				var p_level: int = 0
+				if current_meta.skills_data.has(p_id):
+					var p_data = current_meta.skills_data[p_id]
+					p_level = int(p_data["level"]) if p_data is Dictionary else int(p_data)
+				
+				if p_level > 0:
+					is_visible_by_fog = true
+					break
+				
+				current_check_parent = current_check_parent.get("parent_skill_slot") if "parent_skill_slot" in current_check_parent else null
+				steps_away += 1
+		
+		# 4. PAS DE ZICHTBAARHEID EN DE TRAK-LIJNEN TOE
+		if is_visible_by_fog:
+			slot.visible = true
+			if button: button.disabled = false
+			update_single_skill_visual(bar, button, level, s_id)
+			
+			if is_instance_valid(parent_node) and parent_node.visible:
 				if is_instance_valid(skill_lines_container) and line_index < skill_lines_container.get_child_count():
 					draw_line_between(skill_lines_container.get_child(line_index), parent_node, slot)
 					line_index += 1
-			else:
-				slot.visible = false
-				if button: button.disabled = true
 		else:
-			# Slots zonder parent zijn de start-skills; die staan altijd aan!
-			slot.visible = true
-			if button: button.disabled = false
-			_apply_skill_visual_rules(bar, button, level, s_id)
+			slot.visible = false
+			if button: button.disabled = true
 
-# --- RECHTSTREEKSE VERTALING VAN JULLIE INTERNE INKLEURINGS-LOGICA ---
-func _apply_skill_visual_rules(bar: ProgressBar, button: Button, level: int, slot_name: String) -> void:
+
+# --- VISUELE UPGRADE INKLEURING CONFORM JULLIE ARCHITECTUUR ---
+func update_single_skill_visual(bar: ProgressBar, button: Button, level: int, slot_name: String) -> void:
 	if not is_instance_valid(bar) or not is_instance_valid(button): return
 	bar.value = level
 	
@@ -255,23 +300,23 @@ func _apply_skill_visual_rules(bar: ProgressBar, button: Button, level: int, slo
 		button.text = slot_name + " (" + str(level) + "/100)"
 	else:
 		sb.bg_color = Color.DODGER_BLUE
-		button.text = "MAXIMAAL! (100/100)"
+		button.text = slot_name + " (100/100)"
 		
 	bar.add_theme_stylebox_override("fill", sb)
 
 
-# --- JULLIE RECHTSTREEKSE HAAKSE Z-VORM TRAP-BOCHTEN BEREKENING ---
+# --- JULLIE RECHTSTREEKSE HAAKSE Z-VORM TRAP-BOCHTEN BEREKENING (HERSTELD) ---
 func draw_line_between(line: Line2D, parent_slot: Control, child_slot: Control) -> void:
 	if not line or not parent_slot or not child_slot: return
 	
-	var p_bar = parent_slot.find_child("Bar", true, false)
-	var c_bar = child_slot.find_child("Bar", true, false)
+	var p_bar = parent_slot.find_child("*Bar*", true, false)
+	var c_bar = child_slot.find_child("*Bar*", true, false)
 	
 	if p_bar and c_bar:
 		line.clear_points()
 		line.visible = true
 		line.default_color = Color.GOLD
-		line.z_index = -1 # Dwingt de goudlijn ALTIJD achter de vakjes te zakken!
+		line.z_index = -1
 		
 		var start_pos: Vector2 = line.to_local(p_bar.global_position + Vector2(p_bar.size.x / 2, p_bar.size.y - 3))
 		var end_pos: Vector2 = line.to_local(c_bar.global_position + Vector2(c_bar.size.x / 2, 3))
@@ -284,6 +329,34 @@ func draw_line_between(line: Line2D, parent_slot: Control, child_slot: Control) 
 		line.add_point(knik_1)
 		line.add_point(knik_2)
 		line.add_point(end_pos)
+
+# --- POPUP AFHANDELING: Muis schuift op de knop ---
+func _on_skill_button_hover_entered(skill_id: String) -> void:
+	if not is_instance_valid(skill_popup) or not current_meta: return
+	
+	# Haal de live data op uit de MasterDatabase (als de ID bestaat)
+	var title_text = skill_id.capitalize()
+	var info_text = "Placeholder: Extra informatie over deze upgrade komt dadelijk uit de CSV!"
+	
+	# SSoT VOORBEREIDING: Als de MasterDatabase de data al heeft, lenen we die alvast
+	if MasterDatabase.skill_data.has(skill_id):
+		var csv_row = MasterDatabase.skill_data[skill_id]
+		# Zodra de CSV geüpload is, pakt hij automatisch jullie nieuwe kolom!
+		if csv_row.has("base_stats") and csv_row["base_stats"].has("skill_pop_up_info"):
+			info_text = str(csv_row["base_stats"]["skill_pop_up_info"])
+			
+	# Vul de labels op je monitor
+	if is_instance_valid(popup_title): popup_title.text = title_text
+	if is_instance_valid(popup_description): popup_description.text = info_text
+	
+	# Toon het venster
+	skill_popup.visible = true
+
+
+# --- POPUP AFHANDELING: Muis verlaat de knop ---
+func _on_skill_button_hover_exited() -> void:
+	if is_instance_valid(skill_popup):
+		skill_popup.visible = false
 
 
 func _on_back_to_main_menu_pressed() -> void:
