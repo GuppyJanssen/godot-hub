@@ -6,7 +6,7 @@ class_name SkillSlot
 @export var parent_skill_slot: Control = null
 
 # --- RUNTIME STATISTIEKEN (LIVE GELADEN UIT DE GOOGLE SPREADSHEET!) ---
-var currency_type: int = 1
+var currency_type: int = 0  
 var cost_per_click: int = 5
 var loss_per_minute: int = 1
 var current_level: int = 0
@@ -16,17 +16,15 @@ var current_level: int = 0
 
 
 func _ready() -> void:
-	# Geef de knop de naam van het slot voor de dynamische menulink
-	if button:
-		button.name = name
+	# REPARATIE: button.name overschrijven is verwijderd om find_child("*Button*") in het hoofdscript niet te slopen!
 	_refresh_slot_data()
 
 
 func _refresh_slot_data() -> void:
-	# 1. Haal de basisgegevens en drempels op uit de Master-CSV (enkelvoud skill_data!)
+	# 1. Haal de basisgegevens en drempels op uit de Master-CSV
 	if skill_id in MasterDatabase.skill_data:
 		var csv_data = MasterDatabase.skill_data[skill_id]["base_stats"]
-		currency_type = int(csv_data.get("currency_type", 1))
+		currency_type = int(csv_data.get("currency_type", 0))
 		cost_per_click = int(csv_data.get("cost_per_click", 5))
 		loss_per_minute = int(csv_data.get("loss_per_minute", 1))
 	else:
@@ -42,9 +40,8 @@ func _refresh_slot_data() -> void:
 		current_level = int(raw_val["level"]) if raw_val is Dictionary else int(raw_val)
 	else:
 		current_level = 0
-
-
 		
-	# (Optioneel: Roep hier dadelijk jullie eigen visuele update aan, 
-	# zoals het vullen van een ProgressBar of het bijwerken van een level-tekst!)
-	# _update_visuals()
+	# Pas direct de visuele start-waarden toe
+	if is_instance_valid(bar) and is_instance_valid(button):
+		bar.value = current_level
+		button.text = skill_id + " (" + str(current_level) + "/100)"

@@ -2,29 +2,22 @@ extends Control
 
 # --- GECORRIGEERD: Main Menu Opstart-as ---
 func _ready() -> void:
-	print("MAIN MENU: Hoofdmenu geladen voor slot: ", Game.active_save_slot)
+	# Bepaal of er een actieve run openstaat op de schijf (Net als bij jullie Continue-knop!)
+	var slot_folder = "user://" + Game.active_save_slot + "/"
+	var run_file = slot_folder + "current_run.json"
+	var has_active_run: bool = FileAccess.file_exists(run_file)
 	
-	# Forceer direct dat de hub weet dat we de run niet automatisch kapen, tenzij we op continue drukken
-	Game.should_load_run = false
-	
-	var continue_btn = find_child("ContinueButton", true, false) as Button
-	if not continue_btn:
-		continue_btn = find_child("*Continue*", true, false) as Button
+	# Zoek de Skill Tree knop op in het hoofdmenu
+	# Pas deze naam aan als jullie knop in de scèneboom anders heet (bijv. SkillTreeButton)
+	var skill_tree_btn = find_child("SkillTreeButton", true, false) as Button
+	if not is_instance_valid(skill_tree_btn):
+		skill_tree_btn = find_child("*Skill*", true, false) as Button
 		
-	if is_instance_valid(continue_btn):
-		var slot_folder = "user://" + Game.active_save_slot + "/"
-		var path_camel = slot_folder + "current_run.json"
-		var path_lower = "user://" + Game.active_save_slot.to_lower() + "/current_run.json"
-		
-		# HIER GECORRIGEERD: We kijken UITSLUITEND of het bestand fysiek op de schijf bestaat!
-		var file_exists: bool = FileAccess.file_exists(path_camel) or FileAccess.file_exists(path_lower)
-		
-		if file_exists:
-			continue_btn.visible = true
-			print("MAIN MENU: Fysieke run-save gevonden. Continue is ZICHTBAAR.")
-		else:
-			continue_btn.visible = false
-			print("MAIN MENU: Geen run-save gevonden op de schijf. Continue is ONZICHTBAAR.")
+	if is_instance_valid(skill_tree_btn):
+		# JOUW LOGICA: De Skill Tree is UITSLUITEND zichtbaar als er GEEN actieve run draait!
+		skill_tree_btn.visible = not has_active_run
+		print("MAIN MENU: Skill Tree knop zichtbaarheid ingesteld op: ", skill_tree_btn.visible)
+
 
 
 # --- SAMENGEVOEGD: De Sluitende Continue Motor ---
@@ -59,12 +52,62 @@ func _on_continue_button_pressed() -> void:
 	get_tree().change_scene_to_file("res://World/Levels/game_room.tscn")
 
 
-# --- GECORRIGEERD: De Beveiligde New Run Opschoner ---
+# --- GECORRIGEERDE NIEUWE RUN AFHANDELING ---
 func _on_new_run_button_pressed() -> void:
-	print("MAIN MENU: New Run geactiveerd. Forceer schone lei...")
+	print("MAIN MENU: New Run geactiveerd. Red openstaande buit en forceer schone lei...")
 	
-	# HARD-LOCK RESETS: Wis de runtime-buffers in de Global Hub onvoorwaardelijk naar 0!
-	# Dit garandeert dat de run start met (+0) winst op je scherm.
+	var slot_folder = "user://" + Game.active_save_slot + "/"
+	var player_data_path = slot_folder + "Player_Data.tres"
+	var run_file = slot_folder + "current_run.json"
+	
+	# =========================================================================
+	# 1. WATERDICHTE SSoT OVERBOEKING: Lees de buit rechtstreeks uit de Live Resource!
+	# =========================================================================
+	if ResourceLoader.exists(player_data_path):
+		var raw_stats = ResourceLoader.load(player_data_path)
+		var save_sys = load("res://Systems/SaveSystem.gd").new()
+		
+		# Als er een run-bestand openstond, halen we de buit uit de Hub metadata
+		if FileAccess.file_exists(run_file) and is_instance_valid(Game) and save_sys and save_sys.has_method("get_loaded_meta_progress"):
+			var open_olrite = int(Game.get_meta("run_loot_olrite")) if Game.has_meta("run_loot_olrite") else 0
+			var open_metal  = int(Game.get_meta("run_loot_metal"))  if Game.has_meta("run_loot_metal")  else 0
+			var open_keep   = int(Game.get_meta("run_loot_keepium")) if Game.has_meta("run_loot_keepium") else 0
+			var open_elem1  = int(Game.get_meta("run_loot_element1")) if Game.has_meta("run_loot_element1") else 0
+			var open_elem2  = int(Game.get_meta("run_loot_element2")) if Game.has_meta("run_loot_element2") else 0
+			var open_elem3  = int(Game.get_meta("run_loot_element3")) if Game.has_meta("run_loot_element3") else 0
+			
+			var meta = save_sys.get_loaded_meta_progress()
+			if meta and (open_olrite > 0 or open_metal > 0 or open_keep > 0 or open_elem1 > 0 or open_elem2 > 0 or open_elem3 > 0):
+				print("-> Openstaande buit gevonden! Boek over naar de Hoofdkluis...")
+				
+				# Rotsvaste overboeking naar de main wallet variabelen van de kluis
+				if "currency_olrite" in meta: meta.currency_olrite += open_olrite
+				elif "currency_1" in meta: meta.currency_1 += open_olrite
+				
+				if "currency_metal" in meta: meta.currency_metal += open_metal
+				elif "currency_2" in meta: meta.currency_2 += open_metal
+				
+				if "currency_keepium" in meta: meta.currency_keepium += open_keep
+				elif "currency_3" in meta: meta.currency_3 += open_keep
+				
+				if "currency_element1" in meta: meta.currency_element1 += open_elem1
+				elif "currency_4" in meta: meta.currency_4 += open_elem1
+				
+				if "currency_element2" in meta: meta.currency_element2 += open_elem2
+				elif "currency_5" in meta: meta.currency_5 += open_elem2
+				
+				if "currency_element3" in meta: meta.currency_element3 += open_elem3
+				elif "currency_6" in meta: meta.currency_6 += open_elem3
+				
+				# Sla de verwerkte buit definitief op naar de harde schijf
+				if save_sys.has_method("save_meta_progress"):
+					save_sys.save_meta_progress(meta)
+					print("-> SSoT: Hoofdsaldo succesvol verhoogd op de harde schijf!")
+
+	# =========================================================================
+	# 2. HARD-LOCK RESETS & SCHONE LEI CONFORM BLUEPRINT
+	# =========================================================================
+	print("MAIN MENU: Start de hard-lock resets...")
 	if is_instance_valid(Game):
 		Game.set_meta("run_loot_olrite", 0)
 		Game.set_meta("run_loot_metal", 0)
@@ -74,11 +117,18 @@ func _on_new_run_button_pressed() -> void:
 		Game.set_meta("run_loot_element3", 0)
 		Game.should_load_run = false
 		
-	# Wis ook de JSON van de schijf zodat continue wegblijft
-	var slot_folder = "user://" + Game.active_save_slot + "/"
-	var run_file = slot_folder + "current_run.json"
+		# Schoon de statusbalken-cache op voor de nieuwe run
+		Game.remove_meta("transit_health")
+		Game.remove_meta("transit_shield")
+		Game.remove_meta("transit_energy")
+		
+	# Wis de JSON van de schijf zodat continue verdwijnt
 	if FileAccess.file_exists(run_file):
 		DirAccess.remove_absolute(run_file)
+		
+	# Reset ook de LevelManager zodat de opbouw vanaf nul begint
+	if is_instance_valid(LevelManager):
+		LevelManager.reset_manager_for_new_run()
 		
 	get_tree().change_scene_to_file("res://World/Levels/game_room.tscn")
 

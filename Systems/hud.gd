@@ -4,10 +4,12 @@ extends CanvasLayer
 @onready var currency_container: VBoxContainer = find_child("CurrencyContainer", true, false) as VBoxContainer
 @onready var location_label: Label = find_child("LocationLabel", true, false) as Label
 
-# TextureProgressBar koppeling voor de batterij-icoontjes
-@onready var health_bar: TextureProgressBar = find_child("HealthBar", true, false) as TextureProgressBar
-@onready var shield_bar: TextureProgressBar = find_child("ShieldBar", true, false) as TextureProgressBar
-@onready var energy_bar: TextureProgressBar = find_child("EnergyBar", true, false) as TextureProgressBar
+# GECORRIGEERD: Omgezet naar reguliere ProgressBar conform de echte scéneboom van de editor!
+@onready var health_bar: ProgressBar = find_child("HealthBar", true, false) as ProgressBar
+@onready var shield_bar: ProgressBar = find_child("ShieldBar", true, false) as ProgressBar
+@onready var energy_bar: ProgressBar = find_child("EnergyBar", true, false) as ProgressBar
+@onready var status_container: Control = find_child("StatusContainer", true, false) as Control
+
 
 var active_player_node: CharacterBody2D = null
 var player_stats: PlayerStats = null
@@ -62,6 +64,29 @@ func _ready() -> void:
 		
 		currency_labels.append(lbl)
 
+	# --- ANTI-FLITS BEVEILIGING VOOR MENU'S EN SKILL TREE ---
+	# Als we opstarten en er is GEEN actieve speler, verbergen we de boel direct in ready()
+	# Dit voorkomt dat de container 1 frame op het scherm flitst tijdens scénewissels!
+	if not is_instance_valid(active_player_node):
+		if is_instance_valid(status_container): status_container.visible = false
+		if is_instance_valid(location_label): location_label.visible = false
+
+	# --- SKILL TREE INTERFACE BEVEILIGING ---
+	# Als we in de Skill Tree staan (er is geen player), dwingen we de HUD-containers
+	# om muisklikken te negeren, zodat zoomen, slepen en knoppen weer werken!
+	if not is_instance_valid(active_player_node):
+		# We dwingen de achterliggende CurrencyContainer om kliks onvoorwaardelijk door te laten
+		var curr_container = find_child("CurrencyContainer", true, false)
+		if is_instance_valid(curr_container) and curr_container is Control:
+			curr_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			
+		# SSoT VEILIGHEID: Mocht er een overkoepelend achtergrondpaneel in jullie HUD-scène zitten,
+		# dan dwingen we die hier via een brede scan ook direct op ignore
+		for child in get_children():
+			if child is Control:
+				child.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
 
 func _find_active_player() -> void:
 	if get_tree() and get_tree().current_scene:
@@ -77,46 +102,78 @@ func _find_active_player() -> void:
 
 func _process(_delta: float) -> void:
 	if not is_instance_valid(active_player_node):
+		# GECORRIGEERD: Vraagt de actieve player node op
 		_find_active_player()
 		
-	# 1. STATUS BALKEN REFRESH (Gekoppeld aan live resource-data)
-	if is_instance_valid(active_player_node) and active_player_node.stats:
-		var p_stats = active_player_node.stats
-		if health_bar and is_instance_valid(health_bar):
-			health_bar.max_value = p_stats.max_health
-			health_bar.value = p_stats.current_health
-		if shield_bar and is_instance_valid(shield_bar):
-			shield_bar.max_value = p_stats.max_shield
-			shield_bar.value = p_stats.current_shield
-		if energy_bar and is_instance_valid(energy_bar):
-			energy_bar.max_value = p_stats.max_energy
-			energy_bar.value = p_stats.current_energy
+	# --- UNIVERSELE SSoT HUD UPDATER (Werkt in de run EN in de Skill Tree!) ---
+	if is_instance_valid(Game):
 		
-	# 2. BINGO: Universele 'Saldo (+Winst)' weergave via de Global Hub metadata!
-	if is_instance_valid(active_player_node) and currency_labels.size() >= 6:
-		var p = active_player_node
-		
-		# Haal de live run-winst veilig en crash-vrij op uit de Global Hub
-		var w_olrite = str(Game.get_meta("run_loot_olrite")) if Game.has_meta("run_loot_olrite") else "0"
-		var w_metal  = str(Game.get_meta("run_loot_metal"))  if Game.has_meta("run_loot_metal")  else "0"
-		var w_keep   = str(Game.get_meta("run_loot_keepium")) if Game.has_meta("run_loot_keepium") else "0"
-		var w_elem1  = str(Game.get_meta("run_loot_element1")) if Game.has_meta("run_loot_element1") else "0"
-		var w_elem2  = str(Game.get_meta("run_loot_element2")) if Game.has_meta("run_loot_element2") else "0"
-		var w_elem3  = str(Game.get_meta("run_loot_element3")) if Game.has_meta("run_loot_element3") else "0"
-		
-		# Schrijf de labels onvoorwaardelijk en loepzuiver naar het scherm
-		if is_instance_valid(currency_labels[0]): currency_labels[0].text = "Olrite: " + str(p.run_currency_olrite) + " (+" + w_olrite + ")"
-		if is_instance_valid(currency_labels[1]): currency_labels[1].text = "Metal: " + str(p.run_currency_metal if "run_currency_metal" in p else p.run_currency_gold) + " (+" + w_metal + ")"
-		if is_instance_valid(currency_labels[2]): currency_labels[2].text = "Keepium: " + str(p.run_currency_keepium) + " (+" + w_keep + ")"
-		if is_instance_valid(currency_labels[3]): currency_labels[3].text = "Element 1: " + str(p.run_currency_element1) + " (+" + w_elem1 + ")"
-		if is_instance_valid(currency_labels[4]): currency_labels[4].text = "Element 2: " + str(p.run_currency_element2) + " (+" + w_elem2 + ")"
-		if is_instance_valid(currency_labels[5]): currency_labels[5].text = "Element 3: " + str(p.run_currency_element3) + " (+" + w_elem3 + ")"
-		
-	# 3. LOCATIE TEKST BIJWERKEN
-	if is_instance_valid(LevelManager) and location_label and is_instance_valid(location_label):
-		if LevelManager.current_layer == 0:
-			location_label.text = "LOCATIE: Zuidpool (Startbasis)"
-		elif LevelManager.current_layer == LevelManager.LAYER_WIDTHS.size() - 1:
-			location_label.text = "LOCATIE: Noordpool (Eindbaas-Arena)"
+		# REGEL A: Als de speler actief is in een run, tonen we de 'Saldo (+Winst)' HUD
+		if is_instance_valid(active_player_node):
+			var p = active_player_node
+			var w_olrite = str(Game.get_meta("run_loot_olrite")) if Game.has_meta("run_loot_olrite") else "0"
+			var w_metal  = str(Game.get_meta("run_loot_metal"))  if Game.has_meta("run_loot_metal")  else "0"
+			var w_keep   = str(Game.get_meta("run_loot_keepium")) if Game.has_meta("run_loot_keepium") else "0"
+			var w_elem1  = str(Game.get_meta("run_loot_element1")) if Game.has_meta("run_loot_element1") else "0"
+			var w_elem2  = str(Game.get_meta("run_loot_element2")) if Game.has_meta("run_loot_element2") else "0"
+			var w_elem3  = str(Game.get_meta("run_loot_element3")) if Game.has_meta("run_loot_element3") else "0"
+			
+			if currency_labels.size() >= 6:
+				currency_labels[0].text = "Olrite: " + str(p.run_currency_olrite) + " (+" + w_olrite + ")"
+				currency_labels[1].text = "Metal: " + str(p.run_currency_metal) + " (+" + w_metal + ")"
+				currency_labels[2].text = "Keepium: " + str(p.run_currency_keepium) + " (+" + w_keep + ")"
+				currency_labels[3].text = "Element 1: " + str(p.run_currency_element1) + " (+" + w_elem1 + ")"
+				currency_labels[4].text = "Element 2: " + str(p.run_currency_element2) + " (+" + w_elem2 + ")"
+				currency_labels[5].text = "Element 3: " + str(p.run_currency_element3) + " (+" + w_elem3 + ")"
+				
+			# Activeer de complete status-as en locatie tijdens de run
+			if is_instance_valid(status_container): status_container.visible = true
+			if is_instance_valid(location_label): location_label.visible = true
+
+			# 1. LIVE HUD STATUS BALKEN UPDATEREN
+			if active_player_node.stats:
+				var p_stats = active_player_node.stats
+				if is_instance_valid(health_bar):
+					health_bar.max_value = p_stats.max_health
+					health_bar.value = p_stats.current_health
+				if is_instance_valid(shield_bar):
+					shield_bar.max_value = p_stats.max_shield
+					shield_bar.value = p_stats.current_shield
+				if is_instance_valid(energy_bar):
+					energy_bar.max_value = p_stats.max_energy
+					energy_bar.value = p_stats.current_energy
+					
+			# 2. LOCATIE LABEL BIJWERKEN
+			if is_instance_valid(LevelManager) and is_instance_valid(location_label):
+				if LevelManager.current_layer == 0:
+					location_label.text = "LOCATIE: Zuidpool (Startbasis)"
+				elif LevelManager.current_layer == LevelManager.LAYER_WIDTHS.size() - 1:
+					location_label.text = "LOCATIE: Noordpool (Eindbaas-Arena)"
+				else:
+					location_label.text = "LOCATIE: Ring " + str(LevelManager.current_layer) + " - Kamer " + str(LevelManager.current_room_index)
+			
+		# REGEL B: Als er GEEN speler is, betekent dit dat we in de SKILL TREE staan!
 		else:
-			location_label.text = "LOCATIE: Ring " + str(LevelManager.current_layer) + " - Kamer " + str(LevelManager.current_room_index)
+			# Verberg de complete StatusContainer (inclusief het hartje, schildje en de bliksem) in één klap!
+			if is_instance_valid(status_container): status_container.visible = false
+			if is_instance_valid(location_label): location_label.visible = false
+
+			# Laad de permanente Meta Progress database in voor de Skill Tree weergave
+			var save_sys = load("res://Systems/SaveSystem.gd").new()
+			if save_sys and save_sys.has_method("get_loaded_meta_progress"):
+				var meta = save_sys.get_loaded_meta_progress()
+				if meta and currency_labels.size() >= 6:
+					var m_olrite = meta.currency_olrite if "currency_olrite" in meta else (meta.currency_1 if "currency_1" in meta else 0)
+					var m_metal  = meta.currency_metal if "currency_metal" in meta else (meta.currency_2 if "currency_2" in meta else 0)
+					var m_keep   = meta.currency_keepium if "currency_keepium" in meta else (meta.currency_3 if "currency_3" in meta else 0)
+					var m_elem1  = meta.currency_element1 if "currency_element1" in meta else (meta.currency_4 if "currency_4" in meta else 0)
+					var m_elem2  = meta.currency_element2 if "currency_element2" in meta else (meta.currency_5 if "currency_5" in meta else 0)
+					var m_elem3  = meta.currency_element3 if "currency_element3" in meta else (meta.currency_6 if "currency_6" in meta else 0)
+					
+					# Schrijf de waarden nu loepzuiver met index-verwijzingen naar de 6 losse regels
+					currency_labels[0].text = "Olrite: " + str(m_olrite)
+					currency_labels[1].text = "Metal: " + str(m_metal)
+					currency_labels[2].text = "Keepium: " + str(m_keep)
+					currency_labels[3].text = "Element 1: " + str(m_elem1)
+					currency_labels[4].text = "Element 2: " + str(m_elem2)
+					currency_labels[5].text = "Element 3: " + str(m_elem3)
