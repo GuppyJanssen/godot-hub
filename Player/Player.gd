@@ -50,8 +50,9 @@ func _ready() -> void:
 		stats = raw_stats.duplicate()
 		print("PLAYER ENGINE: Unieke, slot-geïsoleerde resource-kopie online via schijf: ", custom_tres_path)
 	
+	# Deze onderste gaat gezeik opleveren met onze single scources of truth... Stel, we maken een ander schip met max HP van 20000. Dan gaat ie hier kijken of dat groter is of gelijk aan 0 en maak er vervolgens 100 van... 
 	if stats:
-		# Veiligheids-as voor de HUD balken
+		# Veiligheids-as voor de HUD balken 
 		if stats.max_health <= 0: stats.max_health = 100
 		if stats.max_shield <= 0: stats.max_shield = 50
 		if stats.max_energy <= 0: stats.max_energy = 100
