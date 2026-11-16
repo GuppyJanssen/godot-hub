@@ -177,9 +177,6 @@ func _ready() -> void:
 		call_deferred("_force_continue_position")
 
 
-	get_tree().call_group("projectiles", "queue_free")
-
-
 	# --- INITIALISATIE REGENERATIE EN ENERGIE TIMERS ---
 	# --- INITIALISATIE REGENERATIE EN ENERGIE TIMERS ---
 	# 1. Schild Timer: Regelt de 3 seconden afkoeltijd na het incasseren van schade

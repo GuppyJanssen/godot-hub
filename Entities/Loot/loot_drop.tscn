@@ -1,6 +1,6 @@
-[gd_scene format=3 uid="uid://dk4b0yyxsgscd"]
+[gd_scene format=3 uid="uid://uys4gxokm6ls"]
 
-[ext_resource type="Script" uid="uid://bm761k8x0dpsw" path="res://Entities/Objects/loot_drop.gd" id="1_ekmao"]
+[ext_resource type="Script" uid="uid://bm761k8x0dpsw" path="res://Entities/Loot/loot_drop.gd" id="1_ekmao"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_elb4p"]
 radius = 6.0

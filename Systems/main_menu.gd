@@ -24,6 +24,11 @@ func _ready() -> void:
 func _on_continue_button_pressed() -> void:
 	print("MAIN MENU: Continue geactiveerd. Laden van bestaande run...")
 	
+	# RunState: dode vijanden, gehaalde kamers en speeltijd terughalen.
+	# Bestaat er nog geen RunState-bestand (een save van voor deze wijziging), begin dan schoon.
+	if not RunState.load_run():
+		RunState.start_new_run()
+	
 	var full_path = "user://" + Game.active_save_slot + "/current_run.json"
 	
 	if FileAccess.file_exists(full_path):
@@ -54,6 +59,7 @@ func _on_continue_button_pressed() -> void:
 
 # --- GECORRIGEERDE NIEUWE RUN AFHANDELING ---
 func _on_new_run_button_pressed() -> void:
+	RunState.start_new_run()
 	print("MAIN MENU: New Run geactiveerd. Red openstaande buit en forceer schone lei...")
 	
 	var slot_folder = "user://" + Game.active_save_slot + "/"

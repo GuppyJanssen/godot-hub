@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://dlnkpp7v7gngv" path="res://Entities/Objects/test_body.gd" id="1_8wndd"]
 [ext_resource type="Texture2D" uid="uid://c4bvglccawcuj" path="res://icon.svg" id="2_4luq1"]
+[ext_resource type="Texture2D" uid="uid://cqdmyw7kkdjmo" path="res://Sprites Models/enemies/organic_grunt_1.png" id="3_571ci"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_elb4p"]
 size = Vector2(16, 16)
@@ -23,3 +24,7 @@ shape = SubResource("RectangleShape2D_elb4p")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="HitBox" unique_id=962011676]
 shape = SubResource("RectangleShape2D_wsr3v")
+
+[node name="OrganicGrunt2" type="Sprite2D" parent="." unique_id=708387305]
+position = Vector2(-1, 0)
+texture = ExtResource("3_571ci")

@@ -17,7 +17,10 @@ var spawn_timer: Timer = null
 var active_scene: Node = null
 var my_id: String = ""
 var room_key: String = ""
+var room_layer: int = 0
+var room_index: int = 0
 var is_destroyed: bool = false
+var restored_timer_left: float = 0.0  # resterende tijd tot de volgende grunt, na het laden
 
 @onready var sprite: Sprite2D = find_child("*Sprite*", true, false) as Sprite2D
 
@@ -25,6 +28,7 @@ var is_destroyed: bool = false
 func _ready() -> void:
 	# 1. DOELWIT REGISTRATIE
 	add_to_group("targets")
+	add_to_group("saveable")  # deze fabriek wil onthouden worden (zie game_room.gd)
 	spawner_current_health = spawner_max_health
 	
 	await get_tree().process_frame
@@ -39,35 +43,34 @@ func _ready() -> void:
 	active_scene = get_tree().current_scene
 	
 	room_key = "L" + str(LevelManager.current_layer) + "_R" + str(LevelManager.current_room_index)
-	var full_path = "user://" + Game.active_save_slot + "/current_run.json"
+	room_layer = LevelManager.current_layer
+	room_index = LevelManager.current_room_index
 	
 	# GECORRIGEERD: De fabriek krijgt nu het unieke voorvoegsel 'Spawner_' 
 	# Dit voorkomt dat hij dezelfde naam draagt als de eerste vijand!
-	my_id = "HeavySpawner_" + str(int(global_position.x)) + "_0_" + str(int(global_position.y)) + "_0"
-
-# Maak de zware fabriek visueel groter dan de basis variant!
-	if is_instance_valid(sprite):
-		sprite.scale = Vector2(1.5, 1.5) 	
-	var spawner_already_destroyed: bool = false
+	my_id = get_run_id()
 	
-	# SSoT CHECK: Is deze fabriek al gesloopt?
-	if FileAccess.file_exists(full_path):
-		var spawner_file = FileAccess.open(full_path, FileAccess.READ)
-		var json = JSON.new()
-		if json.parse(spawner_file.get_as_text()) == OK:
-			var data = json.get_data()
-			if data.has("target_damage_taken") and data["target_damage_taken"].has(room_key):
-				var room_damage = data["target_damage_taken"][room_key]
-				if room_damage.has(my_id) and float(room_damage[my_id]) >= spawner_max_health:
-					spawner_already_destroyed = true
-		spawner_file.close()
+	# Maak de zware fabriek visueel groter dan de basis variant!
+	if is_instance_valid(sprite):
+		sprite.scale = Vector2(1.5, 1.5)
+	
+	# Is deze fabriek deze run al gesloopt? RunState weet het.
+	var spawner_already_destroyed: bool = RunState.is_dead(room_layer, room_index, my_id)
 		
 	if spawner_already_destroyed:
 		print("SPAWNER: Object ", my_id, " is permanent kapot. Node verwijderd.")
 		queue_free()
 		return
 		
-	if spawn_on_start:
+	# Stond deze fabriek er al toen je de kamer verliet? Zet dan zijn HP en zijn teller terug.
+	# De grunts die nog leefden, zet de kamer zelf terug (zie game_room.gd).
+	var saved: Dictionary = RunState.get_saved_unit(room_layer, room_index, my_id)
+	var was_restored: bool = not saved.is_empty()
+	if was_restored:
+		apply_run_state(saved)
+		print("RUNSTATE: ", my_id, " teruggezet met HP ", spawner_current_health, "/", spawner_max_health)
+	
+	if spawn_on_start and not was_restored:
 		spawn_single_enemy()
 		
 	if total_enemies_to_spawn > 1 or total_enemies_to_spawn == -1:
@@ -80,10 +83,45 @@ func _setup_spawn_timer() -> void:
 	spawn_timer.autostart = true
 	spawn_timer.timeout.connect(_on_spawn_timer_timeout)
 	add_child(spawn_timer)
+	# Na het laden: ga verder met de tijd die er nog op de klok stond.
+	if restored_timer_left > 0.0:
+		spawn_timer.start(restored_timer_left)
+		restored_timer_left = 0.0
+
+
+# --- ONTHOUDEN: de drie functies voor de groep "saveable" ---
+
+# De naam waaraan deze fabriek herkend wordt: gebaseerd op zijn plek in de kamer.
+func get_run_id() -> String:
+	return "HeavySpawner_" + str(int(global_position.x)) + "_0_" + str(int(global_position.y)) + "_0"
+
+
+# Wat deze fabriek wil bewaren.
+func get_run_state() -> Dictionary:
+	if is_destroyed:
+		return {}  # kapot: niet bewaren, de dodenlijst regelt dat
+	var timer_left: float = 0.0
+	if is_instance_valid(spawn_timer):
+		timer_left = spawn_timer.time_left
+	return {
+		"hp": spawner_current_health,
+		"count": enemies_spawned_count,
+		"timer_left": timer_left,
+	}
+
+
+# Zet de bewaarde gegevens terug.
+func apply_run_state(data: Dictionary) -> void:
+	spawner_current_health = float(data.get("hp", spawner_max_health))
+	enemies_spawned_count = int(data.get("count", 0))
+	restored_timer_left = float(data.get("timer_left", 0.0))
 
 
 func _on_spawn_timer_timeout() -> void:
 	if is_destroyed: return
+	# Na het laden liep de klok één keer korter. Zet hem terug op de normale tijd.
+	if is_instance_valid(spawn_timer) and not is_equal_approx(spawn_timer.wait_time, spawn_interval_seconds):
+		spawn_timer.start(spawn_interval_seconds)
 	if total_enemies_to_spawn != -1 and enemies_spawned_count >= total_enemies_to_spawn:
 		if is_instance_valid(spawn_timer): spawn_timer.stop()
 		return
@@ -101,6 +139,12 @@ func spawn_single_enemy() -> void:
 	if total_enemies_to_spawn == 1:
 		inst.name = enemy_base_name
 	else:
+		# Sla de heavies over die deze run al gedood zijn, zodat de fabriek verdergaat waar hij was.
+		while RunState.is_dead(room_layer, room_index, enemy_base_name + "_heavy_" + str(enemies_spawned_count)):
+			enemies_spawned_count += 1
+		if total_enemies_to_spawn != -1 and enemies_spawned_count >= total_enemies_to_spawn:
+			inst.free()
+			return
 		inst.name = enemy_base_name + "_heavy_" + str(enemies_spawned_count)
 		
 	inst.global_position = global_position + Vector2(randf_range(-20, 20), randf_range(20, 40))
@@ -143,16 +187,9 @@ func _deferred_destruction() -> void:
 	if is_in_group("targets"): remove_from_group("targets")
 	if is_in_group("enemies"): remove_from_group("enemies")
 	
-	# Meld de vernietiging met de maximale schade-waarde aan het SaveSystem
-	var save_system_script = load("res://Systems/SaveSystem.gd")
-	if save_system_script:
-		var save_instance = save_system_script.new()
-		if save_instance:
-			if not save_instance.dead_enemies_cache.has(room_key):
-				save_instance.dead_enemies_cache[room_key] = []
-			if not my_id in save_instance.dead_enemies_cache[room_key]:
-				save_instance.dead_enemies_cache[room_key].append(my_id)
-				print("SPAWNER: Destructie succesvol opgeslagen in dead_enemies_cache.")
+	# Onthoud in RunState dat deze fabriek kapot is.
+	RunState.mark_dead(room_layer, room_index, my_id)
+	print("SPAWNER: Destructie onthouden in RunState.")
 				
 	if is_instance_valid(spawn_timer):
 		spawn_timer.stop()

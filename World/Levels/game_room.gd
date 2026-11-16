@@ -22,6 +22,12 @@ var left_b: Node = null
 var right_b: Node = null
 var initialization_complete: bool = false
 
+# Welke ring en kamer dit is. Wordt bij het laden vastgelegd, zodat het blijft kloppen
+# als de LevelManager bij een kamerwissel al naar de volgende kamer wijst.
+var my_layer: int = 0
+var my_room: int = 0
+var room_ready: bool = false
+
 
 func _ready() -> void:
 	print("GAMEROOM: Universele kamer online. Start initialisatie...")
@@ -31,6 +37,8 @@ func _ready() -> void:
 	await get_tree().process_frame
 	
 	var active_layer = LevelManager.current_layer
+	my_layer = active_layer
+	my_room = LevelManager.current_room_index
 	var max_layer_index = LevelManager.LAYER_WIDTHS.size() - 1
 	print("GAMEROOM: Initialisatie compleet. Actieve Ring: ", active_layer)
 	
@@ -96,6 +104,9 @@ func _ready() -> void:
 			if save_instance and save_instance.has_method("load_current_run"):
 				save_instance.load_current_run(active_player)
 				
+	# Leg de loot en de vijanden terug zoals ze waren toen je deze kamer verliet.
+	_restore_room()
+	
 	_check_barriers()
 
 	# 5. TOGGLE-AFHANKELIJKE RANDSPAWN
@@ -166,11 +177,12 @@ func _check_software_transitions() -> void:
 	var enemies = get_tree().get_nodes_in_group("targets").size() + get_tree().get_nodes_in_group("enemies").size()
 	if enemies > 0: return 
 	
+	# Geen vijanden meer: deze kamer is gehaald. RunState onthoudt dat.
+	RunState.mark_cleared(LevelManager.current_layer, LevelManager.current_room_index)
+	
 	var current_layer = LevelManager.current_layer
 	var max_layer_index = LevelManager.LAYER_WIDTHS.size() - 1
 	
-	var save_system_script = load("res://Systems/SaveSystem.gd")
-	var save_instance = save_system_script.new() if save_system_script else null
 	
 	# NOORD-TRANSITIE (Up)
 	if active_player.global_position.y < 25.0:
@@ -179,7 +191,7 @@ func _check_software_transitions() -> void:
 			LevelManager.set_meta("player_exit_x", active_player.global_position.x)
 			LevelManager.current_layer += 1
 			LevelManager.current_room_index = 0
-			if save_instance and save_instance.has_method("save_current_run"): save_instance.save_current_run(active_player)
+			_save_before_transition()
 			get_tree().change_scene_to_file("res://World/Levels/game_room.tscn")
 			return
 			
@@ -190,7 +202,7 @@ func _check_software_transitions() -> void:
 			LevelManager.set_meta("player_exit_x", active_player.global_position.x)
 			LevelManager.current_layer -= 1
 			LevelManager.current_room_index = 0
-			if save_instance and save_instance.has_method("save_current_run"): save_instance.save_current_run(active_player)
+			_save_before_transition()
 			get_tree().change_scene_to_file("res://World/Levels/game_room.tscn")
 			return
 
@@ -206,8 +218,7 @@ func _check_software_transitions() -> void:
 				LevelManager.current_room_index = LevelManager.LAYER_WIDTHS[current_layer] - 1
 				
 			# SSoT GUARD: Schrijf de live status en winst NU naar de schijf voordat de scene wisselt!
-			if save_instance and save_instance.has_method("save_current_run"): 
-				save_instance.save_current_run(active_player)
+			_save_before_transition()
 				
 			get_tree().change_scene_to_file("res://World/Levels/game_room.tscn")
 			return
@@ -221,8 +232,107 @@ func _check_software_transitions() -> void:
 				LevelManager.current_room_index = 0
 				
 			# SSoT GUARD: Schrijf de live status en winst NU naar de schijf voordat de scene wisselt!
-			if save_instance and save_instance.has_method("save_current_run"): 
-				save_instance.save_current_run(active_player)
+			_save_before_transition()
 				
 			get_tree().change_scene_to_file("res://World/Levels/game_room.tscn")
 			return
+
+
+# Slaat alles op vlak voor een kamerwissel. Wordt aangeroepen NADAT de LevelManager
+# al op de nieuwe ring en kamer staat.
+func _save_before_transition() -> void:
+	# Eerst vastleggen wat er in DEZE kamer achterblijft (loot, levende vijanden).
+	snapshot_room(true)
+	
+	# Bestaande save (positie, HP, schade aan vijanden die nog leven).
+	var save_instance = load("res://Systems/SaveSystem.gd").new()
+	save_instance.save_current_run(active_player)
+	save_instance.free()
+	
+	# RunState: dode vijanden, gehaalde kamers en speeltijd.
+	RunState.ring = LevelManager.current_layer
+	RunState.room = LevelManager.current_room_index
+	RunState.save()
+
+
+# ============================================================================
+# KAMER ONTHOUDEN
+#
+# De kamer weet NIET wat voor objecten er zijn. Elk object dat onthouden wil worden:
+#   1. meldt zich aan in de groep "saveable" (in zijn _ready)
+#   2. heeft drie functies:
+#        get_run_id()          -> een naam die uniek is binnen de kamer
+#        get_run_state()       -> een Dictionary met wat het wil bewaren ({} = sla mij over)
+#        apply_run_state(data) -> zet die gegevens weer terug
+#
+# Een nieuw soort object (asteroïde, wrak, NPC) onthouden = die drie functies in zijn
+# eigen script. Aan deze kamer en aan RunState hoeft dan niets te veranderen.
+#
+# Extra groep "save_only_on_quit": objecten die alleen bewaard worden bij "terug naar
+# hoofdmenu", niet bij een kamerwissel (bijvoorbeeld kogels).
+# ============================================================================
+
+# Maakt een momentopname van alles in de groep "saveable" en geeft die aan RunState.
+# leaving_room = true bij een kamerwissel, false bij "terug naar hoofdmenu".
+func snapshot_room(leaving_room: bool = false) -> void:
+	if not room_ready:
+		return
+	
+	var units: Dictionary = {}
+	for node in get_tree().get_nodes_in_group("saveable"):
+		if not is_instance_valid(node) or node.is_queued_for_deletion():
+			continue
+		if leaving_room and node.is_in_group("save_only_on_quit"):
+			continue
+		if not node.has_method("get_run_id") or not node.has_method("get_run_state"):
+			continue
+		
+		var data: Dictionary = node.get_run_state()
+		if data.is_empty():
+			continue
+		# De scene waar het object uit komt, zodat de kamer het opnieuw kan neerzetten.
+		if not data.has("scene"):
+			data["scene"] = node.scene_file_path
+		data["name"] = str(node.name)
+		units[str(node.get_run_id())] = data
+	
+		print("KAMER BEWAARD: ", units.keys())
+	
+	RunState.save_room_snapshot(my_layer, my_room, units)
+
+
+# Zet terug wat er bij de laatste momentopname was en nu niet in de kamer staat
+# (loot, vijanden uit een fabriek, later kogels). Objecten die vast in de kamer staan,
+# halen hun gegevens zelf op in hun eigen _ready.
+func _restore_room() -> void:
+	# Wat staat er al in de kamer?
+	var present: Dictionary = {}
+	for node in get_tree().get_nodes_in_group("saveable"):
+		if is_instance_valid(node) and node.has_method("get_run_id"):
+			present[str(node.get_run_id())] = true
+	
+	var units: Dictionary = RunState.get_saved_units(my_layer, my_room)
+	for unit_id in units:
+		var data = units[unit_id]
+		if not data is Dictionary:
+			continue
+		if present.has(str(unit_id)):
+			continue  # staat er al en zet zichzelf terug
+		if RunState.is_dead(my_layer, my_room, str(unit_id)):
+			continue
+		
+		var scene_path: String = str(data.get("scene", ""))
+		if scene_path == "" or not ResourceLoader.exists(scene_path):
+			print("KAMER: kan ", unit_id, " niet terugzetten, scene onbekend: '", scene_path, "'")
+			continue
+		print("KAMER TERUGGEZET: ", unit_id)
+		
+		var inst = load(scene_path).instantiate()
+		# Sommige objecten (vijanden) worden aan hun naam herkend en moeten die terugkrijgen.
+		if data.get("keep_name", false):
+			inst.name = str(data.get("name", inst.name))
+		add_child(inst)
+		if inst.has_method("apply_run_state"):
+			inst.apply_run_state(data)
+	
+	room_ready = true

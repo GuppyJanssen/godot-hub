@@ -156,6 +156,6 @@ func load_and_force_continue_position() -> void:
 		set_meta("run_loot_metal", int(run_data.get("run_loot_metal", 0)))
 		set_meta("run_loot_keepium", int(run_data.get("run_loot_keepium", 0)))
 		set_meta("run_loot_element1", int(run_data.get("run_loot_element1", 0)))
-		run_data["run_loot_element2"] = int(run_data.get("run_loot_element2", 0))
-		run_data["run_loot_element3"] = int(run_data.get("run_loot_element3", 0))
+		set_meta("run_loot_element2", int(run_data.get("run_loot_element2", 0)))
+		set_meta("run_loot_element3", int(run_data.get("run_loot_element3", 0)))
 	c_file.close()

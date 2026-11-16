@@ -15,27 +15,31 @@ var traveled_distance: float = 0.0
 
 func _ready() -> void:
 	add_to_group("projectiles")
-	
+	# Deze kogel wil onthouden worden (zie game_room.gd), maar alleen bij
+	# "terug naar hoofdmenu". Bij een kamerwissel vervalt hij.
+	add_to_group("saveable")
+	add_to_group("save_only_on_quit")
+
 	# We zoeken de live speler om zijn actuele runtime (F1 of Skill Tree) data te pikken!
 	var player = get_tree().current_scene.find_child("Player", true, false)
-	
+
 	if player and not player.current_weapon_stats.is_empty():
 		var w_csv = player.current_weapon_stats
-		
+
 		# De kogel haalt zijn gedrag nu WATERDICHT uit de Google Spreadsheet!
 		speed = w_csv.get("speed", 700.0)
 		damage = int(w_csv.get("damage", 10))
 		weapon_range = w_csv.get("weapon_range", 600.0)
 		size_multiplier = w_csv.get("size_multiplier", 1.0)
-		
+
 		# Pas de fysieke grootte aan
 		scale = Vector2(size_multiplier, size_multiplier)
-		
+
 		# Zoek de sprite node flexibel op
 		var sprite_node = find_child("*Sprite*", true, false) as Sprite2D
 		if sprite_node and current_stats and current_stats.texture:
 			sprite_node.texture = current_stats.texture
-			
+
 		print("PROJECTIEL SPAWN: Gekoppeld aan CSV. Snelheid is: ", speed)
 	else:
 		# Veilige back-up waarden
@@ -43,7 +47,7 @@ func _ready() -> void:
 		damage = 10
 		weapon_range = 600.0
 		scale = Vector2.ONE
-		
+
 	# Automatisch opruimen na 3 seconden om traagheid te voorkomen
 	await get_tree().create_timer(3.0, false).timeout
 	queue_free()
@@ -54,7 +58,7 @@ func _physics_process(delta: float) -> void:
 	# Als jullie via de Skill Tree de muzzle een hoek meegeven, reist deze rotatie hier direct mee!
 	var move_amount = speed * delta
 	position += Vector2.RIGHT.rotated(rotation) * move_amount
-	
+
 	# Bereik-controle: ruim de kogel netjes op als zijn range op is
 	traveled_distance += move_amount
 	if traveled_distance >= weapon_range:
@@ -66,14 +70,47 @@ func _on_body_entered(body: Node2D) -> void:
 	# Veiligheid: Schiet nooit jezelf neer!
 	if body.is_in_group("Player") or body.name == "Player":
 		return
-		
+
 	if body.is_in_group("targets") or body.has_method("take_damage"):
 		var final_damage = int(damage * Game.debug_damage_multiplier)
-		
+
 		if body.has_method("take_damage"):
 			var impact_direction = Vector2.RIGHT.rotated(rotation).normalized()
 			# We sturen de schade, de flits-bool en de impact-richting mee naar de vijand!
 			body.take_damage(final_damage, true, impact_direction)
 			print("PROJECTIEL IMPACT: ", body.name, " geklapt! Schade: ", final_damage)
-			
+
 		queue_free()
+
+
+# --- ONTHOUDEN: de drie functies voor de groep "saveable" ---
+
+# Een kogel heeft geen vaste naam, dus elke kogel krijgt een eigen nummer.
+func get_run_id() -> String:
+	return "bullet_" + str(get_instance_id())
+
+
+# Wat deze kogel wil bewaren: plek, richting, snelheid, schade en hoe ver hij al gevlogen heeft.
+func get_run_state() -> Dictionary:
+	return {
+		"x": global_position.x,
+		"y": global_position.y,
+		"rot": global_rotation,
+		"speed": speed,
+		"damage": damage,
+		"range": weapon_range,
+		"size": size_multiplier,
+		"traveled": traveled_distance,
+	}
+
+
+# Zet de bewaarde gegevens terug.
+func apply_run_state(data: Dictionary) -> void:
+	global_position = Vector2(float(data.get("x", global_position.x)), float(data.get("y", global_position.y)))
+	global_rotation = float(data.get("rot", global_rotation))
+	speed = float(data.get("speed", speed))
+	damage = int(data.get("damage", damage))
+	weapon_range = float(data.get("range", weapon_range))
+	size_multiplier = float(data.get("size", size_multiplier))
+	scale = Vector2(size_multiplier, size_multiplier)
+	traveled_distance = float(data.get("traveled", traveled_distance))

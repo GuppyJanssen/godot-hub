@@ -12,6 +12,7 @@ var loot_friction: float = 150.0
 
 func _ready() -> void:
 	add_to_group("loot")
+	add_to_group("saveable")  # dit blokje wil onthouden worden (zie game_room.gd)
 	
 	if not body_entered.is_connected(_on_body_entered):
 		body_entered.connect(_on_body_entered)
@@ -19,16 +20,38 @@ func _ready() -> void:
 		area_entered.connect(_on_area_entered)
 
 
-func set_impact_direction(hit_dir: Vector2) -> void:
-	if hit_dir == Vector2.ZERO:
-		var random_angle = randf_range(0, 2 * PI)
-		velocity = Vector2(cos(random_angle), sin(random_angle)) * randf_range(100.0, 250.0)
-		return
-		
-	var spread_angle = randf_range(-deg_to_rad(25), deg_to_rad(25))
-	var final_dir = hit_dir.rotated(spread_angle)
-	var random_speed = randf_range(100.0, 200.0)
-	velocity = final_dir * random_speed
+# Geeft het blokje zijn vaart mee: een smalle streep in de richting van de kogel.
+func launch_splatter(hit_dir: Vector2, settings: Dictionary) -> void:
+	velocity = LootSplatter.random_velocity(hit_dir, settings)
+	loot_friction = float(settings.get("drag", LootSplatter.DEFAULT_DRAG))
+
+
+# --- ONTHOUDEN: de drie functies voor de groep "saveable" ---
+
+# Loot heeft geen vaste naam, dus elk blokje krijgt een eigen nummer.
+func get_run_id() -> String:
+	return "loot_" + str(get_instance_id())
+
+
+# Wat dit blokje wil bewaren: soort, aantal, plek en de vaart die het nog had.
+func get_run_state() -> Dictionary:
+	return {
+		"type": currency_type,
+		"amount": amount,
+		"x": global_position.x,
+		"y": global_position.y,
+		"vx": velocity.x,
+		"vy": velocity.y,
+		"friction": loot_friction,
+	}
+
+
+# Zet de bewaarde gegevens terug.
+func apply_run_state(data: Dictionary) -> void:
+	init_loot(int(data.get("type", 1)), int(data.get("amount", 1)))
+	global_position = Vector2(float(data.get("x", 0.0)), float(data.get("y", 0.0)))
+	velocity = Vector2(float(data.get("vx", 0.0)), float(data.get("vy", 0.0)))
+	loot_friction = float(data.get("friction", loot_friction))
 
 
 func _physics_process(delta: float) -> void:
@@ -112,6 +135,10 @@ func _execute_pickup(player_node: Node2D) -> void:
 			4: Game.set_meta("run_loot_element1", current_elem1 + amount)
 			5: Game.set_meta("run_loot_element2", current_elem2 + amount)
 			6: Game.set_meta("run_loot_element3", current_elem3 + amount)
-			
+	
+	# RunState telt mee, naast de bestaande telling in Game.
+	var names: Array = ["", "olrite", "metal", "keepium", "element1", "element2", "element3"]
+	RunState.add_loot(names[currency_type], amount)
+	
 	# Wis het opgezogen kristal vloeibaar uit de arena
 	queue_free()

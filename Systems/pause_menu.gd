@@ -30,25 +30,20 @@ func _on_main_menu_button_pressed() -> void:
 	print("PAUZEMENU: Terugkeren naar Hoofdmenu via handmatige verlaat-knop. Run-state opslaan...")
 	
 	if is_instance_valid(Game) and is_instance_valid(Game.active_player):
-		var slot_folder = "user://" + Game.active_save_slot + "/"
-		var full_path = slot_folder + "current_run.json"
-		var run_data = {}
+		# Bestaande save: positie en alle 6 de loot-tellers. Deze functie vult het bestand aan
+		# in plaats van het te overschrijven, dus de rest van de run blijft bewaard.
+		Game.save_live_run_state_to_disk()
 		
-		# Vul de JSON-save met de exacte live-coördinaten en de buit-stand van dit frame
-		run_data["current_layer"] = LevelManager.current_layer
-		run_data["current_room_index"] = LevelManager.current_room_index
-		run_data["player_x"] = Game.active_player.global_position.x
-		run_data["player_y"] = Game.active_player.global_position.y
-		
-		run_data["run_loot_olrite"] = int(Game.get_meta("run_loot_olrite")) if Game.has_meta("run_loot_olrite") else 0
-		run_data["run_loot_metal"]  = int(Game.get_meta("run_loot_metal"))  if Game.has_meta("run_loot_metal")  else 0
-		run_data["run_loot_keepium"] = int(Game.get_meta("run_loot_keepium")) if Game.has_meta("run_loot_keepium") else 0
-		
-		var write_file = FileAccess.open(full_path, FileAccess.WRITE)
-		if write_file:
-			write_file.store_string(JSON.stringify(run_data, "\t"))
-			write_file.close()
-			print("PAUZEMENU: Run succesvol gebrand op schijf voor Continue.")
+		# RunState: dode vijanden, gehaalde kamers en speeltijd.
+		RunState.ring = LevelManager.current_layer
+		RunState.room = LevelManager.current_room_index
+		RunState.player_position = Game.active_player.global_position
+		# Leg vast wat er in deze kamer ligt en leeft (alles in de groep "saveable").
+		var room_scene = get_tree().current_scene
+		if room_scene and room_scene.has_method("snapshot_room"):
+			room_scene.snapshot_room()
+		RunState.save()
+		print("PAUZEMENU: Run succesvol gebrand op schijf voor Continue.")
 			
 	get_tree().paused = false
 	get_tree().change_scene_to_file("res://Systems/main_menu.tscn")
@@ -124,6 +119,9 @@ func _on_surrender_button_pressed() -> void:
 	if save_system and save_system.has_method("delete_current_run_save"):
 		save_system.delete_current_run_save()
 		print("PAUZEMENU: Tijdelijke JSON run-save met succes van schijf gewist.")
+	
+	# RunState afsluiten: wist de dodenlijst, de gehaalde kamers en de speeltijd van deze run.
+	RunState.end_run()
 		
 	# Geef het OS één frame ademruimte om de schijf-afhandeling te voltooien
 	await get_tree().process_frame

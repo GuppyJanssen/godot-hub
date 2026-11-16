@@ -1,0 +1,51 @@
+[gd_scene format=3 uid="uid://cc52ugu0wr7iu"]
+
+[ext_resource type="Texture2D" uid="uid://whcq7p7imdf0" path="res://Sprites Models/enemies/cyborg_grunt_2.png" id="1_671h1"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_elb4p"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_wsr3v"]
+radius = 32.0
+height = 98.34533
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_elb4p"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_e2gu1"]
+radius = 9.986436
+height = 27.75763
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_k044l"]
+height = 20.0
+
+[node name="Control" type="RigidBody2D" unique_id=81087246]
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=498531773]
+texture = ExtResource("1_671h1")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=2128895172]
+position = Vector2(2, 5.9999995)
+scale = Vector2(1.6725118, 1.5304008)
+shape = SubResource("CircleShape2D_elb4p")
+
+[node name="Hitbox" type="Area2D" parent="." unique_id=919449700]
+
+[node name="CollisionShape_Overall" type="CollisionShape2D" parent="Hitbox" unique_id=633614577]
+position = Vector2(3, -1)
+rotation = -0.1938839
+scale = Vector2(0.9370263, 0.7620606)
+shape = SubResource("CapsuleShape2D_wsr3v")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox" unique_id=1485139695]
+position = Vector2(-17, -26)
+scale = Vector2(1.2079169, 0.63589704)
+shape = SubResource("CapsuleShape2D_elb4p")
+
+[node name="CollisionShape2D2" type="CollisionShape2D" parent="Hitbox" unique_id=428868299]
+position = Vector2(18.000004, -22.000002)
+rotation = 0.28107584
+scale = Vector2(1.4857705, -0.73222053)
+shape = SubResource("CapsuleShape2D_e2gu1")
+
+[node name="CollisionShape2D3" type="CollisionShape2D" parent="Hitbox" unique_id=1378097235]
+position = Vector2(17, 31)
+shape = SubResource("CapsuleShape2D_k044l")

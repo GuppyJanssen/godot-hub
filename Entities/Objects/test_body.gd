@@ -12,53 +12,110 @@ var current_health: int = 50
 # Editor-keuze voor welk Excel-type deze vijand is
 @export_range(1, 6) var test_body_type: int = 1
 
+# --- FACTIE EN TYPE ---
+# Samen bepalen ze welke waarden deze vijand krijgt (zie Systems/enemy_stats.gd).
+# De fabriek vult ze in bij het maken. Voor een vijand die vast in de kamer staat,
+# vul je ze in de Inspector in. Leeg = de oude manier via test_body_type.
+@export var faction: String = ""
+@export var unit_type: String = ""
+
+# Hoe de stats in de SSOT heten (base_max_health, max_health_modifier, base_speed ...).
+const STAT_HEALTH := "max_health"
+const STAT_SPEED := "speed"
+
 @onready var sprite: Sprite2D = find_child("*Sprite*", true, false) as Sprite2D
 
 
 func _ready() -> void:
 	add_to_group("targets")
 	add_to_group("enemies")
+	add_to_group("saveable")  # deze vijand wil onthouden worden (zie game_room.gd)
 	
 	# 1. DATA LADEN UIT DE SINGLE SOURCE OF TRUTH (SSoT) CSV
-	var csv_key = "enemy_test_" + str(test_body_type)
-	if csv_key in MasterDatabase.enemy_data:
-		var e_data = MasterDatabase.enemy_data[csv_key]
-		var e_stats = e_data["base_stats"]
-		
-		if "health" in e_stats: 
-			max_health = int(e_stats["health"])
-		if "loot_amount_blocks" in e_stats:
-			set_meta("loot_blocks", int(e_stats["loot_amount_blocks"]))
-			
-		print(name, " succesvol geboren! HP geladen uit SSoT CSV: ", max_health)
-	else:
-		max_health = 50
-		set_meta("loot_blocks", 3)
-		
-	current_health = max_health
+	_load_stats()
 	
 	# 2. SSoT GEBOORTE-CHECK (Voorkomt herrijzenis uit de dood)
 	await get_tree().process_frame
 	
-	var room_key = "L" + str(LevelManager.current_layer) + "_R" + str(LevelManager.current_room_index)
-	var full_path = "user://" + Game.active_save_slot + "/current_run.json"
+	if RunState.is_dead(LevelManager.current_layer, LevelManager.current_room_index, name):
+		print("RUNSTATE: ", name, " is deze run al gedood. queue_free() geactiveerd!")
+		queue_free()
+		return
 	
-	if FileAccess.file_exists(full_path):
-		var file = FileAccess.open(full_path, FileAccess.READ)
-		var json = JSON.new()
-		if json.parse(file.get_as_text()) == OK:
-			var run_data = json.get_data()
-			if run_data.has("target_damage_taken") and run_data["target_damage_taken"].has(room_key):
-				var active_room_damage = run_data["target_damage_taken"][room_key]
-				
-				if active_room_damage.has(name):
-					var damage_taken = int(active_room_damage[name])
-					if damage_taken >= max_health:
-						print("SSoT BEVEILIGING: ", name, " hoort dood te zijn in ", room_key, ". queue_free() geactiveerd!")
-						file.close()
-						queue_free()
-						return
-		file.close()
+	# Was deze vijand er al toen je de kamer verliet? Zet dan zijn HP en zijn plek terug.
+	var saved: Dictionary = RunState.get_saved_unit(LevelManager.current_layer, LevelManager.current_room_index, name)
+	if not saved.is_empty():
+		apply_run_state(saved)
+		print("RUNSTATE: ", name, " teruggezet met HP ", current_health, "/", max_health)
+
+
+# Laadt de waarden van deze vijand. Wordt aangeroepen bij de geboorte, en opnieuw
+# als een bewaarde vijand zijn factie en type terugkrijgt.
+func _load_stats() -> void:
+	if faction != "" and unit_type != "" and EnemyStats.exists(faction, unit_type):
+		# NIEUW: factie × type uit de SSOT.
+		max_health = int(EnemyStats.value(faction, unit_type, STAT_HEALTH, max_health))
+		movement_speed = EnemyStats.value(faction, unit_type, STAT_SPEED, movement_speed)
+		print(name, " geboren als factie ", faction, " / ", unit_type, ". HP: ", max_health)
+	else:
+		# OUD: de testrijen enemy_test_1 t/m 6 uit de MasterDatabase.
+		var csv_key = "enemy_test_" + str(test_body_type)
+		if csv_key in MasterDatabase.enemy_data:
+			var e_data = MasterDatabase.enemy_data[csv_key]
+			var e_stats = e_data["base_stats"]
+		
+			if "health" in e_stats: 
+				max_health = int(e_stats["health"])
+			if "loot_amount_blocks" in e_stats:
+				set_meta("loot_blocks", int(e_stats["loot_amount_blocks"]))
+			
+			print(name, " succesvol geboren! HP geladen uit SSoT CSV: ", max_health)
+		else:
+			max_health = 50
+			set_meta("loot_blocks", 3)
+	
+	# De kleur van de factie over de hele vijand. De witte flits bij een treffer zit op de
+	# sprite zelf, dus die blijft gewoon werken.
+	if faction != "":
+		modulate = EnemyStats.color(faction)
+	
+	current_health = max_health
+
+
+# --- ONTHOUDEN: de drie functies voor de groep "saveable" ---
+
+# De naam waaraan deze vijand herkend wordt binnen de kamer.
+func get_run_id() -> String:
+	return str(name)
+
+
+# Wat deze vijand wil bewaren als je de kamer verlaat of naar het hoofdmenu gaat.
+func get_run_state() -> Dictionary:
+	if current_health <= 0:
+		return {}  # dood: niet bewaren, de dodenlijst regelt dat
+	return {
+		"keep_name": true,
+		"faction": faction,
+		"unit_type": unit_type,
+		"hp": current_health,
+		"x": global_position.x,
+		"y": global_position.y,
+		"rot": global_rotation,
+	}
+
+
+# Zet de bewaarde gegevens terug.
+func apply_run_state(data: Dictionary) -> void:
+	# Eerst factie en type terug, zodat de juiste waarden (max HP, snelheid, kleur) geladen worden.
+	var saved_faction: String = str(data.get("faction", faction))
+	var saved_type: String = str(data.get("unit_type", unit_type))
+	if saved_faction != faction or saved_type != unit_type:
+		faction = saved_faction
+		unit_type = saved_type
+		_load_stats()
+	current_health = int(data.get("hp", max_health))
+	global_position = Vector2(float(data.get("x", global_position.x)), float(data.get("y", global_position.y)))
+	global_rotation = float(data.get("rot", global_rotation))
 
 
 # --- 3. DYNAMISCHE BEWEGINGS-AI (60x per seconde) ---
@@ -108,26 +165,21 @@ func _deferred_death(hit_dir: Vector2) -> void:
 	if is_in_group("targets"): remove_from_group("targets")
 	if is_in_group("enemies"): remove_from_group("enemies")
 	
-	var room_key = "L" + str(LevelManager.current_layer) + "_R" + str(LevelManager.current_room_index)
-	
-	var save_system_script = load("res://Systems/SaveSystem.gd")
-	if save_system_script:
-		var save_system_instance = save_system_script.new()
-		if save_system_instance:
-			if not save_system_instance.dead_enemies_cache.has(room_key):
-				save_system_instance.dead_enemies_cache[room_key] = []
-			if not name in save_system_instance.dead_enemies_cache[room_key]:
-				save_system_instance.dead_enemies_cache[room_key].append(name)
-				print("VIJAND: Overlijden van ", name, " succesvol geregistreerd voor ", room_key)
+	# Onthoud in RunState dat deze vijand dood is. RunState bewaart dat voor de hele run.
+	RunState.mark_dead(LevelManager.current_layer, LevelManager.current_room_index, name)
+	print("VIJAND: Overlijden van ", name, " onthouden in RunState.")
 
 	_drop_specific_loot(hit_dir)
 	queue_free()
 
 
 # --- 5. SAPPIGE LOOT EXPLOSIE ---
-# --- SSoT GEWOGEN LOOT EXPLOSIE ---
 func _drop_specific_loot(hit_dir: Vector2) -> void:
-	var loot_scene = load("res://Entities/Objects/loot_drop.tscn")
+	# Geen richting meegekregen? Neem dan de lijn van de speler naar deze vijand.
+	# Kogels komen van de speler, dus dat is bijna altijd de vliegrichting.
+	if hit_dir == Vector2.ZERO and is_instance_valid(Game.active_player):
+		hit_dir = (global_position - Game.active_player.global_position).normalized()
+	var loot_scene = load("res://Entities/Loot/loot_drop.tscn")
 	if not loot_scene: 
 		return
 	
@@ -155,22 +207,19 @@ func _drop_specific_loot(hit_dir: Vector2) -> void:
 		print("JACKPOT! De database rolt een zeldzame 10-blokjes drop!")
 
 	# --- 2. DE FYSIEKE SPAWN LUS ---
+	# Instellingen van de splatter: spreiding, snelheden, afremming, startvlek.
+	var settings: Dictionary = LootSplatter.default_settings()
+	var offset: float = float(settings["start_offset"])
+
 	for i in range(total_drops):
 		var loot_instance = loot_scene.instantiate()
-		
-		# SSoT HARD-LOCK: Elk fysiek blokje is vanaf nu exact 1 eenheid waard!
-		# Hierdoor is het aantal blokjes dat je ziet vliegen, exact gelijk aan de HUD-optelsom.
-		var crystal_value = 1
-		loot_instance.init_loot(test_body_type, crystal_value)
-		
-		# ARCADE JUICE IMPULS: Waaier-effect in de richting van het dodelijke schot
-		if loot_instance.has_method("set_impact_direction"):
-			var scatter = Vector2(randf_range(-0.5, 0.5), randf_range(-0.5, 0.5))
-			var final_impulse = (hit_dir + scatter).normalized()
-			loot_instance.set_impact_direction(final_impulse)
-		
-		# Plaats het blokje rondom de positie van de gesloopte vijand
-		loot_instance.global_position = global_position + Vector2(randf_range(-15, 15), randf_range(-15, 15))
+
+		# Elk blokje is exact 1 eenheid waard.
+		loot_instance.init_loot(test_body_type, 1)
+
+		# Kleine startvlek, daarna de streep in de richting van het schot.
+		loot_instance.global_position = global_position + Vector2(randf_range(-offset, offset), randf_range(-offset, offset))
+		loot_instance.launch_splatter(hit_dir, settings)
+
 		get_tree().current_scene.add_child(loot_instance)
-		
 	print("VIJAND DROP: '", name, "' heeft succesvol ", total_drops, " losse SSoT-kristallen op het veld geworpen.")
