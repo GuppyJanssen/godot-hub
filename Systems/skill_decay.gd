@@ -24,7 +24,7 @@ enum Difficulty { EASY, NORMAL, HARD }
 const DEFAULT_DECAY_PER_MINUTE := 1.0
 const DEFAULT_DECAY_MODIFIER := 1.0
 ## Id van de rij met algemene instellingen in de SSOT, als die er is.
-const SETTINGS_ROW := "player"
+const SETTINGS_ROW := "player_base"
 
 
 static func decays_during_run(difficulty: int) -> bool:
@@ -38,11 +38,18 @@ static func decays_after_run(difficulty: int) -> bool:
 ## Hoeveel levels één skill per seconde verliest.
 ## Kijkt eerst naar de rij van de skill zelf, daarna naar de algemene rij, daarna naar de standaard.
 static func levels_per_second(skill_id: String) -> float:
-	var per_minute: float = Ssot.get_number(skill_id, "decay_per_minute",
-			Ssot.get_number(SETTINGS_ROW, "decay_per_minute", DEFAULT_DECAY_PER_MINUTE))
+	var per_minute: float = _number(skill_id, "decay_per_minute",
+			_number(SETTINGS_ROW, "decay_per_minute", DEFAULT_DECAY_PER_MINUTE))
 	var modifier: float = Ssot.get_number(skill_id, "decay_modifier",
 			Ssot.get_number(SETTINGS_ROW, "decay_modifier", DEFAULT_DECAY_MODIFIER))
 	return (per_minute * modifier) / 60.0
+
+
+## Getal uit de SSOT; de kolom mag base_<naam> of <naam> heten (in de sheet: base_decay_per_minute).
+static func _number(row_id: String, column: String, fallback: float) -> float:
+	if Ssot.has_value(row_id, "base_" + column):
+		return Ssot.get_number(row_id, "base_" + column, fallback)
+	return Ssot.get_number(row_id, column, fallback)
 
 
 ## Laat alle skills 'seconds' seconden vervallen en geeft de nieuwe levels terug.

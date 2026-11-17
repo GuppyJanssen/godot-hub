@@ -14,7 +14,8 @@ extends Node
 ##   if Ssot.has_value("enemy_grunt", "base_loot_splatter"): ...
 
 ## Pas deze drie aan als jullie bestand of kolommen anders heten.
-const CSV_PATH := "res://Systems/Single Source of Truth - Master Database.csv"
+## De NIEUWE CSV (export van de tab "CSV tab"). De oude CSV blijft voorlopig bestaan voor MasterDatabase.
+const CSV_PATH := "res://Systems/ssot.csv"
 const ID_COLUMN := "entry_id"
 const TYPE_COLUMN := "data_type"
 

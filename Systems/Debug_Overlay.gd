@@ -62,6 +62,7 @@ func _update_dashboard() -> void:
 	
 	_add_dashboard_row("Bullet Speed", "Multiplier", "Mult: [" + str(Game.debug_bullet_speed_multiplier) + "x]", _cycle_bullet_speed)
 	_add_dashboard_row("Bullet Size", "Multiplier", "Mult: [" + str(Game.debug_bullet_size_multiplier) + "x]", _cycle_bullet_size)
+	_add_dashboard_row("Weapon Range", "Multiplier", "Mult: [" + str(Game.debug_range_multiplier) + "x]", _cycle_range)
 	_add_dashboard_row("Muzzles Spawn", "Live Aantal", "Aantal: [" + str(Game.debug_muzzle_count) + "]", _cycle_muzzles)
 
 	var money_label = Label.new()
@@ -129,6 +130,7 @@ func _cycle_accel() -> void: _cycle_multiplier("debug_acceleration_multiplier")
 func _cycle_friction() -> void: _cycle_multiplier("debug_friction_multiplier")
 func _cycle_bullet_speed() -> void: _cycle_multiplier("debug_bullet_speed_multiplier")
 func _cycle_bullet_size() -> void: _cycle_multiplier("debug_bullet_size_multiplier")
+func _cycle_range() -> void: _cycle_multiplier("debug_range_multiplier")
 
 func _cycle_multiplier(prop_name: String) -> void:
 	var cur = float(Game.get(prop_name))

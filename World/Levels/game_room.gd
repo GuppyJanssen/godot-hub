@@ -182,6 +182,10 @@ func _check_software_transitions() -> void:
 	
 	# Geen vijanden meer: deze kamer is gehaald. RunState onthoudt dat.
 	RunState.mark_cleared(LevelManager.current_layer, LevelManager.current_room_index)
+	# De factie-oorlog hoort dat de speler deze kamer heeft leeggemaakt.
+	var war: Node = get_node_or_null("/root/FactionWar")
+	if war != null:
+		war.on_room_cleared(LevelManager.current_layer, LevelManager.current_room_index)
 	
 	var current_layer = LevelManager.current_layer
 	var max_layer_index = LevelManager.LAYER_WIDTHS.size() - 1
@@ -245,7 +249,7 @@ func _check_software_transitions() -> void:
 # - Bredere ring (twee keer zoveel kamers): boven elke kamer liggen er twee. Vlieg je in de
 #   linkerhelft van het scherm naar buiten, dan kom je in de linker uit, anders in de rechter.
 # - Smallere ring: twee kamers komen samen in één.
-# Dit is dezelfde rekenregel als in LevelManager.handle_room_transition().
+# Rekenregel voor de kamer na een ringwissel (bredere ring: x2, smallere ring: /2).
 func _room_index_after_ring_change(from_layer: int, to_layer: int) -> int:
 	var from_width: int = LevelManager.LAYER_WIDTHS[from_layer]
 	var to_width: int = LevelManager.LAYER_WIDTHS[to_layer]

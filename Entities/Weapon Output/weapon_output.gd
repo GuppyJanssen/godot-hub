@@ -30,6 +30,8 @@ func _ready() -> void:
 		damage *= int(Game.debug_damage_multiplier)
 	
 	weapon_range = _read_weapon_range()
+	if Game.debug_range_multiplier:
+		weapon_range *= Game.debug_range_multiplier
 
 
 # Haalt het bereik van het actieve wapen op uit de wapenwaarden van de speler

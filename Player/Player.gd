@@ -269,101 +269,16 @@ func _physics_process(delta: float) -> void:
 	# Daar wordt eerst gecontroleerd of het wapen klaar is met herladen (can_fire).
 
 
-	# --- 5. KOGELVRIJE EN LIVE-ACTIEVE WERELDGRENZEN OP DE POLEN ---
+	# --- 5. WERELDGRENZEN ---
+	# De regels staan in Systems/room_bounds.gd, zodat vijanden precies dezelfde ruimte hebben.
 	if is_instance_valid(LevelManager):
-		var current_layer = LevelManager.current_layer
-		var max_layer_index = LevelManager.LAYER_WIDTHS.size() - 1
-		
-		# Deze specifieke grenscontroles gelden uitsluitend voor de Zuidpool en Noordpool (Eindbaas)
-		if current_layer == 0 or current_layer == max_layer_index:
-			var screen_width: float = 1920.0
-			var _screen_height: float = 1080.0
-			var _player_radius: float = 30.0
-			
-			# Camera Guard: Houd de camera-limieten wijd open op de Zuidpool voor de wrap
-			if current_layer == 0 and has_node("Camera2D"):
-				var cam = get_node("Camera2D")
-				if is_instance_valid(cam):
-					cam.limit_left = -10000
-					cam.limit_right = 10000
-			
-			# SCREEN-WRAPPING (Oost/West): Altijd actief vanaf frame 1 op de polen!
-			if global_position.x < -10.0:
-				global_position.x = screen_width + 5.0
-			elif global_position.x > screen_width + 10.0:
-				global_position.x = -5.0
-				
-	# --- WERELDGRENZEN EN BARRIÈRES PER REGIO ---
-	if is_instance_valid(LevelManager):
-		var current_layer = LevelManager.current_layer
-		var max_layer_index = LevelManager.LAYER_WIDTHS.size() - 1
-		
-		var screen_width: float = 1920.0
-		var screen_height: float = 1080.0
-		var player_radius: float = 30.0
-		
-		# Tel live het aantal vijanden in de actieve kamer
-		var enemies = get_tree().get_nodes_in_group("targets").size() + get_tree().get_nodes_in_group("enemies").size()
-		var enemies_alive: bool = enemies > 0
-		
-		# SPECIFIEKE GRENZEN PER POOL (Zuidpool versus Noordpool)
-		if current_layer == 0:
-			# ZUIDPOOL INRICHTING:			
-			# GECORRIGEERD: Staat nu op player_radius (30 pixels) net als de rest van de game!
-			# De player staat nu netjes stil vóór de trigger-zone van de transitie.
-			var top_limit = player_radius
-			if enemies_alive and global_position.y < top_limit:
-				global_transform.origin.y = top_limit
-				velocity.y = 0
-			
-			# HARD ZUID-SLOT (Onderkant): De permanente onzichtbare wand
-			var bottom_limit = screen_height - player_radius
-			if global_position.y > bottom_limit:
-				global_transform.origin.y = bottom_limit
-				velocity.y = 0
-				
-		elif current_layer == max_layer_index:
-			# NOORDPOOL (EINDBAAS) INRICHTING:
-			# Bovenkant (Noord) is de absolute permanente wereldgrens
-			var top_limit = player_radius
-			if global_position.y < top_limit:
-				global_transform.origin.y = top_limit
-				velocity.y = 0
-
-				
-			# Zijkanten en onderkant stoppen de player ALS er vijanden leven
-			if enemies_alive:
-				if global_position.x < player_radius:
-					global_position.x = player_radius
-					velocity.x = 0
-				elif global_position.x > screen_width - player_radius:
-					global_position.x = screen_width - player_radius
-					velocity.x = 0
-				if global_position.y > screen_height - player_radius:
-					global_position.y = screen_height - player_radius
-					velocity.y = 0
-					
-		# SCENARIO C: DE NORMALE RUIMTE-KAMERS (Ring 1 en hoger)
-		else:
-			# Als er vijanden leven, zitten alle 4 de zijden onwrikbaar OP SLOT!
-			if enemies_alive:
-				# West-grens (Links)
-				if global_position.x < player_radius:
-					global_position.x = player_radius
-					velocity.x = 0
-				# Oost-grens (Rechts)
-				elif global_position.x > screen_width - player_radius:
-					global_position.x = screen_width - player_radius
-					velocity.x = 0
-				# Noord-grens (Boven)
-				if global_position.y < player_radius:
-					global_position.y = player_radius
-					velocity.y = 0
-				# Zuid-grens (Beneden)
-				elif global_position.y > screen_height - player_radius:
-					global_position.y = screen_height - player_radius
-					velocity.y = 0
-
+		# Op de Zuidpool loop je links/rechts rond: houd de camera daar wijd open.
+		if LevelManager.current_layer == 0 and has_node("Camera2D"):
+			var cam = get_node("Camera2D")
+			cam.limit_left = -10000
+			cam.limit_right = 10000
+		var enemies_alive: bool = get_tree().get_nodes_in_group("targets").size() + get_tree().get_nodes_in_group("enemies").size() > 0
+		RoomBounds.apply(self, 30.0, enemies_alive)
 	
 	# A. GECORRIGEERD: Slaat de live-keuze direct op in de Global Hub voor de transities!
 	var new_target = ""
@@ -497,97 +412,10 @@ func _on_player_hitbox_body_entered(body: Node2D) -> void:
 	if body.is_in_group("enemies") or body.is_in_group("targets"):
 		print("BOTSING: Astronaut en ", body.name, " hebben elkaar geraakt!")
 		
-		# --- 1. SCHADE AAN DE SPELER MET SCHILD-ABSORPTIE ---
-		if stats and not Game.debug_is_invincible:
-			# Onderbreek het opladen direct en herstart de 3 seconden klok
-			can_regen_shield = false
-			if is_instance_valid(shield_regen_timer):
-				shield_regen_timer.start()
-				
-			var incoming_damage: int = 10
-			
-			if stats.current_shield > 0:
-				if stats.current_shield >= incoming_damage:
-					stats.current_shield -= incoming_damage
-					incoming_damage = 0
-					print("-> Schild vangt de klap op! Schild over: ", stats.current_shield)
-				else:
-					incoming_damage -= stats.current_shield
-					stats.current_shield = 0
-					print("-> Schild BREEKT! Resterende schade voor HP: ", incoming_damage)
-					
-			if incoming_damage > 0:
-				stats.current_health = max(0, stats.current_health - incoming_damage)
-				print("-> HP incasseert schade. HP over: ", stats.current_health)
-				
-				if is_instance_valid(Game):
-					Game.set_meta("transit_health", stats.current_health)
-					Game.set_meta("transit_shield", stats.current_shield)
-				
-			if has_method("update_hud"): 
-				call_deferred("update_hud")
-				
-			# DOODSCHECK
-			if stats.current_health <= 0:
-				print("PLAYER: Astronaut is overleden. Start run-afhandeling via Global Hub...")
-				var save_sys = load("res://Systems/SaveSystem.gd").new()
-				if save_sys and save_sys.has_method("get_loaded_meta_progress") and is_instance_valid(Game):
-					var meta = save_sys.get_loaded_meta_progress()
-					if meta:
-						var w_olrite = int(Game.get_meta("run_loot_olrite")) if Game.has_meta("run_loot_olrite") else 0
-						var w_metal  = int(Game.get_meta("run_loot_metal"))  if Game.has_meta("run_loot_metal")  else 0
-						var w_keep   = int(Game.get_meta("run_loot_keepium")) if Game.has_meta("run_loot_keepium") else 0
-						var w_elem1  = int(Game.get_meta("run_loot_element1")) if Game.has_meta("run_loot_element1") else 0
-						var w_elem2  = int(Game.get_meta("run_loot_element2")) if Game.has_meta("run_loot_element2") else 0
-						var w_elem3  = int(Game.get_meta("run_loot_element3")) if Game.has_meta("run_loot_element3") else 0
-						
-						if "currency_olrite" in meta: meta.currency_olrite += w_olrite
-						elif "currency_1" in meta: meta.currency_1 += w_olrite
-						if "currency_metal" in meta: meta.currency_metal += w_metal
-						elif "currency_2" in meta: meta.currency_2 += w_metal
-						if "currency_keepium" in meta: meta.currency_keepium += w_keep
-						elif "currency_3" in meta: meta.currency_3 += w_keep
-						if "currency_element1" in meta: meta.currency_element1 += w_elem1
-						elif "currency_4" in meta: meta.currency_4 += w_elem1
-						if "currency_element2" in meta: meta.currency_element2 += w_elem2
-						elif "currency_5" in meta: meta.currency_5 += w_elem2
-						if "currency_element3" in meta: meta.currency_element3 += w_elem3
-						elif "currency_6" in meta: meta.currency_6 += w_elem3
-						
-						if save_sys.has_method("save_meta_progress"):
-							save_sys.save_meta_progress(meta)
-							
-						if stats:
-							stats.currency_olrite += w_olrite
-							stats.currency_metal = meta.currency_metal if "currency_metal" in meta else (meta.currency_2 if "currency_2" in meta else stats.currency_metal + w_metal)
-							stats.currency_keepium += w_keep
-							stats.currency_element1 += w_elem1
-							stats.currency_element2 += w_elem2
-							stats.currency_element3 += w_elem3
-							
-							var slot_folder = "user://" + Game.active_save_slot + "/"
-							ResourceSaver.save(stats, slot_folder + "Player_Data.tres")
-
-					Game.set_meta("run_loot_olrite", 0)
-					Game.set_meta("run_loot_metal", 0)
-					Game.set_meta("run_loot_keepium", 0)
-					Game.set_meta("run_loot_element1", 0)
-					Game.set_meta("run_loot_element2", 0)
-					Game.set_meta("run_loot_element3", 0)
-					Game.should_load_run = false
-
-				if save_sys and save_sys.has_method("delete_current_run_save"):
-					save_sys.delete_current_run_save()
-				
-				# RunState afsluiten: wist de dodenlijst en de kamer-momentopnames van deze run.
-				RunState.end_run()
-					
-				if is_instance_valid(LevelManager):
-					LevelManager.reset_manager_for_new_run()
-					
-				get_tree().call_deferred("change_scene_to_file", "res://Systems/main_menu.tscn")
-				return
-				
+		# --- 1. SCHADE AAN DE SPELER (zie take_damage hieronder) ---
+		if take_damage(10):
+			return
+		
 		# --- 2. SCHADE AAN DE VIJAND / FABRIEK (Wederkerig!) ---
 		if body.has_method("take_damage"):
 			var hit_direction = (body.global_position - global_position).normalized()
@@ -598,6 +426,102 @@ func _on_player_hitbox_body_entered(body: Node2D) -> void:
 		velocity = knockback_dir * 350.0
 		if "velocity" in body:
 			body.velocity = -knockback_dir * 250.0
+
+
+# Schade aan de speler, met schild-absorptie. Wordt gebruikt bij botsingen en ontploffingen.
+# Geeft true terug als de speler hierdoor is overleden (de run is dan al afgehandeld).
+func take_damage(amount: int, _flash: bool = true, _hit_dir: Vector2 = Vector2.ZERO) -> bool:
+	# Schild vangt eerst op, de rest gaat van de HP af.
+	if stats and not Game.debug_is_invincible:
+		# Onderbreek het opladen direct en herstart de 3 seconden klok
+		can_regen_shield = false
+		if is_instance_valid(shield_regen_timer):
+			shield_regen_timer.start()
+			
+		var incoming_damage: int = amount
+		
+		if stats.current_shield > 0:
+			if stats.current_shield >= incoming_damage:
+				stats.current_shield -= incoming_damage
+				incoming_damage = 0
+				print("-> Schild vangt de klap op! Schild over: ", stats.current_shield)
+			else:
+				incoming_damage -= stats.current_shield
+				stats.current_shield = 0
+				print("-> Schild BREEKT! Resterende schade voor HP: ", incoming_damage)
+				
+		if incoming_damage > 0:
+			stats.current_health = max(0, stats.current_health - incoming_damage)
+			print("-> HP incasseert schade. HP over: ", stats.current_health)
+			
+			if is_instance_valid(Game):
+				Game.set_meta("transit_health", stats.current_health)
+				Game.set_meta("transit_shield", stats.current_shield)
+			
+		if has_method("update_hud"): 
+			call_deferred("update_hud")
+			
+		# DOODSCHECK
+		if stats.current_health <= 0:
+			print("PLAYER: Astronaut is overleden. Start run-afhandeling via Global Hub...")
+			var save_sys = load("res://Systems/SaveSystem.gd").new()
+			if save_sys and save_sys.has_method("get_loaded_meta_progress") and is_instance_valid(Game):
+				var meta = save_sys.get_loaded_meta_progress()
+				if meta:
+					var w_olrite = int(Game.get_meta("run_loot_olrite")) if Game.has_meta("run_loot_olrite") else 0
+					var w_metal  = int(Game.get_meta("run_loot_metal"))  if Game.has_meta("run_loot_metal")  else 0
+					var w_keep   = int(Game.get_meta("run_loot_keepium")) if Game.has_meta("run_loot_keepium") else 0
+					var w_elem1  = int(Game.get_meta("run_loot_element1")) if Game.has_meta("run_loot_element1") else 0
+					var w_elem2  = int(Game.get_meta("run_loot_element2")) if Game.has_meta("run_loot_element2") else 0
+					var w_elem3  = int(Game.get_meta("run_loot_element3")) if Game.has_meta("run_loot_element3") else 0
+					
+					if "currency_olrite" in meta: meta.currency_olrite += w_olrite
+					elif "currency_1" in meta: meta.currency_1 += w_olrite
+					if "currency_metal" in meta: meta.currency_metal += w_metal
+					elif "currency_2" in meta: meta.currency_2 += w_metal
+					if "currency_keepium" in meta: meta.currency_keepium += w_keep
+					elif "currency_3" in meta: meta.currency_3 += w_keep
+					if "currency_element1" in meta: meta.currency_element1 += w_elem1
+					elif "currency_4" in meta: meta.currency_4 += w_elem1
+					if "currency_element2" in meta: meta.currency_element2 += w_elem2
+					elif "currency_5" in meta: meta.currency_5 += w_elem2
+					if "currency_element3" in meta: meta.currency_element3 += w_elem3
+					elif "currency_6" in meta: meta.currency_6 += w_elem3
+					
+					if save_sys.has_method("save_meta_progress"):
+						save_sys.save_meta_progress(meta)
+						
+					if stats:
+						stats.currency_olrite += w_olrite
+						stats.currency_metal = meta.currency_metal if "currency_metal" in meta else (meta.currency_2 if "currency_2" in meta else stats.currency_metal + w_metal)
+						stats.currency_keepium += w_keep
+						stats.currency_element1 += w_elem1
+						stats.currency_element2 += w_elem2
+						stats.currency_element3 += w_elem3
+						
+						var slot_folder = "user://" + Game.active_save_slot + "/"
+						ResourceSaver.save(stats, slot_folder + "Player_Data.tres")
+
+				Game.set_meta("run_loot_olrite", 0)
+				Game.set_meta("run_loot_metal", 0)
+				Game.set_meta("run_loot_keepium", 0)
+				Game.set_meta("run_loot_element1", 0)
+				Game.set_meta("run_loot_element2", 0)
+				Game.set_meta("run_loot_element3", 0)
+				Game.should_load_run = false
+
+			if save_sys and save_sys.has_method("delete_current_run_save"):
+				save_sys.delete_current_run_save()
+			
+			# RunState afsluiten: wist de dodenlijst en de kamer-momentopnames van deze run.
+			RunState.end_run()
+				
+			if is_instance_valid(LevelManager):
+				LevelManager.reset_manager_for_new_run()
+				
+			get_tree().call_deferred("change_scene_to_file", "res://Systems/main_menu.tscn")
+			return true
+	return false
 
 
 # --- SSoT LIVE HERSTEL VOOR CONTINUE ---

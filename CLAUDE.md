@@ -1,7 +1,7 @@
 # CLAUDE.md – godot-hub (2D space rogue-lite)
 
 Claude Code leest dit bestand aan het begin van elke sessie in deze map.
-Houd het kort en actueel. Bijgewerkt: 17 november 2026.
+Houd het kort en actueel. Bijgewerkt: 17 november 2026 (avond).
 
 - Ontwerp: https://claude.ai/artifact/JjvwFyx6Jtb8dEDUjxFCj9
 - Ideeën, planning en takenlijst: https://claude.ai/artifact/Cvi6x9PXQSMgAGeYU4JHJB
@@ -46,8 +46,10 @@ Houd het kort en actueel. Bijgewerkt: 17 november 2026.
 | `LevelManager` | `Systems/LevelManager.gd` | Ring en kamer |
 | `DebugOverlay` | `Systems/Debug_Overlay.gd` | Debugscherm |
 | `Mods` | `Systems/modifier_stack.gd` | Alles wat stats van de speler aanpast (skills, items, effecten) |
-| `Ssot` | `Systems/ssot.gd` | NIEUWE CSV-lezer op kolomnaam. Draait naast MasterDatabase |
-| `RunState` | `Systems/run_state.gd` | De lopende run: dodenlijst, gehaalde kamers, kamer-momentopnames, speeltijd |
+| `Ssot` | `Systems/ssot.gd` | NIEUWE CSV-lezer op kolomnaam. Leest `Systems/ssot.csv` (export van de tab "CSV tab"). Draait naast MasterDatabase |
+| `RunState` | `Systems/run_state.gd` | De lopende run: dodenlijst, gehaalde kamers, kamer-momentopnames, speeltijd. Start/stopt/bewaart ook de factie-oorlog |
+| `FactionWar` | `Systems/faction_war.gd` | Factie-oorlog op de achtergrond: per kamer eigenaar en sterkte, tikt elke seconde speeltijd |
+| `FactionWarMap` | `Systems/faction_war_map.gd` | Debugkaart van de oorlog (F2, F3 = versnellen). Alleen in debug-builds |
 
 `Systems/SaveSystem.gd` is geen autoload en wordt op veel plekken los aangemaakt met `load(...).new()`.
 Het regelt nog de kluis (`meta_data.json`) en een deel van `current_run.json`.
@@ -73,26 +75,69 @@ Het regelt nog de kluis (`meta_data.json`) en een deel van `current_run.json`.
 Nog niet aangesloten (staan klaar, worden nergens aangeroepen): `stat_calc.gd`, `skill_effects.gd`, `skill_decay.gd`,
 `Player/Weapons/ssot_weapon.gd`, `Player/Weapons/weapon_shooter.gd`, `World/ring_math.gd`, en alles in `Ideeen/`.
 
-## Opgeschoond op 17 november 2026 (nog niet in Godot getest)
+## Toegevoegd op 17 november 2026
+
+- **Nieuwe CSV:** `Systems/ssot.csv` (Import As = Keep File, net als de oude CSV). De Google Sheet heeft tab "SSoT"
+  (invullen, kopregel in rij 4) en "CSV tab" (export; één formule in A1: `=ARRAYFORMULA(SSoT!A4:EL1000)`, dus nieuwe rijen en
+  tussengevoegde kolommen komen vanzelf mee). Claude kan de sheet bewerken via de ingebouwde browser van de desktop-app. Rij-ids: `world` (wereld- en
+  oorloginstellingen), `unit_light`, `unit_heavy`, `unit_factory`, `faction_a` t/m `faction_i` en hybrides
+  `faction_ab`, `faction_bc`, `faction_ca` (en zo verder per driehoek). data_type: `world_settings`, `unit_type`, `faction`.
+- **Kamergrenzen:** `Systems/room_bounds.gd` (`RoomBounds.apply`) bepaalt de bewegingsruimte voor speler én vijanden
+  (Zuidpool: onderkant dicht, links/rechts rondlopen; gewone ring: dicht zolang er vijanden leven).
+- **Sheet opgeschoond (17 nov):** SSoT is ingedeeld in blokken met kopregels (SPELER, PLANETEN, ITEMS, WAPENS, LOOT,
+  SKILLS, WERELD, VIJAND-TYPES, FACTIES, VIJAND-OVERRIDES). Kopregels hebben geen entry_id en worden door Ssot overgeslagen.
+  Brainstorm-rijen staan in een eigen tabblad (niet in de CSV). Reservekopie: tabblad "SSoT backup 17-11".
+  Skills: 25 rijen, ids gelijk aan de skill_id in SkillTree.tscn (skill_speed, skill_damage, skill_fire_rate, ...).
+  Effect PER LEVEL: base_<stat> = vaste bonus, <stat>_modifier = procent (0.01 = +1% per level, +100% op 100).
+  data_type `upgrade_skill` (SkillEffects.SKILL_TYPE). Kosten in fill_costs_per_point als "olrite:5" (SkillSlot leest dit).
+  Teksten in de sheet mogen niet met + of - beginnen (Sheets maakt er een formule van).
+  Let op: `decay_modifier` is wél een vermenigvuldiger (1 = neutraal), zie skill_decay.gd.
+- **Vijand-overrides** (sheet rij 21-38, data_type `enemy_override`): `enemy_<factienaam>_<type>`, bijvoorbeeld
+  `enemy_organic_light`. De factienaam komt uit de ingame_name van de factie-rij (A = Organic, B = Mech, C = Energy,
+  AB = Cyborg); zonder naam werkt de letter (`enemy_bc_light`). Lege cel = type + factie. Light heet in-game "grunt",
+  behalve bij Organic ("spore"); de Organic heavy heet "scout".
+- **Factie-oorlog:** `faction_war.gd`. Rekent alleen met getallen per kamer (owner, strength, attacker...). Regels: zijwaarts
+  en een beetje omhoog, nooit omlaag; lagere driehoek komt alleen omhoog via door de speler geleegde kamers; hybrides alleen
+  binnen een driehoek; geleegde kamers blijven `reoccupy_delay` leeg. Instellingen uit SSOT-rij `world`, standaarden in `DEFAULTS`.
+  Driehoek per ring in `RING_TRIANGLE` (aanname: ring 1-3 ABC, 4-6 DEF, 7-9 GHI). Doet nog niets met de vijanden in een kamer:
+  dat komt met de plaatsingspunten (`FactionWar.get_room_owner(ring, kamer)`).
+- **Vijanden zonder voorkant:** `test_body.gd` heeft `faces_player`. Uit = tolt rond met eigen snelheid, treffers geven een zetje.
+  Komt uit de SSOT-kolom `behavior_faces_player` (factie-rij of eigen vijand-rij; 1/0, leeg = Inspector). Factie A = 0.
+- **Gedrag van vijanden** (`test_body.gd`, uit de SSOT; eigen rij `enemy_<factie>_<type>` gaat voor factie en type):
+  `behavior_searching` = `hunt` (standaard: meteen op de speler af) of `wander` (zwerft tot alarm);
+  `behavior_agro` = `chase` (standaard), `kamikaze` (ontploft bij de speler, raakt alles in `base_explosion_radius`,
+  laat maar 10% loot vallen) of `keep_distance` (verkenner: blijft op afstand met de speler in zicht);
+  `behavior_scan_radius` = kijkafstand, 0/leeg = blind. Wie de speler ziet slaat alarm voor zijn factie (geraakt: pas na `hit_alarm_delay` = 1,5 s, zodat stil uitschakelen kan)
+  in die kamer (onthouden in RunState als `alarm_<factie>`). Niet-blinde, zwervende vijanden die een kogel zien,
+  gaan kijken waar die vandaan kwam. Zicht = afstand + raycast (vijanden, loot en speler blokkeren niet).
+  Organic: `enemy_a_light` = blinde kamikaze, `enemy_a_heavy` = verkenner (kijkafstand 450).
+- **Speler** heeft nu `take_damage(amount)` (schild eerst, daarna HP, overlijden afgehandeld); botsingen en ontploffingen gebruiken die.
+- **Fabriek:** veld heet `spawn_unit_type` (welk type hij maakt); eigen levens uit `unit_factory`. In `game_room.tscn`
+  maakt spawner1 grunts (light) en spawner2 een verkenner (heavy).
+- **Witte flits** werkt op alle zichtbare sprites van de vijand. Oude icoon-sprite uit `test_body.tscn` gehaald.
+- Fabrieken staan standaard op Unit Type `light` (de sheet gebruikt light/heavy/factory, geen grunt).
+
+## Opgeschoond op 17 november 2026
 
 - `Player.gd`: het eerste schietblok dat `can_fire` negeerde is weg (full-auto vuurde elk frame),
   de dubbele herlaad-wachttijd is weg, en bij overlijden gaan nu ook Element 1 t/m 3 naar de kluis.
 - `game_room.gd`: omhoog en omlaag komen niet meer altijd in kamer 0 uit, maar in de kamer boven of onder
-  je (`_room_index_after_ring_change`, dezelfde rekenregel als `LevelManager.handle_room_transition`).
+  je (`_room_index_after_ring_change`).
 - `hud.gd`: maakte in de skill tree elk frame een nieuw SaveSystem aan; dat wordt nu hergebruikt.
 - `pre_menu.gd`: twee ongebruikte kopieën van functies uit SaveSystem verwijderd.
+- Verwijderd (ongebruikt): `heavy_spawner.gd`, `Weapon.gd`, `Player/player_stats.gd`, `world_stats.gd`,
+  `Overworld.gd/.tscn`, `player.tscn*.tmp`, `fg.txt`, de `.translation`-bestanden en drie wees-`.import`-bestanden;
+  plus de ongebruikte functies `LevelManager.handle_room_transition`/`_load_current_room`,
+  `Game.transfer_run_loot_to_meta_bank`/`load_and_force_continue_position`, `PlayerStats.get_calculated_speed`
+  en `Game.debug_is_full_auto`.
+- Vijanden worden groter of kleiner volgens `base_size` in de SSOT (heavy = 1.5). Geraakte verkenners slaan pas
+  na `hit_alarm_delay` (1,5 s) alarm.
 
 ## Bekende problemen
 
-- **Ongebruikte bestanden** (mogen weg na controle): `Entities/Spawners/heavy_spawner.gd` (vervangen door het
-  gedeelde script in `basic_spawner.gd`), `Entities/Weapon Output/Weapon.gd`, `Player/player_stats.gd`,
-  `Resources/world_stats.gd`, de drie `Player/player.tscn*.tmp` en `fg.txt`.
-- **`World/Overworld.gd`** roept `Player.new(Vector2(100,100))` aan, maar `Player` neemt geen argumenten.
-  Het script wordt nergens gebruikt; laden geeft een fout.
-- **`neutral_spawner.gd`** gebruikt nog de oude controle via `current_run.json` en het oude `SaveSystem`.
+- **`neutral_spawner.gd`** (bewust bewaard: wordt omgebouwd tot plaatsingspunt) gebruikt nog de oude controle via `current_run.json` en het oude `SaveSystem`.
   Nergens in een scene geplaatst.
 
-- **Twee kogelscripts:** `weapon_output.gd` is in gebruik, `weapon.gd` niet. Eén kiezen.
 - **Skills doen nog niets** in het spel; de skill-ID's in `SkillTree.tscn` komen niet overeen met de CSV.
 - **Run-loot staat dubbel:** als meta op `Game` en in `run_loot_*` op de speler. `RunState.loot` telt mee maar is niet leidend.
 - **Half beschadigde vijanden** worden door het oude `SaveSystem.save_current_run()` onder de verkeerde kamer weggezet

@@ -29,28 +29,3 @@ class_name PlayerStats
 @export var loot_magnet_applied: bool = false   # Standaard geen magneet aan
 @export var current_magnet_radius: float = 150.0   # Straal waarin loot naar je toe zuigt
 @export var current_magnet_force: float = 400.0    # Snelheid van het toezuigen
-
-
-# --- UNIVERSELE SNELHEIDS-BEREKENAAR ---
-func get_calculated_speed() -> float:
-	var final_speed: float = current_speed
-	
-	# # 1. LIVE UPGRADE BEREKENING VANUIT DE META PROGRESSIE
-	var save_system = load("res://Systems/SaveSystem.gd").new()
-	var current_meta = save_system.get_loaded_meta_progress()
-	
-	# GECORRIGEERD: Haalt het level crashvrij op, ook bij een New Game!
-	if current_meta and current_meta.skills_data:
-		var raw_speed = current_meta.skills_data.get("skill_speed", 0)
-		var speed_level: int = int(raw_speed["level"]) if raw_speed is Dictionary else int(raw_speed)
-		
-		# Elk level geeft de bonus die we straks in de modifiers van de Master-CSV hangen
-		var upgrade_bonus: float = 1.0 + (speed_level * 0.005) # +0.5% per level
-		final_speed *= upgrade_bonus
-
-	
-	# 2. DEBUG CHEATS: De F1-cheat multiplier weegt onvoorwaardelijk mee!
-	final_speed *= Game.debug_current_speed_multiplier
-	
-	
-	return final_speed

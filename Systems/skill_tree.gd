@@ -300,7 +300,7 @@ func update_single_skill_visual(bar: ProgressBar, button: Button, level: int, sl
 		button.text = slot_name + " (" + str(level) + "/100)"
 	else:
 		sb.bg_color = Color.DODGER_BLUE
-		button.text = slot_name + " (100/100)"
+		button.text = slot_name + " (" + str(level) + "/100)"
 		
 	bar.add_theme_stylebox_override("fill", sb)
 
@@ -338,8 +338,10 @@ func _on_skill_button_hover_entered(skill_id: String) -> void:
 	var title_text = skill_id.capitalize()
 	var info_text = "Placeholder: Extra informatie over deze upgrade komt dadelijk uit de CSV!"
 	
-	# SSoT VOORBEREIDING: Als de MasterDatabase de data al heeft, lenen we die alvast
-	if MasterDatabase.skill_data.has(skill_id):
+	# Eerst de nieuwe SSOT (kolom skill_pop_up_info), anders de oude MasterDatabase.
+	if Ssot.has_value(skill_id, "skill_pop_up_info"):
+		info_text = Ssot.get_text(skill_id, "skill_pop_up_info")
+	elif MasterDatabase.skill_data.has(skill_id):
 		var csv_row = MasterDatabase.skill_data[skill_id]
 		# Zodra de CSV geüpload is, pakt hij automatisch jullie nieuwe kolom!
 		if csv_row.has("base_stats") and csv_row["base_stats"].has("skill_pop_up_info"):

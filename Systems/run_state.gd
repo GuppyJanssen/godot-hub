@@ -64,6 +64,11 @@ func start_new_run(new_difficulty: int = 1) -> void:
 	rooms.clear()
 	run_points.clear()
 	extra.clear()
+	
+	# De factie-oorlog begint elke run opnieuw.
+	var war: Node = _faction_war()
+	if war != null:
+		war.start_new_war()
 
 
 ## Einde van de run (Surrender, dood, gewonnen, of New Run terwijl er nog een run stond).
@@ -79,6 +84,9 @@ func end_run() -> Dictionary:
 	run_points.clear()
 	extra.clear()
 	run_seconds = 0.0
+	var war: Node = _faction_war()
+	if war != null:
+		war.stop()
 	run_ended.emit(final_loot, seconds)
 	return final_loot
 
@@ -232,6 +240,11 @@ func save() -> bool:
 	var game: Node = get_node_or_null("/root/Game")
 	if game != null and game.has_method("get_seed_state"):
 		data.merge(game.get_seed_state(), true)
+	
+	# De stand van de factie-oorlog.
+	var war: Node = _faction_war()
+	if war != null:
+		data["faction_war"] = war.get_state()
 
 	DirAccess.make_dir_recursive_absolute(save_dir())
 	var file: FileAccess = FileAccess.open(save_path(), FileAccess.WRITE)
@@ -288,6 +301,12 @@ func load_run() -> bool:
 	var game: Node = get_node_or_null("/root/Game")
 	if game != null and game.has_method("load_seed_state"):
 		game.load_seed_state(data)
+	
+	# De factie-oorlog terugzetten. Een oude save zonder oorlog begint een nieuwe.
+	var war: Node = _faction_war()
+	if war != null:
+		var war_data: Variant = data.get("faction_war", {})
+		war.load_state(war_data if war_data is Dictionary else {})
 
 	for currency in loot:
 		loot_changed.emit(currency, loot[currency])
@@ -298,3 +317,8 @@ func load_run() -> bool:
 func delete_save() -> void:
 	if has_saved_run():
 		DirAccess.remove_absolute(save_path())
+
+
+## De autoload FactionWar, als die bestaat. Zo werkt RunState ook zonder factie-oorlog.
+func _faction_war() -> Node:
+	return get_node_or_null("/root/FactionWar")

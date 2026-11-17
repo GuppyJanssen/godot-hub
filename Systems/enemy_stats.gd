@@ -9,8 +9,10 @@ class_name EnemyStats
 ## Een vijand = de basis van zijn type, aangepast met de modifiers van zijn factie:
 ##   eindwaarde = base_<stat> van het type × (1 + <stat>_modifier van het type + <stat>_modifier van de factie)
 ##
-## Uitzonderingen: bestaat er een eigen rij enemy_<factie>_<type> (bijvoorbeeld enemy_d_heavy)
-## en is de stat daar ingevuld, dan gaat die rij voor.
+## Uitzonderingen (overrides): bestaat er een eigen rij enemy_<factienaam>_<type> (bijvoorbeeld
+## enemy_organic_light) en is de stat daar ingevuld, dan gaat die rij voor. Lege cel = type + factie.
+## De factienaam is de ingame_name van de factie-rij, in kleine letters met _ in plaats van spaties
+## (faction_a heet "Organic", dus enemy_organic_...). Heeft de factie nog geen naam, dan werkt de letter: enemy_bc_light.
 ##
 ## Voorbeeld:
 ##   var hp: float = EnemyStats.value("a", "grunt", "max_health", 50.0)
@@ -21,7 +23,7 @@ class_name EnemyStats
 ## Hoe de rijen in de SSOT heten. Pas aan als jullie een andere naamgeving kiezen.
 const UNIT_PREFIX := "unit_"         # unit_grunt
 const FACTION_PREFIX := "faction_"   # faction_a
-const ENEMY_PREFIX := "enemy_"       # enemy_a_grunt (uitzondering)
+const ENEMY_PREFIX := "enemy_"       # enemy_organic_light (uitzondering)
 
 ## Kolom op de factie-rij met de kleur, als hex (bijvoorbeeld #4CAF50).
 const COLOR_COLUMN := "faction_color"
@@ -48,7 +50,23 @@ static func faction_row(faction: String) -> String:
 	return FACTION_PREFIX + faction.to_lower()
 
 
+## De naam van een factie voor in een rij-id: de ingame_name van de factie-rij ("Organic" -> "organic").
+## Geen naam ingevuld? Dan de letter zelf ("bc").
+static func faction_key(faction: String) -> String:
+	var row: String = faction_row(faction)
+	var label: String = Ssot.get_text(row, "ingame_name", "") if Ssot.has_row(row) else ""
+	var key: String = ""
+	for ch in label.strip_edges().to_lower().replace(" ", "_").replace("-", "_"):
+		if (ch >= "a" and ch <= "z") or (ch >= "0" and ch <= "9") or ch == "_":
+			key += ch
+	return key if key != "" else faction.to_lower()
+
+
+## De eigen rij (override) van deze vijand: eerst op naam (enemy_organic_light), dan op letter (enemy_a_light).
 static func enemy_row(faction: String, unit_type: String) -> String:
+	var by_name: String = ENEMY_PREFIX + faction_key(faction) + "_" + unit_type.to_lower()
+	if Ssot.has_row(by_name):
+		return by_name
 	return ENEMY_PREFIX + faction.to_lower() + "_" + unit_type.to_lower()
 
 

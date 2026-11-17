@@ -4,7 +4,7 @@ class_name SkillEffects
 ## Geen autoload nodig. Dit leest de skill-rijen uit de SSOT en zet per skill
 ## de juiste aanpassingen in Mods. Een nieuwe skill is dus alleen een nieuwe rij.
 ##
-## Zo leest hij een skill-rij (AANNAME, nog afstemmen met de echte sheet):
+## Zo leest hij een skill-rij (data_type upgrade_skill in de sheet):
 ## - Een ingevulde kolom  base_<stat>      = vaste bonus PER LEVEL  (base_speed 2,5 → +2,5 snelheid per level)
 ## - Een ingevulde kolom  <stat>_modifier  = procent PER LEVEL      (damage_modifier 0,01 → +1% schade per level)
 ## - Kolom SKILL_KIND_COLUMN               = soort upgrade (wapen, schip, physics...), voor kleur en uitschakelen
@@ -15,7 +15,7 @@ class_name SkillEffects
 ##   SkillEffects.apply_all(levels)
 
 ## Pas aan als de soort-naam of de kolom in jullie sheet anders heet.
-const SKILL_TYPE := "skill"
+const SKILL_TYPE := "upgrade_skill"
 const SKILL_KIND_COLUMN := "skill_kind"
 const MAX_LEVEL := 100.0
 

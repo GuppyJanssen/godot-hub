@@ -5,7 +5,13 @@
 [resource]
 script = ExtResource("1_s8pag")
 max_shield = 100
-current_energy = 60
+current_shield = 100
+currency_olrite = 9999
+currency_metal = 9999
+currency_keepium = 9999
+currency_element1 = 9999
+currency_element2 = 9999
+currency_element3 = 9999
 current_acceleration = 800.0
 current_friction = 250.0
 metadata/_custom_type_script = "uid://d0euo360aowlp"

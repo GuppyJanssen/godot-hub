@@ -110,6 +110,7 @@ position = Vector2(1206, 409)
 script = ExtResource("3_youp0")
 enemy_scene = ExtResource("4_07jwa")
 total_enemies_to_spawn = 1
+spawn_unit_type = "heavy"
 
 [node name="Sprite2D" type="Sprite2D" parent="Body\'s/spawner/spawner2" unique_id=2054544549]
 texture = ExtResource("5_n4s3p")

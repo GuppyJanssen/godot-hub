@@ -4,7 +4,7 @@ class_name EnemySpawner
 # Wat een fabriek anders maakt, stel je in de Inspector in, niet in de code:
 #   - Enemy Scene  : welke vijand-scene hij maakt
 #   - Faction      : "a", "b", "c", later "ab", "d" ...  -> welke factie
-#   - Unit Type    : "light", "grunt", "heavy"           -> welk type
+#   - Spawn Unit Type : "light" of "heavy"                -> welk type vijand hij maakt
 #   - Sprite Scale : hoe groot de fabriek getekend wordt (1.0 = normaal, 1.5 = heavy)
 # Het plaatje zelf kies je op de Sprite2D-node van de fabriek.
 #
@@ -16,7 +16,9 @@ class_name EnemySpawner
 
 # --- WAT VOOR FABRIEK IS DIT? ---
 @export var faction: String = "a"
-@export var unit_type: String = "grunt"
+## Welk type vijand deze fabriek MAAKT (light = grunts, heavy = zware). De fabriek zelf is altijd
+## van het type "factory": zijn levens komen uit de SSOT-rij unit_factory (plus de factie-modifier).
+@export var spawn_unit_type: String = "light"
 @export var sprite_scale: float = 1.0
 
 # --- CONFIGURATIE OPTIES ---
@@ -44,8 +46,13 @@ func _ready() -> void:
 	# 1. DOELWIT REGISTRATIE
 	add_to_group("targets")
 	add_to_group("saveable")  # deze fabriek wil onthouden worden (zie game_room.gd)
+	# Levens van de fabriek uit de SSOT (rij unit_factory, plus de factie-modifier).
+	# Staat dat er niet, dan telt Spawner Max Health uit de Inspector.
+	spawner_max_health = EnemyStats.value(faction, "factory", "max_health", spawner_max_health)
 	spawner_current_health = spawner_max_health
 	
+	# Onzichtbaar tot we weten of dit object deze run al kapot is (anders zie je hem even flitsen).
+	visible = false
 	await get_tree().process_frame
 	await get_tree().process_frame
 	
@@ -80,6 +87,7 @@ func _ready() -> void:
 		print("SPAWNER: Object ", my_id, " is permanent kapot. Node verwijderd.")
 		queue_free()
 		return
+	visible = true
 		
 	# Stond deze fabriek er al toen je de kamer verliet? Zet dan zijn HP en zijn teller terug.
 	# De grunts die nog leefden, zet de kamer zelf terug (zie game_room.gd).
@@ -112,7 +120,7 @@ func _setup_spawn_timer() -> void:
 
 # De naam waaraan deze fabriek herkend wordt: gebaseerd op zijn plek in de kamer.
 func get_run_id() -> String:
-	return "Spawner_" + faction + "_" + unit_type + "_" + str(int(global_position.x)) + "_0_" + str(int(global_position.y)) + "_0"
+	return "Spawner_" + faction + "_" + spawn_unit_type + "_" + str(int(global_position.x)) + "_0_" + str(int(global_position.y)) + "_0"
 
 
 # Wat deze fabriek wil bewaren.
@@ -153,7 +161,7 @@ func spawn_single_enemy() -> void:
 	var inst = enemy_scene.instantiate()
 	
 	# GECORRIGEERD: De grunts behouden de pure 'Enemy_' prefix voor de SSoT database!
-	var enemy_base_name = "Enemy_" + faction + "_" + unit_type + "_" + str(int(global_position.x)) + "_0_" + str(int(global_position.y)) + "_0"
+	var enemy_base_name = "Enemy_" + faction + "_" + spawn_unit_type + "_" + str(int(global_position.x)) + "_0_" + str(int(global_position.y)) + "_0"
 	
 	if total_enemies_to_spawn == 1:
 		inst.name = enemy_base_name
@@ -171,7 +179,7 @@ func spawn_single_enemy() -> void:
 	if "faction" in inst:
 		inst.faction = faction
 	if "unit_type" in inst:
-		inst.unit_type = unit_type
+		inst.unit_type = spawn_unit_type
 	
 	inst.global_position = global_position + Vector2(randf_range(-20, 20), randf_range(20, 40))
 	active_scene.add_child(inst)
