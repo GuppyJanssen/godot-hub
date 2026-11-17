@@ -15,6 +15,9 @@ var active_player_node: CharacterBody2D = null
 var player_stats: PlayerStats = null
 var currency_labels: Array[Label] = []
 
+# Eén SaveSystem dat hergebruikt wordt (voor de saldo-weergave in de skill tree).
+var _save_sys: Node = null
+
 
 func _ready() -> void:
 	layer = 100
@@ -159,7 +162,11 @@ func _process(_delta: float) -> void:
 			if is_instance_valid(location_label): location_label.visible = false
 
 			# Laad de permanente Meta Progress database in voor de Skill Tree weergave
-			var save_sys = load("res://Systems/SaveSystem.gd").new()
+			# Hergebruik steeds hetzelfde SaveSystem. Eerst werd hier elk frame een nieuw
+			# aangemaakt dat nooit werd opgeruimd.
+			if _save_sys == null:
+				_save_sys = load("res://Systems/SaveSystem.gd").new()
+			var save_sys = _save_sys
 			if save_sys and save_sys.has_method("get_loaded_meta_progress"):
 				var meta = save_sys.get_loaded_meta_progress()
 				if meta and currency_labels.size() >= 6:
@@ -177,3 +184,10 @@ func _process(_delta: float) -> void:
 					currency_labels[3].text = "Element 1: " + str(m_elem1)
 					currency_labels[4].text = "Element 2: " + str(m_elem2)
 					currency_labels[5].text = "Element 3: " + str(m_elem3)
+
+
+# Ruim het hergebruikte SaveSystem op als de HUD verdwijnt.
+func _exit_tree() -> void:
+	if _save_sys != null:
+		_save_sys.free()
+		_save_sys = null

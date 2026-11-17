@@ -70,7 +70,6 @@ func _on_new_run_button_pressed() -> void:
 	# 1. WATERDICHTE SSoT OVERBOEKING: Lees de buit rechtstreeks uit de Live Resource!
 	# =========================================================================
 	if ResourceLoader.exists(player_data_path):
-		var raw_stats = ResourceLoader.load(player_data_path)
 		var save_sys = load("res://Systems/SaveSystem.gd").new()
 		
 		# Als er een run-bestand openstond, halen we de buit uit de Hub metadata

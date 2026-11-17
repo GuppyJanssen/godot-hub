@@ -108,5 +108,9 @@ func parse_flexible_string(raw_string: String) -> Dictionary:
 		if parts.size() == 2:
 			var key = parts[0].strip_edges()
 			var value_str = parts[1].strip_edges()
-			result[key] = float(value_str) if value_str.is_valid_float() else value_str
+			# Getal als het een getal is, anders gewoon tekst.
+			if value_str.is_valid_float():
+				result[key] = float(value_str)
+			else:
+				result[key] = value_str
 	return result

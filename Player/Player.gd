@@ -178,7 +178,6 @@ func _ready() -> void:
 
 
 	# --- INITIALISATIE REGENERATIE EN ENERGIE TIMERS ---
-	# --- INITIALISATIE REGENERATIE EN ENERGIE TIMERS ---
 	# 1. Schild Timer: Regelt de 3 seconden afkoeltijd na het incasseren van schade
 	shield_regen_timer = Timer.new()
 	shield_regen_timer.wait_time = 3.0
@@ -266,18 +265,8 @@ func _physics_process(delta: float) -> void:
 							Game.set_meta("transit_energy", stats.current_energy)
 						print("ENERGIE-ACCU: 10 schildpunten gevuld! 1 Energiepunt afgerekend. Rest: ", stats.current_energy)
 
-	# 4. CSV-GESTUURDE INPUT-KOPPELING: Schieten via fire_primary
-	# We kijken eerst of de CSV of de debug-multiplier zegt dat het wapen Full Auto is
-	var weapon_is_auto: bool = current_weapon_stats.get("is_full_auto", 1.0) == 1.0 and Game.debug_is_full_auto
-	
-	if weapon_is_auto:
-		# Automatisch: Zolang je de knop INGEDRUKT houdt, blijft hij vuren
-		if Input.is_action_pressed("fire_primary") or Input.is_action_pressed("ui_accept"):
-			fire_primary_weapon()
-	else:
-		# Semi-automatisch: Je moet de knop herhaaldelijk EENMALIG INDRUKKEN (just_pressed) per schot
-		if Input.is_action_just_pressed("fire_primary") or Input.is_action_just_pressed("ui_accept"):
-			fire_primary_weapon()
+	# 4. SCHIETEN gebeurt verderop in deze functie, onder "2. SCHIETMOTOR".
+	# Daar wordt eerst gecontroleerd of het wapen klaar is met herladen (can_fire).
 
 
 	# --- 5. KOGELVRIJE EN LIVE-ACTIEVE WERELDGRENZEN OP DE POLEN ---
@@ -375,14 +364,6 @@ func _physics_process(delta: float) -> void:
 					global_position.y = screen_height - player_radius
 					velocity.y = 0
 
-
-				# NOORDPOOL (EINDBAAS) INRICHTING:
-				# Bovenkant (Noord) is de absolute permanente wereldgrens
-				var top_limit = player_radius
-				if global_position.y < top_limit:
-					global_transform.origin.y = top_limit
-					velocity.y = 0
-
 	
 	# A. GECORRIGEERD: Slaat de live-keuze direct op in de Global Hub voor de transities!
 	var new_target = ""
@@ -410,19 +391,18 @@ func _physics_process(delta: float) -> void:
 	# =========================================================================
 	# De herlaad-as is vanaf nu de baas: als de timer loopt, mag er NIET geschoten worden.
 	# Dit haalt de dubbele/viervoudige schade onvoorwaardelijk weg bij alle wapens!
-	if not can_fire: return
-	
-	# B. CSV-GESTUURDE VUURMODUS (We gebruiken jullie bestaande globale variabele)
-	weapon_is_auto = current_weapon_stats.get("is_full_auto", 1.0) == 1.0
-	
-	if weapon_is_auto:
-		# AUTOMATISCH: Vuren zolang je de knop ingedrukt houdt
-		if Input.is_action_pressed("fire_primary") or Input.is_action_pressed("ui_accept"):
-			fire_primary_weapon()
-	else:
-		# SEMI-AUTOMATISCH: Je moet de knop herhaaldelijk EENMALIG indrukken per schot
-		if Input.is_action_just_pressed("fire_primary") or Input.is_action_just_pressed("ui_accept"):
-			fire_primary_weapon()
+	if can_fire:
+		# B. CSV-GESTUURDE VUURMODUS
+		var weapon_is_auto: bool = current_weapon_stats.get("is_full_auto", 1.0) == 1.0
+		
+		if weapon_is_auto:
+			# AUTOMATISCH: Vuren zolang je de knop ingedrukt houdt
+			if Input.is_action_pressed("fire_primary") or Input.is_action_pressed("ui_accept"):
+				fire_primary_weapon()
+		else:
+			# SEMI-AUTOMATISCH: Je moet de knop herhaaldelijk EENMALIG indrukken per schot
+			if Input.is_action_just_pressed("fire_primary") or Input.is_action_just_pressed("ui_accept"):
+				fire_primary_weapon()
 			
 			
 				# --- REALTIME SSoT HUB SYNCHRONISATIE ---
@@ -506,10 +486,6 @@ func fire_primary_weapon() -> void:
 	# Activeer de herlaad-pauze conform de database
 	await get_tree().create_timer(fire_rate).timeout
 	can_fire = true
-	
-	# Activeer de herlaad-pauze conform de database
-	await get_tree().create_timer(fire_rate).timeout
-	can_fire = true
 
 
 
@@ -561,6 +537,9 @@ func _on_player_hitbox_body_entered(body: Node2D) -> void:
 						var w_olrite = int(Game.get_meta("run_loot_olrite")) if Game.has_meta("run_loot_olrite") else 0
 						var w_metal  = int(Game.get_meta("run_loot_metal"))  if Game.has_meta("run_loot_metal")  else 0
 						var w_keep   = int(Game.get_meta("run_loot_keepium")) if Game.has_meta("run_loot_keepium") else 0
+						var w_elem1  = int(Game.get_meta("run_loot_element1")) if Game.has_meta("run_loot_element1") else 0
+						var w_elem2  = int(Game.get_meta("run_loot_element2")) if Game.has_meta("run_loot_element2") else 0
+						var w_elem3  = int(Game.get_meta("run_loot_element3")) if Game.has_meta("run_loot_element3") else 0
 						
 						if "currency_olrite" in meta: meta.currency_olrite += w_olrite
 						elif "currency_1" in meta: meta.currency_1 += w_olrite
@@ -568,6 +547,12 @@ func _on_player_hitbox_body_entered(body: Node2D) -> void:
 						elif "currency_2" in meta: meta.currency_2 += w_metal
 						if "currency_keepium" in meta: meta.currency_keepium += w_keep
 						elif "currency_3" in meta: meta.currency_3 += w_keep
+						if "currency_element1" in meta: meta.currency_element1 += w_elem1
+						elif "currency_4" in meta: meta.currency_4 += w_elem1
+						if "currency_element2" in meta: meta.currency_element2 += w_elem2
+						elif "currency_5" in meta: meta.currency_5 += w_elem2
+						if "currency_element3" in meta: meta.currency_element3 += w_elem3
+						elif "currency_6" in meta: meta.currency_6 += w_elem3
 						
 						if save_sys.has_method("save_meta_progress"):
 							save_sys.save_meta_progress(meta)
@@ -576,6 +561,9 @@ func _on_player_hitbox_body_entered(body: Node2D) -> void:
 							stats.currency_olrite += w_olrite
 							stats.currency_metal = meta.currency_metal if "currency_metal" in meta else (meta.currency_2 if "currency_2" in meta else stats.currency_metal + w_metal)
 							stats.currency_keepium += w_keep
+							stats.currency_element1 += w_elem1
+							stats.currency_element2 += w_elem2
+							stats.currency_element3 += w_elem3
 							
 							var slot_folder = "user://" + Game.active_save_slot + "/"
 							ResourceSaver.save(stats, slot_folder + "Player_Data.tres")
@@ -590,6 +578,9 @@ func _on_player_hitbox_body_entered(body: Node2D) -> void:
 
 				if save_sys and save_sys.has_method("delete_current_run_save"):
 					save_sys.delete_current_run_save()
+				
+				# RunState afsluiten: wist de dodenlijst en de kamer-momentopnames van deze run.
+				RunState.end_run()
 					
 				if is_instance_valid(LevelManager):
 					LevelManager.reset_manager_for_new_run()

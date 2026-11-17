@@ -23,7 +23,20 @@ var current_health: int = 50
 const STAT_HEALTH := "max_health"
 const STAT_SPEED := "speed"
 
-@onready var sprite: Sprite2D = find_child("*Sprite*", true, false) as Sprite2D
+# --- DRAAIEN ---
+## Aan: de vijand draait zijn voorkant naar de speler (zoals een schip).
+## Uit: de vijand heeft geen voorkant en tolt rustig rond, zoals iets dat door de ruimte zweeft
+## (bijvoorbeeld de organische spore). Zet dit per vijand-scene in de Inspector.
+@export var faces_player: bool = true
+## Bij tollen: de draaisnelheid wordt bij de geboorte willekeurig gekozen, tussen min en max
+## (in radialen per seconde; 1 is ongeveer een zesde rondje per seconde). Linksom of rechtsom is ook willekeurig.
+@export var tumble_speed_min: float = 0.3
+@export var tumble_speed_max: float = 1.2
+## Bij tollen: hoeveel een treffer de draai een zetje geeft.
+@export var hit_spin_kick: float = 0.8
+
+## De huidige draaisnelheid bij tollen (radialen per seconde, min = linksom).
+var spin: float = 0.0
 
 
 func _ready() -> void:
@@ -33,6 +46,11 @@ func _ready() -> void:
 	
 	# 1. DATA LADEN UIT DE SINGLE SOURCE OF TRUTH (SSoT) CSV
 	_load_stats()
+	
+	# Geen voorkant: begin in een willekeurige stand en kies een eigen draaisnelheid.
+	if not faces_player:
+		global_rotation = randf() * TAU
+		spin = randf_range(tumble_speed_min, tumble_speed_max) * (1.0 if randf() < 0.5 else -1.0)
 	
 	# 2. SSoT GEBOORTE-CHECK (Voorkomt herrijzenis uit de dood)
 	await get_tree().process_frame
@@ -101,6 +119,7 @@ func get_run_state() -> Dictionary:
 		"x": global_position.x,
 		"y": global_position.y,
 		"rot": global_rotation,
+		"spin": spin,
 	}
 
 
@@ -116,19 +135,25 @@ func apply_run_state(data: Dictionary) -> void:
 	current_health = int(data.get("hp", max_health))
 	global_position = Vector2(float(data.get("x", global_position.x)), float(data.get("y", global_position.y)))
 	global_rotation = float(data.get("rot", global_rotation))
+	spin = float(data.get("spin", spin))
 
 
 # --- 3. DYNAMISCHE BEWEGINGS-AI (60x per seconde) ---
 func _physics_process(delta: float) -> void:
 	var player = Game.active_player
 	
+	# Geen voorkant: gewoon doortollen. In de ruimte remt niets het draaien af.
+	if not faces_player:
+		global_rotation += spin * delta
+	
 	if is_instance_valid(player):
 		# Bereken de richtingvector naar de speler toe
 		var direction_to_player = (player.global_position - global_position).normalized()
 		
-		# Draai de neus/sprite van de vijand vlot richting de astronaut
-		var target_angle = direction_to_player.angle()
-		global_rotation = rotate_toward(global_rotation, target_angle, rotation_speed * delta)
+		# Draai de neus/sprite van de vijand vlot richting de astronaut (alleen als hij een voorkant heeft)
+		if faces_player:
+			var target_angle = direction_to_player.angle()
+			global_rotation = rotate_toward(global_rotation, target_angle, rotation_speed * delta)
 		
 		# Geef de snelheid mee aan de CharacterBody2D en glijd over het veld
 		velocity = direction_to_player * movement_speed
@@ -147,12 +172,14 @@ func take_damage(amount: int, flash: bool = true, hit_dir: Vector2 = Vector2.ZER
 	current_health = max(0, current_health - amount)
 	print(name, " geraakt tijdens het spelen! HP over: ", current_health, "/", max_health)
 	
+	# Een treffer geeft een tollende vijand een zetje, linksom of rechtsom.
+	if not faces_player:
+		spin = clampf(spin + randf_range(-1.0, 1.0) * hit_spin_kick, -tumble_speed_max * 2.0, tumble_speed_max * 2.0)
+	
 	if flash and has_method("flash_white"):
 		call("flash_white")
-	elif flash and sprite:
-		sprite.modulate = Color(4.0, 4.0, 4.0, 1.0)
-		await get_tree().create_timer(0.055, false).timeout
-		sprite.modulate = Color.WHITE
+	elif flash:
+		_flash_white()
 	
 	if current_health <= 0:
 		call_deferred("_deferred_death", hit_dir)
@@ -223,3 +250,17 @@ func _drop_specific_loot(hit_dir: Vector2) -> void:
 
 		get_tree().current_scene.add_child(loot_instance)
 	print("VIJAND DROP: '", name, "' heeft succesvol ", total_drops, " losse SSoT-kristallen op het veld geworpen.")
+
+# Laat ALLE plaatjes van de vijand even wit oplichten. Eerst werd alleen het eerste plaatje
+# met "Sprite" in de naam gebruikt; sinds de nieuwe sprite was dat het oude icoon dat eronder ligt.
+func _flash_white() -> void:
+	var sprites: Array = []
+	for child in find_children("*", "", true, false):
+		if (child is Sprite2D or child is AnimatedSprite2D) and child.visible:
+			sprites.append(child)
+	for s in sprites:
+		s.modulate = Color(4.0, 4.0, 4.0, 1.0)
+	await get_tree().create_timer(0.055, false).timeout
+	for s in sprites:
+		if is_instance_valid(s):
+			s.modulate = Color.WHITE

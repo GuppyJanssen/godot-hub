@@ -103,6 +103,9 @@ func _ready() -> void:
 			var save_instance = save_system_script.new()
 			if save_instance and save_instance.has_method("load_current_run"):
 				save_instance.load_current_run(active_player)
+			# Het losse SaveSystem is klaar: opruimen, anders blijft het in het geheugen hangen.
+			if save_instance:
+				save_instance.free()
 				
 	# Leg de loot en de vijanden terug zoals ze waren toen je deze kamer verliet.
 	_restore_room()
@@ -190,7 +193,7 @@ func _check_software_transitions() -> void:
 			LevelManager.set_meta("coming_from", "down")
 			LevelManager.set_meta("player_exit_x", active_player.global_position.x)
 			LevelManager.current_layer += 1
-			LevelManager.current_room_index = 0
+			LevelManager.current_room_index = _room_index_after_ring_change(current_layer, LevelManager.current_layer)
 			_save_before_transition()
 			get_tree().change_scene_to_file("res://World/Levels/game_room.tscn")
 			return
@@ -201,7 +204,7 @@ func _check_software_transitions() -> void:
 			LevelManager.set_meta("coming_from", "up")
 			LevelManager.set_meta("player_exit_x", active_player.global_position.x)
 			LevelManager.current_layer -= 1
-			LevelManager.current_room_index = 0
+			LevelManager.current_room_index = _room_index_after_ring_change(current_layer, LevelManager.current_layer)
 			_save_before_transition()
 			get_tree().change_scene_to_file("res://World/Levels/game_room.tscn")
 			return
@@ -236,6 +239,25 @@ func _check_software_transitions() -> void:
 				
 			get_tree().change_scene_to_file("res://World/Levels/game_room.tscn")
 			return
+
+
+# Rekent uit in welke kamer je uitkomt als je naar een andere ring gaat.
+# - Bredere ring (twee keer zoveel kamers): boven elke kamer liggen er twee. Vlieg je in de
+#   linkerhelft van het scherm naar buiten, dan kom je in de linker uit, anders in de rechter.
+# - Smallere ring: twee kamers komen samen in één.
+# Dit is dezelfde rekenregel als in LevelManager.handle_room_transition().
+func _room_index_after_ring_change(from_layer: int, to_layer: int) -> int:
+	var from_width: int = LevelManager.LAYER_WIDTHS[from_layer]
+	var to_width: int = LevelManager.LAYER_WIDTHS[to_layer]
+	var index: int = LevelManager.current_room_index
+	
+	if to_width > from_width:
+		var in_right_half: bool = active_player.global_position.x >= screen_width / 2.0
+		index = index * 2 + (1 if in_right_half else 0)
+	elif to_width < from_width:
+		index = floori(index / 2.0)
+	
+	return clampi(index, 0, to_width - 1)
 
 
 # Slaat alles op vlak voor een kamerwissel. Wordt aangeroepen NADAT de LevelManager
@@ -296,8 +318,6 @@ func snapshot_room(leaving_room: bool = false) -> void:
 		data["name"] = str(node.name)
 		units[str(node.get_run_id())] = data
 	
-		print("KAMER BEWAARD: ", units.keys())
-	
 	RunState.save_room_snapshot(my_layer, my_room, units)
 
 
@@ -325,7 +345,6 @@ func _restore_room() -> void:
 		if scene_path == "" or not ResourceLoader.exists(scene_path):
 			print("KAMER: kan ", unit_id, " niet terugzetten, scene onbekend: '", scene_path, "'")
 			continue
-		print("KAMER TERUGGEZET: ", unit_id)
 		
 		var inst = load(scene_path).instantiate()
 		# Sommige objecten (vijanden) worden aan hun naam herkend en moeten die terugkrijgen.
