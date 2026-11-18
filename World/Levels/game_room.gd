@@ -32,6 +32,12 @@ var room_ready: bool = false
 func _ready() -> void:
 	print("GAMEROOM: Universele kamer online. Start initialisatie...")
 	
+	# De balken zijn onzichtbaar tot we weten of er vijanden zijn. Anders flitsen ze even
+	# op in een kamer die al leeg is (de controle hieronder komt pas na twee frames).
+	var barrier_visuals: Node = get_node_or_null("BarrierVisuals")
+	if barrier_visuals is CanvasItem:
+		barrier_visuals.visible = false
+	
 	# 1. TIMING: Wacht twee frames tot de LevelManager stabiel staat
 	await get_tree().process_frame
 	await get_tree().process_frame
@@ -116,6 +122,9 @@ func _ready() -> void:
 	_restore_room()
 	
 	_check_barriers()
+	# Nu staan de balken goed (open of dicht): laat ze zien.
+	if barrier_visuals is CanvasItem:
+		barrier_visuals.visible = true
 
 	# 5. TOGGLE-AFHANKELIJKE RANDSPAWN
 	if is_instance_valid(active_player) and LevelManager.has_meta("coming_from"):
