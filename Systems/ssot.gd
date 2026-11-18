@@ -14,7 +14,7 @@ extends Node
 ##   if Ssot.has_value("enemy_grunt", "base_loot_splatter"): ...
 
 ## Pas deze drie aan als jullie bestand of kolommen anders heten.
-## De NIEUWE CSV (export van de tab "CSV tab"). De oude CSV blijft voorlopig bestaan voor MasterDatabase.
+## De CSV: export van de tab "CSV tab" in de sheet "One doc to rule them all".
 const CSV_PATH := "res://Systems/ssot.csv"
 const ID_COLUMN := "entry_id"
 const TYPE_COLUMN := "data_type"

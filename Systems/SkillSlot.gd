@@ -27,14 +27,9 @@ static var _reported_missing: Dictionary = {}
 
 
 func _refresh_slot_data() -> void:
-	# 1. Kosten en verval: eerst uit de nieuwe SSOT, anders uit de oude Master-CSV.
+	# 1. Kosten en verval uit de SSOT.
 	if Ssot.has_row(skill_id):
 		_read_from_ssot()
-	elif skill_id in MasterDatabase.skill_data:
-		var csv_data = MasterDatabase.skill_data[skill_id]["base_stats"]
-		currency_type = int(csv_data.get("currency_type", 0))
-		cost_per_click = int(csv_data.get("cost_per_click", 5))
-		loss_per_minute = int(csv_data.get("loss_per_minute", 1))
 	elif not _reported_missing.has(skill_id):
 		_reported_missing[skill_id] = true
 		print("SKILL SLOT: '", skill_id, "' heeft nog geen rij in de sheet; standaardkosten gebruikt.")

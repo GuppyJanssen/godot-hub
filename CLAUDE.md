@@ -42,11 +42,10 @@ Houd het kort en actueel. Bijgewerkt: 17 november 2026 (avond).
 | Naam | Script | Rol |
 | --- | --- | --- |
 | `Game` | `Systems/Game.gd` | Centrale hub: actieve speler, save-slot, run-loot (als meta), debug (F1) |
-| `MasterDatabase` | `Systems/master_database.gd` | OUDE CSV-lezer. Nog in gebruik door speler, wapens en vijanden |
 | `LevelManager` | `Systems/LevelManager.gd` | Ring en kamer |
 | `DebugOverlay` | `Systems/Debug_Overlay.gd` | Debugscherm |
 | `Mods` | `Systems/modifier_stack.gd` | Alles wat stats van de speler aanpast (skills, items, effecten) |
-| `Ssot` | `Systems/ssot.gd` | NIEUWE CSV-lezer op kolomnaam. Leest `Systems/ssot.csv` (export van de tab "CSV tab"). Draait naast MasterDatabase |
+| `Ssot` | `Systems/ssot.gd` | NIEUWE CSV-lezer op kolomnaam. Leest `Systems/ssot.csv` (export van de tab "CSV tab"). De enige CSV-lezer (MasterDatabase is weg sinds 18 nov) |
 | `RunState` | `Systems/run_state.gd` | De lopende run: dodenlijst, gehaalde kamers, kamer-momentopnames, speeltijd. Start/stopt/bewaart ook de factie-oorlog |
 | `FactionWar` | `Systems/faction_war.gd` | Factie-oorlog op de achtergrond: per kamer eigenaar en sterkte, tikt elke seconde speeltijd |
 | `FactionWarMap` | `Systems/faction_war_map.gd` | Debugkaart van de oorlog (F2, F3 = versnellen). Alleen in debug-builds |
@@ -67,18 +66,18 @@ Het regelt nog de kluis (`meta_data.json`) en een deel van `current_run.json`.
   Nu aangemeld: vijanden (`test_body.gd`), fabrieken (`enemy_spawner.gd`), loot, kogels (`weapon_output.gd`).
 - **Eén spawner-script** (`enemy_spawner.gd`) met Faction, Unit Type en Sprite Scale in de Inspector.
 - **Factie × type:** `Systems/enemy_stats.gd`. Een vijand = basis van `unit_<type>` × modifiers van `faction_<factie>`;
-  een eigen rij `enemy_<factie>_<type>` gaat voor. De rijen bestaan nog niet in de sheet, dus vijanden vallen
-  terug op `enemy_test_1` enzovoort uit de MasterDatabase. Facties krijgen voorlopig een testkleur.
+  een eigen rij `enemy_<factie>_<type>` gaat voor. Vijanden zonder factie/type (oude testvijanden) krijgen
+  vaste testwaarden uit `test_body.gd` (LEGACY_TEST_HEALTH, DEFAULT_LOOT_*).
 - **Kogels** verdwijnen als hun bereik op is en geven hun vliegrichting door bij een treffer.
-  Het bereik komt uit de CSV (`weapon_range` in de stats-cel van het wapen).
+  Het bereik komt uit de SSOT (`base_fire_range`), via `current_weapon_stats["weapon_range"]` van de speler.
 
 Nog niet aangesloten (staan klaar, worden nergens aangeroepen): `stat_calc.gd`, `skill_effects.gd`, `skill_decay.gd`,
-`Player/Weapons/ssot_weapon.gd`, `Player/Weapons/weapon_shooter.gd`, `World/ring_math.gd`, en alles in `Ideeen/`.
+`Player/Weapons/weapon_shooter.gd`, `World/ring_math.gd`, en alles in `Ideeen/`.
 
 ## Toegevoegd op 17 november 2026
 
 - **Nieuwe CSV:** `Systems/ssot.csv` (Import As = Keep File, net als de oude CSV). De Google Sheet heeft tab "SSoT"
-  (invullen, kopregel in rij 4) en "CSV tab" (export; één formule in A1: `=ARRAYFORMULA(SSoT!A4:EL1000)`, dus nieuwe rijen en
+  (invullen, kopregel in rij 4) en "CSV tab" (export; één formule in A1: `=ARRAYFORMULA(SSoT!A4:EF1000)`; komen er kolommen achteraan bij, dan moet de laatste kolomletter mee, dus nieuwe rijen en
   tussengevoegde kolommen komen vanzelf mee). Claude kan de sheet bewerken via de ingebouwde browser van de desktop-app. Rij-ids: `world` (wereld- en
   oorloginstellingen), `unit_light`, `unit_heavy`, `unit_factory`, `faction_a` t/m `faction_i` en hybrides
   `faction_ab`, `faction_bc`, `faction_ca` (en zo verder per driehoek). data_type: `world_settings`, `unit_type`, `faction`.
@@ -148,6 +147,16 @@ Nog niet aangesloten (staan klaar, worden nergens aangeroepen): `stat_calc.gd`, 
 
 1. Run-loot, positie en HP van de speler overzetten naar `RunState`; daarna de oude `current_run.json` uitfaseren.
 2. `SaveSystem` als autoload, alleen nog voor de kluis.
-3. De nieuwe brede CSV in de repo zetten en `Ssot` + `StatCalc` de `MasterDatabase` laten vervangen.
+3. ~~MasterDatabase vervangen door `Ssot` + `StatCalc`~~ (klaar, 18 nov).
 4. Skills koppelen (`SkillEffects`) en het verval (`SkillDecay`).
 5. Het seed-systeem voor kamers.
+
+## Toegevoegd op 18 november 2026
+
+- **MasterDatabase weg.** De speler laadt zijn wapens via `SsotWeapon.from_ssot()` (`Player._load_weapon_stats`).
+  Kolommen in de sheet: `base_damage`, `base_fire_rate`, `base_fire_range`, `base_bullet_speed`, `base_burst_count`
+  (kogels per schot), `base_muzzle_count`, `base_bullet_spread` (graden), `weapon_type` ("auto" = full-auto), `base_size`.
+  Skills tellen mee via `StatCalc.player_value`. Eén kogel met spreiding krijgt een willekeurige afwijking.
+- **Loot uit de SSOT** (rij van het type of een eigen vijand-rij): `base_loot_drop` (minimum), `loot_drop_max`,
+  `loot_drop_chance` (kans op telkens één extra). Light en heavy: 3 / 10 / 0.5, factory 0 (fabrieken droppen nog niets).
+  Splatter: `base_loot_splatter` = maximale snelheid; leeg = standaard uit `loot_splatter.gd`.

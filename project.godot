@@ -18,7 +18,6 @@ config/icon="res://icon.svg"
 [autoload]
 
 Game="*uid://cssxe2ccio53p"
-MasterDatabase="*uid://dod8taonfbsvu"
 LevelManager="*uid://dyqxx6t85knc7"
 DebugOverlay="*uid://duftho5ur2th4"
 Mods="*uid://ctowa05cadul6"

@@ -15,13 +15,13 @@ class_name SkillData
 # --- DYNAMISCHE HULPFUNCTIE ---
 # Vraagt live alle spreadsheet-gegevens op voor deze specifieke skill!
 func get_csv_stats() -> Dictionary:
-	if skill_id in MasterDatabase.skill_data:
-		return MasterDatabase.skill_data[skill_id]["base_stats"]
-	return {}
+	return Ssot.get_row(skill_id) if Ssot.has_row(skill_id) else {}
 
 
-# Vraagt live de eenmalige unlock-eisen op uit de spreadsheet modifiers
+# Vraagt live de eenmalige unlock-eisen op: de valuta-kolommen (olrite, metal, ...) van de SSOT-rij.
 func get_csv_unlock_requirements() -> Dictionary:
-	if skill_id in MasterDatabase.skill_data:
-		return MasterDatabase.skill_data[skill_id]["modifiers"]
-	return {}
+	var result: Dictionary = {}
+	for currency in ["olrite", "metal", "keepium", "element_1", "element_2", "element_3"]:
+		if Ssot.has_value(skill_id, currency):
+			result[currency] = Ssot.get_number(skill_id, currency)
+	return result

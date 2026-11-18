@@ -161,16 +161,7 @@ func _ready() -> void:
 		if stats.currency_element3 != run_currency_element3: stats.currency_element3 = run_currency_element3
 
 	# 4. LEIDENDE AS: Wapenstats inladen uit de CSV
-	var active_weapon_key = Game.active_weapon_key
-	if active_weapon_key in MasterDatabase.weapon_data:
-		var csv_row = MasterDatabase.weapon_data[active_weapon_key]
-		current_weapon_stats = csv_row["base_stats"].duplicate()
-		current_weapon_stats["is_full_auto"] = csv_row.get("is_full_auto", 1.0)
-		current_weapon_stats["bullet_per_shot"] = csv_row.get("bullet_per_shot", 1)
-		current_weapon_stats["muzzle_count"] = csv_row.get("muzzle_count", 1)
-		current_weapon_stats["bullet_spread"] = csv_row.get("bullet_spread", 0.0)
-	else:
-		current_weapon_stats = {"damage": 10.0, "base_fire_rate": 0.3, "is_full_auto": 1.0, "bullet_per_shot": 1, "muzzle_count": 1, "bullet_spread": 0.0}
+	_load_weapon_stats(Game.active_weapon_key)
 
 	# BINGO: Als we een run hervatten via Continue, roepen we uitgesteld de pixel-forcerder aan!
 	if Game.should_load_run:
@@ -288,16 +279,10 @@ func _physics_process(delta: float) -> void:
 	
 	# 1. DE WAPENWISSEL AS (1, 2, 3 INPUTS)
 	if new_target != "" and Game.active_weapon_key != new_target:
-		if new_target in MasterDatabase.weapon_data:
+		if Ssot.has_row(new_target):
 			# Overschrijf de wereldwijde SSoT sleutel direct!
 			Game.active_weapon_key = new_target
-			
-			var csv_row = MasterDatabase.weapon_data[Game.active_weapon_key]
-			current_weapon_stats = csv_row["base_stats"].duplicate()
-			current_weapon_stats["is_full_auto"] = csv_row.get("is_full_auto", 1.0)
-			current_weapon_stats["bullet_per_shot"] = csv_row.get("bullet_per_shot", 1)
-			current_weapon_stats["muzzle_count"] = csv_row.get("muzzle_count", 1)
-			current_weapon_stats["bullet_spread"] = csv_row.get("bullet_spread", 0.0)
+			_load_weapon_stats(Game.active_weapon_key)
 			
 			print("TEST-SWAP: Live gewisseld naar " + Game.active_weapon_key + " | Kogels: " + str(current_weapon_stats["bullet_per_shot"]))
 
@@ -329,6 +314,29 @@ func _physics_process(delta: float) -> void:
 		Game.set_meta("transit_energy", int(stats.current_energy))
 
 	# =========================================================================
+
+
+# --- WAPENWAARDEN UIT DE SSOT ---
+# Vult current_weapon_stats met de waarden van dit wapen uit de SSOT (via SsotWeapon).
+# Skills en items tellen mee (StatCalc.player_value). De sleutels blijven hetzelfde als
+# vroeger, zodat de kogel en het F1-scherm ze gewoon kunnen blijven lezen.
+func _load_weapon_stats(weapon_key: String) -> void:
+	if not Ssot.has_row(weapon_key):
+		push_warning("PLAYER: wapen '%s' staat niet in de SSOT; standaardwaarden gebruikt." % weapon_key)
+		current_weapon_stats = {"damage": 5.0, "base_fire_rate": 0.5, "weapon_range": 300.0, "is_full_auto": 0.0, "bullet_per_shot": 1, "muzzle_count": 1, "bullet_spread": 0.0, "bullet_speed": 700.0}
+		return
+	var w: SsotWeapon = SsotWeapon.from_ssot(weapon_key, true)
+	current_weapon_stats = {
+		"damage": w.damage,
+		"base_fire_rate": w.fire_interval,
+		"weapon_range": w.weapon_range,
+		"bullet_speed": w.projectile_speed,
+		"size_multiplier": w.size,
+		"is_full_auto": 1.0 if w.full_auto else 0.0,
+		"bullet_per_shot": w.bullets_per_shot,
+		"muzzle_count": w.muzzle_count,
+		"bullet_spread": w.spread_degrees,
+	}
 
 
 # --- SCHIETMOTOR: 100% Uitgelijnd op de SSoT CSV Kolommen ---
@@ -364,7 +372,13 @@ func fire_primary_weapon() -> void:
 		if bullets_to_spawn > 1:
 			# Verdeelt de kogels netjes in een waaier-kegel op basis van de CSV-hoek
 			final_spread = lerp(-spread_rad, spread_rad, float(i) / float(bullets_to_spawn - 1))
+		elif spread_rad > 0.0:
+			# Eén kogel: een willekeurige afwijking binnen de spreiding (basis voor de accuracy-skill).
+			final_spread = randf_range(-spread_rad, spread_rad)
 			
+		# Kogelsnelheid uit de SSOT (base_bullet_speed). Vóór add_child, want de kogel rekent in _ready verder.
+		if "speed" in bullet:
+			bullet.speed = float(current_weapon_stats.get("bullet_speed", bullet.speed))
 		bullet.global_position = global_position
 		bullet.global_rotation = global_rotation + final_spread
 		

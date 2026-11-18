@@ -89,6 +89,13 @@ var _investigate_target: Vector2 = Vector2.ZERO
 var _exploding: bool = false
 var _loot_factor: float = 1.0
 
+# Loot zonder SSOT-waarden (oude testvijanden): 3 t/m 10 blokjes, 50% kans op telkens één extra.
+const DEFAULT_LOOT_MIN := 3.0
+const DEFAULT_LOOT_MAX := 10.0
+const DEFAULT_LOOT_CHANCE := 0.5
+# Levens van de oude testvijanden zonder factie (test_body_type 1 en 2, uit de oude Master-CSV).
+const LEGACY_TEST_HEALTH := {1: 50, 2: 80}
+
 
 func _ready() -> void:
 	add_to_group("targets")
@@ -136,21 +143,9 @@ func _load_stats() -> void:
 		_apply_size(EnemyStats.value(faction, unit_type, "size", 1.0))
 		print(name, " geboren als factie ", faction, " / ", unit_type, ". HP: ", max_health)
 	else:
-		# OUD: de testrijen enemy_test_1 t/m 6 uit de MasterDatabase.
-		var csv_key = "enemy_test_" + str(test_body_type)
-		if csv_key in MasterDatabase.enemy_data:
-			var e_data = MasterDatabase.enemy_data[csv_key]
-			var e_stats = e_data["base_stats"]
-		
-			if "health" in e_stats: 
-				max_health = int(e_stats["health"])
-			if "loot_amount_blocks" in e_stats:
-				set_meta("loot_blocks", int(e_stats["loot_amount_blocks"]))
-			
-			print(name, " succesvol geboren! HP geladen uit SSoT CSV: ", max_health)
-		else:
-			max_health = 50
-			set_meta("loot_blocks", 3)
+		# Geen factie of type ingevuld: een oude testvijand. De waarden kwamen vroeger uit de
+		# oude Master-CSV (enemy_test_1 en _2); die zijn hier overgenomen tot alles een factie heeft.
+		max_health = LEGACY_TEST_HEALTH.get(test_body_type, 50)
 	
 	# Heeft deze vijand een voorkant? Uit de SSOT (kolom behavior_faces_player, op de rij van de
 	# factie of een eigen vijand-rij). 1 = ja, 0 = nee (tolt rond). Leeg = het vinkje in de Inspector telt.
@@ -498,28 +493,10 @@ func _drop_specific_loot(hit_dir: Vector2) -> void:
 	if not loot_scene: 
 		return
 	
-	# --- 1. MATS-WISKUNDE: GEWOGEN KANS VOOR AANTAL BLOKJES (3 t/m 10) ---
-	# We rollen een willekeurige float tussen 0.0 en 1.0
-	var roll = randf()
-	var total_drops: int = 3 # De absolute, veelvoorkomende basis stand
-	
-	if roll < 0.50:
-		total_drops = 3     # 50% kans op exact 3 blokjes
-	elif roll < 0.75:
-		total_drops = 4     # 25% kans op 4 blokjes
-	elif roll < 0.88:
-		total_drops = 5     # 13% kans op 5 blokjes
-	elif roll < 0.94:
-		total_drops = 6     # 6% kans op 6 blokjes
-	elif roll < 0.97:
-		total_drops = 7     # 3% kans op 7 blokjes
-	elif roll < 0.99:
-		total_drops = 8     # 2% kans op 8 blokjes
-	elif roll < 0.995:
-		total_drops = 9     # 0.5% kans op 9 blokjes
-	else:
-		total_drops = 10    # SLECHTS 0.5% KANS: De absolute Jackpot van 10 blokjes!
-		print("JACKPOT! De database rolt een zeldzame 10-blokjes drop!")
+	# --- 1. AANTAL BLOKJES UIT DE SSOT ---
+	# base_loot_drop = minimum, loot_drop_max = maximum, loot_drop_chance = kans op telkens
+	# één blokje extra. Met 3 / 10 / 0.5: 50% kans op 3, 25% op 4, 12,5% op 5, enzovoort.
+	var total_drops: int = _roll_loot_count()
 
 	# Opgeblazen kamikaze: maar een deel van de loot. Bij 0,3 blokje is er 30% kans op 1 blokje.
 	if _loot_factor < 1.0:
@@ -528,7 +505,7 @@ func _drop_specific_loot(hit_dir: Vector2) -> void:
 	
 	# --- 2. DE FYSIEKE SPAWN LUS ---
 	# Instellingen van de splatter: spreiding, snelheden, afremming, startvlek.
-	var settings: Dictionary = LootSplatter.default_settings()
+	var settings: Dictionary = _loot_splatter_settings()
 	var offset: float = float(settings["start_offset"])
 
 	for i in range(total_drops):
@@ -543,6 +520,39 @@ func _drop_specific_loot(hit_dir: Vector2) -> void:
 
 		get_tree().current_scene.add_child(loot_instance)
 	print("VIJAND DROP: '", name, "' heeft succesvol ", total_drops, " losse SSoT-kristallen op het veld geworpen.")
+
+# Hoeveel blokjes loot deze vijand laat vallen, uit de SSOT (rij van het type, of een eigen vijand-rij).
+# Zonder factie of type: de oude standaard 3 t/m 10.
+func _roll_loot_count() -> int:
+	var minimum: float = DEFAULT_LOOT_MIN
+	var maximum: float = DEFAULT_LOOT_MAX
+	var chance: float = DEFAULT_LOOT_CHANCE
+	if faction != "" and unit_type != "":
+		minimum = EnemyStats.value(faction, unit_type, "loot_drop", minimum)
+		maximum = EnemyStats.value(faction, unit_type, "loot_drop_max", maximum)
+		chance = EnemyStats.value(faction, unit_type, "loot_drop_chance", chance)
+	var count: int = maxi(0, roundi(minimum))
+	var top: int = maxi(count, roundi(maximum))
+	chance = clampf(chance, 0.0, 0.99)
+	while count < top and randf() < chance:
+		count += 1
+	if count == top and top >= 10:
+		print("JACKPOT! ", name, " laat het maximum van ", top, " blokjes vallen.")
+	return count
+
+
+# De splatter-instellingen voor deze vijand. base_loot_splatter (op de rij van het type of een
+# eigen vijand-rij) is de maximale snelheid; leeg = de standaard uit loot_splatter.gd.
+func _loot_splatter_settings() -> Dictionary:
+	var settings: Dictionary = LootSplatter.default_settings()
+	if faction != "" and unit_type != "":
+		settings["max_speed"] = EnemyStats.value(faction, unit_type, LootSplatter.STAT_MAX_SPEED, settings["max_speed"])
+		settings["spread_degrees"] = EnemyStats.value(faction, unit_type, LootSplatter.COL_SPREAD, settings["spread_degrees"])
+		settings["min_speed"] = EnemyStats.value(faction, unit_type, LootSplatter.COL_MIN_SPEED, settings["min_speed"])
+		settings["drag"] = EnemyStats.value(faction, unit_type, LootSplatter.COL_DRAG, settings["drag"])
+		settings["start_offset"] = EnemyStats.value(faction, unit_type, LootSplatter.COL_START_OFFSET, settings["start_offset"])
+	return settings
+
 
 # Laat ALLE plaatjes van de vijand even wit oplichten. Eerst werd alleen het eerste plaatje
 # met "Sprite" in de naam gebruikt; sinds de nieuwe sprite was dat het oude icoon dat eronder ligt.
