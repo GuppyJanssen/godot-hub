@@ -54,10 +54,10 @@ func _ready() -> void:
 			else:
 				# Eerste keer in deze run: kies nu éénmalig een willekeurige achtergrond uit jullie map!
 				var south_pole_backgrounds: Array[String] = [
-					"res://Sprites Models/Backgrounds/desert.png",
-					"res://Sprites Models/Backgrounds/ice.png",
-					"res://Sprites Models/Backgrounds/jungle.png",
-					"res://Sprites Models/Backgrounds/rocky.png"
+					"res://Sprites Models/Backgrounds/desert.jpg",
+					"res://Sprites Models/Backgrounds/ice.jpg",
+					"res://Sprites Models/Backgrounds/jungle.jpg",
+					"res://Sprites Models/Backgrounds/rocky.jpg"
 				]
 				target_tex_path = south_pole_backgrounds.pick_random()
 				
@@ -67,7 +67,7 @@ func _ready() -> void:
 					print("GAMEROOM: Nieuwe run-achtergrond éénmalig gekozen en vergrendeld: ", target_tex_path)
 					
 		elif active_layer == max_layer_index:
-			target_tex_path = "res://Sprites Models/Backgrounds/hell.png"
+			target_tex_path = "res://Sprites Models/Backgrounds/hell.jpg"
 			
 		if target_tex_path != "":
 			if not ResourceLoader.exists(target_tex_path):
