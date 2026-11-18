@@ -66,6 +66,17 @@ func get_run_state() -> Dictionary:
 	}
 
 
+# Bij het verlaten van de kamer: spring naar de plek waar dit blokje tot stilstand was gekomen
+# en bewaar het zonder vaart. Zo beweegt het niet meer als je terugkomt. (Bij "terug naar
+# hoofdmenu" wordt dit niet aangeroepen; dan houdt het blokje zijn vaart, zoals het hoort.)
+func settle_for_room_exit() -> void:
+	var speed: float = velocity.length()
+	if speed > 0.0 and loot_friction > 0.0:
+		global_position += velocity.normalized() * (speed * speed / (2.0 * loot_friction))
+	velocity = Vector2.ZERO
+	merging = false
+
+
 # Zet de bewaarde gegevens terug.
 func apply_run_state(data: Dictionary) -> void:
 	init_loot(int(data.get("type", 1)), int(data.get("amount", 1)))

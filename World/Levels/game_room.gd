@@ -317,6 +317,10 @@ func snapshot_room(leaving_room: bool = false) -> void:
 			continue
 		if not node.has_method("get_run_id") or not node.has_method("get_run_state"):
 			continue
+		# Bij een kamerwissel loopt de tijd in deze kamer "door": objecten die nog bewegen
+		# (loot met vaart) springen naar de plek waar ze tot stilstand waren gekomen.
+		if leaving_room and node.has_method("settle_for_room_exit"):
+			node.settle_for_room_exit()
 		
 		var data: Dictionary = node.get_run_state()
 		if data.is_empty():
