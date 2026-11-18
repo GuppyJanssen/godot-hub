@@ -46,6 +46,13 @@ func _update_dashboard() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
 	
+	# Seed van de run en wie deze kamer in de factie-oorlog bezit (handig om een seed te testen).
+	var seed_label = Label.new()
+	var room_owner: String = FactionWar.get_room_owner(LevelManager.current_layer, LevelManager.current_room_index)
+	seed_label.text = "Seed: " + str(RunState.run_seed) + "  |  Ring " + str(LevelManager.current_layer) + ", kamer " + str(LevelManager.current_room_index) + "  |  Factie: " + (room_owner if room_owner != "" else "leeg")
+	seed_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(seed_label)
+	
 	var current_auto_raw = 0.0
 	# GECORRIGEERD: We pakken direct de wereldwijde actieve speler!
 	if is_instance_valid(Game) and Game.active_player:

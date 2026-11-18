@@ -59,7 +59,8 @@ func _on_continue_button_pressed() -> void:
 
 # --- GECORRIGEERDE NIEUWE RUN AFHANDELING ---
 func _on_new_run_button_pressed() -> void:
-	RunState.start_new_run()
+	# De seed uit het invulveld (leeg = willekeurig). Zelfde seed = zelfde oorlog en kamers.
+	RunState.start_new_run(1, _read_seed())
 	print("MAIN MENU: New Run geactiveerd. Red openstaande buit en forceer schone lei...")
 	
 	var slot_folder = "user://" + Game.active_save_slot + "/"
@@ -158,3 +159,17 @@ func _on_new_game_button_pressed() -> void:
 
 func _on_exit_button_pressed() -> void:
 	get_tree().quit()
+
+
+# Leest het seed-veld. Leeg = -1 (willekeurig). Een getal blijft dat getal; tekst (bijvoorbeeld
+# "maik") wordt omgerekend naar een getal, zodat ook een woord als seed werkt.
+func _read_seed() -> int:
+	var field: LineEdit = find_child("SeedInput", true, false) as LineEdit
+	if field == null:
+		return -1
+	var text: String = field.text.strip_edges()
+	if text == "":
+		return -1
+	if text.is_valid_int():
+		return absi(text.to_int())
+	return absi(hash(text)) % 1000000000

@@ -38,6 +38,7 @@ var room_layer: int = 0
 var room_index: int = 0
 var is_destroyed: bool = false
 var restored_timer_left: float = 0.0  # resterende tijd tot de volgende vijand, na het laden
+var last_hit_dir: Vector2 = Vector2.ZERO  # richting van de laatste treffer, voor de loot-splatter
 
 @onready var sprite: Sprite2D = find_child("*Sprite*", true, false) as Sprite2D
 
@@ -190,8 +191,10 @@ func spawn_single_enemy() -> void:
 
 
 # --- SCHADE OPVANGEN EN PERMANENTE VERNIETIGING ---
-func take_damage(amount: int, flash: bool = true, _hit_dir: Vector2 = Vector2.ZERO) -> void:
+func take_damage(amount: int, flash: bool = true, hit_dir: Vector2 = Vector2.ZERO) -> void:
 	if is_destroyed or spawner_current_health <= 0: return
+	if hit_dir != Vector2.ZERO:
+		last_hit_dir = hit_dir
 	
 	spawner_current_health = max(0, spawner_current_health - amount)
 	print("SPAWNER ", my_id, " GERAAKT! HP over: ", spawner_current_health, "/", spawner_max_health)
@@ -227,6 +230,13 @@ func _deferred_destruction() -> void:
 				
 	if is_instance_valid(spawn_timer):
 		spawn_timer.stop()
+	
+	# Loot uit de SSOT (rij unit_factory): soort, aantal en splatter. Standaard Metal.
+	var count: int = LootDrops.roll_count(faction, "factory")
+	var currency: int = LootDrops.currency_index(faction, "factory", 2)
+	if is_instance_valid(active_scene):
+		LootDrops.spawn(active_scene, global_position, last_hit_dir, count, currency, LootDrops.splatter_settings(faction, "factory"))
+		print("SPAWNER: ", my_id, " laat ", count, " blokjes vallen.")
 		
 	# Wis de node nu veilig aan de start van het volgende frame
 	queue_free()

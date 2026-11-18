@@ -1,0 +1,18 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://bb5bigv0ciel7" path="res://Entities/Spawners/basic_spawner.gd" id="1_spawner"]
+[ext_resource type="PackedScene" uid="uid://5b1m6ciujdbd" path="res://Entities/Objects/test_body.tscn" id="2_enemy"]
+[ext_resource type="Texture2D" uid="uid://c4bvglccawcuj" path="res://icon.svg" id="3_icon"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_factory"]
+size = Vector2(124, 124)
+
+[node name="Factory" type="CharacterBody2D" groups=["targets"]]
+script = ExtResource("1_spawner")
+enemy_scene = ExtResource("2_enemy")
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("3_icon")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_factory")

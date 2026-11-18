@@ -36,6 +36,20 @@ text = "Continue"
 layout_mode = 2
 text = "New Run"
 
+[node name="SeedRow" type="HBoxContainer" parent="VBoxContainer" unique_id=1904417231]
+layout_mode = 2
+
+[node name="SeedLabel" type="Label" parent="VBoxContainer/SeedRow" unique_id=1904417232]
+layout_mode = 2
+text = "Seed"
+
+[node name="SeedInput" type="LineEdit" parent="VBoxContainer/SeedRow" unique_id=1904417233]
+custom_minimum_size = Vector2(160, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "leeg = willekeurig"
+clear_button_enabled = true
+
 [node name="SkillTreeButton" type="Button" parent="VBoxContainer" unique_id=578418225]
 layout_mode = 2
 text = "Skill Tree"

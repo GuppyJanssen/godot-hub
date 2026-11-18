@@ -31,6 +31,9 @@ var shield_accumulator: float = 0.0
 
 
 var current_weapon_stats: Dictionary = {}
+## Toetsen voor de wapenwissel: 1 t/m 9 en dan 0 (tiende wapen).
+const WEAPON_KEYS: Array = [KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0]
+var _weapon_cycle_held: bool = false
 
 
 func _ready() -> void:
@@ -272,12 +275,22 @@ func _physics_process(delta: float) -> void:
 		RoomBounds.apply(self, 30.0, enemies_alive)
 	
 	# A. GECORRIGEERD: Slaat de live-keuze direct op in de Global Hub voor de transities!
+	# Toetsen 1 t/m 9 en 0 kiezen een wapen in de volgorde van de SSOT (data_type weapon_base).
+	# Een nieuw wapen in de sheet krijgt zo vanzelf een toets.
 	var new_target = ""
-	if Input.is_key_pressed(KEY_1): new_target = "weapon_pistol"
-	elif Input.is_key_pressed(KEY_2): new_target = "weapon_shotgun"
-	elif Input.is_key_pressed(KEY_3): new_target = "weapon_gatling"
+	var weapon_ids: Array = Ssot.get_ids("weapon_base")
+	for k in mini(weapon_ids.size(), WEAPON_KEYS.size()):
+		if Input.is_key_pressed(WEAPON_KEYS[k]):
+			new_target = str(weapon_ids[k])
+			break
+	# [ en ] bladeren door ALLE wapens (ook na het tiende).
+	var cycle: int = int(Input.is_key_pressed(KEY_BRACKETRIGHT)) - int(Input.is_key_pressed(KEY_BRACKETLEFT))
+	if cycle != 0 and not _weapon_cycle_held and not weapon_ids.is_empty():
+		var current: int = maxi(0, weapon_ids.find(Game.active_weapon_key))
+		new_target = str(weapon_ids[posmod(current + cycle, weapon_ids.size())])
+	_weapon_cycle_held = cycle != 0
 	
-	# 1. DE WAPENWISSEL AS (1, 2, 3 INPUTS)
+	# 1. DE WAPENWISSEL AS (toetsen 1 t/m 0)
 	if new_target != "" and Game.active_weapon_key != new_target:
 		if Ssot.has_row(new_target):
 			# Overschrijf de wereldwijde SSoT sleutel direct!

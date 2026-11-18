@@ -32,6 +32,7 @@ signal run_ended(loot: Dictionary, seconds: float)
 var active: bool = false
 var run_seconds: float = 0.0
 var difficulty: int = 1            # 0 = Easy, 1 = Normal, 2 = Hard (zie SkillDecay)
+var run_seed: int = 0              # de seed van deze run: zelfde seed = zelfde oorlog en kamers
 var ring: int = 0
 var room: int = 0
 var player_position: Vector2 = Vector2.ZERO
@@ -50,13 +51,15 @@ func _process(delta: float) -> void:
 
 # ---------------------------------------------------------------- run starten en eindigen
 
-## Begin een schone run.
-func start_new_run(new_difficulty: int = 1) -> void:
+## Begin een schone run. 'seed_value' -1 = een willekeurige seed.
+func start_new_run(new_difficulty: int = 1, seed_value: int = -1) -> void:
 	# Een oude opgeslagen run hoort niet bij deze nieuwe run.
 	delete_save()
 	active = true
 	run_seconds = 0.0
 	difficulty = new_difficulty
+	run_seed = seed_value if seed_value >= 0 else randi() % 1000000000
+	print("RUNSTATE: nieuwe run met seed ", run_seed)
 	ring = 0
 	room = 0
 	player_position = Vector2.ZERO
@@ -68,7 +71,7 @@ func start_new_run(new_difficulty: int = 1) -> void:
 	# De factie-oorlog begint elke run opnieuw.
 	var war: Node = _faction_war()
 	if war != null:
-		war.start_new_war()
+		war.start_new_war(run_seed)
 
 
 ## Einde van de run (Surrender, dood, gewonnen, of New Run terwijl er nog een run stond).
@@ -129,11 +132,22 @@ func mark_cleared(room_ring: int, room_index: int) -> void:
 	_room(room_ring, room_index)["cleared"] = true
 
 
+## De kamer is weer bezet (een factie heeft hem na het leegmaken opnieuw ingenomen).
+func unmark_cleared(room_ring: int, room_index: int) -> void:
+	_room(room_ring, room_index)["cleared"] = false
+
+
 func is_cleared(room_ring: int, room_index: int) -> bool:
 	var key: String = room_key(room_ring, room_index)
 	if not rooms.has(key):
 		return false
 	return rooms[key]["cleared"]
+
+
+## Een vaste seed voor één kamer, afgeleid van de seed van de run. 'generation' telt op als
+## een kamer na het leegmaken opnieuw bezet wordt, zodat die bezetting er anders uitziet.
+func room_seed(room_ring: int, room_index: int, generation: int = 0) -> int:
+	return absi(hash([run_seed, room_ring, room_index, generation]))
 
 
 ## Onthoud een andere wijziging in de kamer, bijvoorbeeld een kapotte asteroïde:
@@ -226,6 +240,7 @@ func save() -> bool:
 	var data: Dictionary = {
 		"run_seconds": run_seconds,
 		"difficulty": difficulty,
+		"run_seed": run_seed,
 		"ring": ring,
 		"room": room,
 		"player_x": player_position.x,
@@ -275,6 +290,7 @@ func load_run() -> bool:
 	active = true
 	run_seconds = float(data.get("run_seconds", 0.0))
 	difficulty = int(data.get("difficulty", 1))
+	run_seed = int(data.get("run_seed", 0))
 	ring = int(data.get("ring", 0))
 	room = int(data.get("room", 0))
 	player_position = Vector2(float(data.get("player_x", 0.0)), float(data.get("player_y", 0.0)))

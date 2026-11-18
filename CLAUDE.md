@@ -77,7 +77,7 @@ Nog niet aangesloten (staan klaar, worden nergens aangeroepen): `stat_calc.gd`, 
 ## Toegevoegd op 17 november 2026
 
 - **Nieuwe CSV:** `Systems/ssot.csv` (Import As = Keep File, net als de oude CSV). De Google Sheet heeft tab "SSoT"
-  (invullen, kopregel in rij 4) en "CSV tab" (export; één formule in A1: `=ARRAYFORMULA(SSoT!A4:EF1000)`; komen er kolommen achteraan bij, dan moet de laatste kolomletter mee, dus nieuwe rijen en
+  (invullen, kopregel in rij 4) en "CSV tab" (export; één formule in A1: `=ARRAYFORMULA(SSoT!A4:EG1000)`; komen er kolommen achteraan bij, dan moet de laatste kolomletter mee, dus nieuwe rijen en
   tussengevoegde kolommen komen vanzelf mee). Claude kan de sheet bewerken via de ingebouwde browser van de desktop-app. Rij-ids: `world` (wereld- en
   oorloginstellingen), `unit_light`, `unit_heavy`, `unit_factory`, `faction_a` t/m `faction_i` en hybrides
   `faction_ab`, `faction_bc`, `faction_ca` (en zo verder per driehoek). data_type: `world_settings`, `unit_type`, `faction`.
@@ -160,3 +160,17 @@ Nog niet aangesloten (staan klaar, worden nergens aangeroepen): `stat_calc.gd`, 
 - **Loot uit de SSOT** (rij van het type of een eigen vijand-rij): `base_loot_drop` (minimum), `loot_drop_max`,
   `loot_drop_chance` (kans op telkens één extra). Light en heavy: 3 / 10 / 0.5, factory 0 (fabrieken droppen nog niets).
   Splatter: `base_loot_splatter` = maximale snelheid; leeg = standaard uit `loot_splatter.gd`.
+- **Kamers vullen (seed + factie-oorlog).** `Systems/room_populator.gd` zet bij het laden van een kamer fabrieken
+  neer (`Entities/Spawners/factory.tscn`). Eigenaar uit `FactionWar.get_room_owner`, plekken en type uit
+  `RunState.room_seed(ring, kamer, generatie)`. De vaste testfabrieken in `game_room.tscn` zijn weg. RunState onthoudt
+  per kamer `pop_owner`, `pop_gen`, `pop_count`; na leegmaken + herbezetting komt er een nieuwe generatie.
+  Instellingen in SSOT-rij `world`: `room_factory_min/max`, `room_heavy_chance`, `room_grunts_per_factory`,
+  `room_heavies_per_factory` (leeg = standaard in het script). Polen (ring 0 en de laatste) blijven leeg.
+- **Seed:** `RunState.run_seed` (bewaard in de save); hoofdmenu heeft een veld "Seed" (leeg = willekeurig, tekst
+  wordt een getal). F1 toont seed, ring, kamer en eigenaar.
+- **Loot:** `Entities/Loot/loot_drops.gd` (LootDrops) voor vijanden én fabrieken. Kolom `loot_drop_type`
+  (olrite, metal, ...). Fabrieken droppen Metal (5 / 15 / 0.5).
+- **Wapens:** toetsen 1 t/m 0 = de wapens in SSOT-volgorde, `[` en `]` bladeren door alle wapens. Nieuwe rijen:
+  railgun, raketwerper, zuursproeier, magneetkanon, stralingsmortier, stuiterbal, golfkanon (en laserbeam ingevuld).
+  Homing, explosies, zuur/straling over tijd en stuiteren bestaan nog alleen als kolommen; de kogel doet er nog niets mee.
+

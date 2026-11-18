@@ -107,6 +107,11 @@ func _ready() -> void:
 			if save_instance:
 				save_instance.free()
 				
+	# Fabrieken neerzetten: wie er zit komt uit de factie-oorlog, waar ze staan uit de seed.
+	# Eerst dit, dan pas terugzetten: bestaande fabrieken halen hun gegevens zelf op.
+	var factory_parent: Node = get_node_or_null("Body's/spawner")
+	RoomPopulator.populate(factory_parent if factory_parent != null else self, my_layer, my_room)
+
 	# Leg de loot en de vijanden terug zoals ze waren toen je deze kamer verliet.
 	_restore_room()
 	
