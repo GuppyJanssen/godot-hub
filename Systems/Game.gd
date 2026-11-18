@@ -36,7 +36,7 @@ var debug_friction_multiplier: float = 1.0
 var debug_bullet_speed_multiplier: float = 1.0
 var debug_bullet_size_multiplier: float = 1.0
 var debug_range_multiplier: float = 1.0
-var debug_muzzle_count: int = 14
+var debug_muzzle_count: int = 0  # 0 = het aantal uit de SSOT (base_muzzle_count)
 
 
 # 3. JULLIE BESTAANDE READY FUNCTIE (BLIJFT 100% INTACT)

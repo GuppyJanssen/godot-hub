@@ -77,7 +77,7 @@ Nog niet aangesloten (staan klaar, worden nergens aangeroepen): `stat_calc.gd`, 
 ## Toegevoegd op 17 november 2026
 
 - **Nieuwe CSV:** `Systems/ssot.csv` (Import As = Keep File, net als de oude CSV). De Google Sheet heeft tab "SSoT"
-  (invullen, kopregel in rij 4) en "CSV tab" (export; één formule in A1: `=ARRAYFORMULA(SSoT!A4:EG1000)`; komen er kolommen achteraan bij, dan moet de laatste kolomletter mee, dus nieuwe rijen en
+  (invullen, kopregel in rij 4) en "CSV tab" (export; één formule in A1: `=ARRAYFORMULA(SSoT!A4:EI1000)`; komen er kolommen achteraan bij, dan moet de laatste kolomletter mee, dus nieuwe rijen en
   tussengevoegde kolommen komen vanzelf mee). Claude kan de sheet bewerken via de ingebouwde browser van de desktop-app. Rij-ids: `world` (wereld- en
   oorloginstellingen), `unit_light`, `unit_heavy`, `unit_factory`, `faction_a` t/m `faction_i` en hybrides
   `faction_ab`, `faction_bc`, `faction_ca` (en zo verder per driehoek). data_type: `world_settings`, `unit_type`, `faction`.
@@ -174,3 +174,7 @@ Nog niet aangesloten (staan klaar, worden nergens aangeroepen): `stat_calc.gd`, 
   railgun, raketwerper, zuursproeier, magneetkanon, stralingsmortier, stuiterbal, golfkanon (en laserbeam ingevuld).
   Homing, explosies, zuur/straling over tijd en stuiteren bestaan nog alleen als kolommen; de kogel doet er nog niets mee.
 
+- **Loot klontert samen** (`loot_drop.gd`): blokjes van dezelfde grondstof drijven na `loot_merge_delay` langzaam
+  (`loot_merge_speed`) naar elkaar toe binnen `loot_merge_radius` (rij `world`, leeg = standaard) en worden stenen,
+  klompjes en losse blokjes. Groottes per grondstof: `loot_chunk_small` / `loot_chunk_large` (olrite 15/97, metal 8/90).
+- **Muzzles:** de speler schiet uit `base_muzzle_count` lopen naast elkaar; F1 kan dat overschrijven (SSOT, 1, 2, 4).

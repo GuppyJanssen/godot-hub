@@ -34,6 +34,8 @@ var current_weapon_stats: Dictionary = {}
 ## Toetsen voor de wapenwissel: 1 t/m 9 en dan 0 (tiende wapen).
 const WEAPON_KEYS: Array = [KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0]
 var _weapon_cycle_held: bool = false
+## Afstand tussen twee lopen, in pixels.
+const MUZZLE_SPACING := 14.0
 
 
 func _ready() -> void:
@@ -377,8 +379,16 @@ func fire_primary_weapon() -> void:
 	# Converteer de spread van graden naar radialen als er spreiding in de kolom staat
 	var spread_rad = deg_to_rad(spread) if spread > 0.0 else 0.0
 	
+	# Lopen (muzzles): uit de SSOT (base_muzzle_count), of het aantal uit het F1-menu als dat niet op SSOT staat.
+	# De lopen staan naast elkaar, haaks op de schietrichting; elke loop schiet het hele patroon.
+	var muzzles: int = Game.debug_muzzle_count if Game.debug_muzzle_count > 0 else maxi(1, int(current_weapon_stats.get("muzzle_count", 1)))
+	var side: Vector2 = global_transform.y.normalized()
+	
 	# De exacte vuurlus: schiet exact 1 kogel voor het pistool (5 dmg) en exact 5 voor de shotgun!
-	for i in range(bullets_to_spawn):
+	for shot in range(bullets_to_spawn * muzzles):
+		var i: int = shot % bullets_to_spawn
+		var m: int = floori(float(shot) / bullets_to_spawn)
+		var muzzle_offset: Vector2 = side * ((m - (muzzles - 1) / 2.0) * MUZZLE_SPACING)
 		var bullet = weapon_output_scene.instantiate()
 		
 		var final_spread = 0.0
@@ -392,7 +402,7 @@ func fire_primary_weapon() -> void:
 		# Kogelsnelheid uit de SSOT (base_bullet_speed). Vóór add_child, want de kogel rekent in _ready verder.
 		if "speed" in bullet:
 			bullet.speed = float(current_weapon_stats.get("bullet_speed", bullet.speed))
-		bullet.global_position = global_position
+		bullet.global_position = global_position + muzzle_offset
 		bullet.global_rotation = global_rotation + final_spread
 		
 		# Geef de exacte schade door aan het projectiel

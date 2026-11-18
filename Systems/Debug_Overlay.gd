@@ -3,12 +3,47 @@ extends CanvasLayer
 
 var panel: PanelContainer
 var vbox: VBoxContainer
+var seed_label: Label = null
+var _seed_label_timer: float = 0.0
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
 	layer = 100
 	_build_debug_ui()
+
+# Het seed-label wordt een paar keer per seconde ververst, zodat het klopt na een kamerwissel.
+func _process(delta: float) -> void:
+	if not visible:
+		return
+	_seed_label_timer -= delta
+	if _seed_label_timer <= 0.0:
+		_seed_label_timer = 0.25
+		_refresh_seed_label()
+
+
+# Seed, kamer, wie de kamer bezet (de fabrieken die er staan) en wie hem nu in de oorlog bezit.
+func _refresh_seed_label() -> void:
+	if not is_instance_valid(seed_label):
+		return
+	var ring: int = LevelManager.current_layer
+	var room: int = LevelManager.current_room_index
+	var war_owner: String = FactionWar.get_room_owner(ring, room)
+	var pop_owner: String = str(RunState.get_room_change(ring, room, "pop_owner", ""))
+	if RunState.is_cleared(ring, room):
+		pop_owner = ""
+	seed_label.text = "Seed: %d  |  Ring %d, kamer %d\nBezet door: %s  |  Oorlog nu: %s" % [
+		RunState.run_seed, ring, room,
+		_faction_label(pop_owner), _faction_label(war_owner)]
+
+
+# "a" -> "a (Organic)", "" -> "leeg".
+func _faction_label(faction: String) -> String:
+	if faction == "":
+		return "leeg"
+	var label: String = Ssot.get_text(EnemyStats.faction_row(faction), "ingame_name", "")
+	return faction + (" (" + label + ")" if label != "" else "")
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	# GECORRIGEERD: Luistert STRIKT en alleen naar de fysieke F1-toets. Sluit Esc-overlaps volledig uit!
@@ -47,11 +82,10 @@ func _update_dashboard() -> void:
 	vbox.add_child(title)
 	
 	# Seed van de run en wie deze kamer in de factie-oorlog bezit (handig om een seed te testen).
-	var seed_label = Label.new()
-	var room_owner: String = FactionWar.get_room_owner(LevelManager.current_layer, LevelManager.current_room_index)
-	seed_label.text = "Seed: " + str(RunState.run_seed) + "  |  Ring " + str(LevelManager.current_layer) + ", kamer " + str(LevelManager.current_room_index) + "  |  Factie: " + (room_owner if room_owner != "" else "leeg")
+	seed_label = Label.new()
 	seed_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(seed_label)
+	_refresh_seed_label()
 	
 	var current_auto_raw = 0.0
 	# GECORRIGEERD: We pakken direct de wereldwijde actieve speler!
@@ -70,7 +104,7 @@ func _update_dashboard() -> void:
 	_add_dashboard_row("Bullet Speed", "Multiplier", "Mult: [" + str(Game.debug_bullet_speed_multiplier) + "x]", _cycle_bullet_speed)
 	_add_dashboard_row("Bullet Size", "Multiplier", "Mult: [" + str(Game.debug_bullet_size_multiplier) + "x]", _cycle_bullet_size)
 	_add_dashboard_row("Weapon Range", "Multiplier", "Mult: [" + str(Game.debug_range_multiplier) + "x]", _cycle_range)
-	_add_dashboard_row("Muzzles Spawn", "Live Aantal", "Aantal: [" + str(Game.debug_muzzle_count) + "]", _cycle_muzzles)
+	_add_dashboard_row("Muzzles Spawn", "Live Aantal", "Aantal: [" + ("SSOT" if Game.debug_muzzle_count <= 0 else str(Game.debug_muzzle_count)) + "]", _cycle_muzzles)
 
 	var money_label = Label.new()
 	money_label.text = "--- ECONOMIE CHEATS ---"
@@ -149,11 +183,12 @@ func _cycle_multiplier(prop_name: String) -> void:
 	_update_dashboard()
 
 func _cycle_muzzles() -> void:
+	# 0 = SSOT (het wapen bepaalt het), daarna 1, 2, 4 en weer terug naar SSOT.
 	var cur = int(Game.debug_muzzle_count)
-	if cur == 14: Game.debug_muzzle_count = 1
+	if cur == 0: Game.debug_muzzle_count = 1
 	elif cur == 1: Game.debug_muzzle_count = 2
 	elif cur == 2: Game.debug_muzzle_count = 4
-	else: Game.debug_muzzle_count = 14
+	else: Game.debug_muzzle_count = 0
 	_update_dashboard()
 
 func _make_rich() -> void: _set_money_values(9999)

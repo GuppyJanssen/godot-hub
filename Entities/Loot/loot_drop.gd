@@ -7,6 +7,26 @@ var amount: int = 1
 var velocity: Vector2 = Vector2.ZERO
 var loot_friction: float = 150.0 
 
+# --- SAMENKLONTEREN ---
+# Losse blokjes van dezelfde grondstof die bij elkaar liggen, drijven na een korte pauze langzaam
+# naar elkaar toe en worden samen een klompje (bijvoorbeeld 15 Olrite) of een steen (97 Olrite).
+# Wat overblijft, blijft los liggen: 20 blokjes = 1 klompje van 15 + 5 losse.
+# Per grondstof in de SSOT (rij olrite, metal ...): loot_chunk_small en loot_chunk_large.
+# Leeg = deze grondstof klontert niet. Algemene instellingen op de rij "world" (leeg = standaard):
+# loot_merge_delay, loot_merge_speed, loot_merge_radius.
+const CURRENCY_ROWS: Array = ["", "olrite", "metal", "keepium", "element_1", "element_2", "element_3"]
+const MERGE_DEFAULTS := {"loot_merge_delay": 0.4, "loot_merge_speed": 35.0, "loot_merge_radius": 160.0}
+const MERGE_CHECK_SECONDS := 0.2   # hoe vaak een blokje kijkt of er iets samen te voegen valt
+const MERGE_CLOSE_ENOUGH := 14.0   # zo dicht bij het midden telt als "aangekomen"
+const SETTLED_SPEED := 25.0        # pas samentrekken als de splatter bijna uitgedreven is
+const CHUNK_SCALE := 1.7           # grootte van een klompje
+const STONE_SCALE := 2.6           # grootte van een steen
+
+var _age: float = 0.0
+var _merge_timer: float = 0.0
+var merge_target: Vector2 = Vector2.ZERO
+var merging: bool = false
+
 @onready var color_rect: ColorRect = $ColorRect
 
 
@@ -82,11 +102,22 @@ func _physics_process(delta: float) -> void:
 		if velocity.length() > 0:
 			global_position += velocity * delta
 			velocity = velocity.move_toward(Vector2.ZERO, loot_friction * delta)
+		_update_merge(delta)
+	else:
+		merging = false
 
 
 func init_loot(type: int, amt: int) -> void:
 	currency_type = type
 	amount = amt
+	# Klompjes en stenen zijn groter (de botsing groeit mee).
+	var size_scale: float = 1.0
+	var sizes: Vector2i = _chunk_sizes()
+	if sizes.y > 0 and amount >= sizes.y:
+		size_scale = STONE_SCALE
+	elif sizes.x > 0 and amount >= sizes.x:
+		size_scale = CHUNK_SCALE
+	scale = Vector2(size_scale, size_scale)
 	
 	var active_rect = color_rect if is_instance_valid(color_rect) else (get_node("ColorRect") if has_node("ColorRect") else null)
 	if is_instance_valid(active_rect):
@@ -142,3 +173,105 @@ func _execute_pickup(player_node: Node2D) -> void:
 	
 	# Wis het opgezogen kristal vloeibaar uit de arena
 	queue_free()
+
+
+# --- SAMENKLONTEREN ---
+
+# Klompje- en steengrootte voor deze grondstof (0 = niet).
+func _chunk_sizes() -> Vector2i:
+	if currency_type < 1 or currency_type >= CURRENCY_ROWS.size():
+		return Vector2i.ZERO
+	var row: String = CURRENCY_ROWS[currency_type]
+	return Vector2i(Ssot.get_int(row, "loot_chunk_small", 0), Ssot.get_int(row, "loot_chunk_large", 0))
+
+
+static func _merge_setting(setting_name: String) -> float:
+	return Ssot.get_number("world", setting_name, float(MERGE_DEFAULTS[setting_name]))
+
+
+# Mag dit blokje meedoen met samenklonteren? (Pauze voorbij en de splatter bijna uitgedreven.)
+func can_merge() -> bool:
+	return is_inside_tree() and not is_queued_for_deletion() and _age >= _merge_setting("loot_merge_delay") and velocity.length() <= SETTLED_SPEED
+
+
+func _update_merge(delta: float) -> void:
+	_age += delta
+	# Langzaam naar het midden van de groep drijven (het "ruimte"-gevoel).
+	if merging:
+		global_position = global_position.move_toward(merge_target, _merge_setting("loot_merge_speed") * delta)
+	_merge_timer -= delta
+	if _merge_timer > 0.0:
+		return
+	_merge_timer = MERGE_CHECK_SECONDS
+	if not can_merge():
+		return
+	var sizes: Vector2i = _chunk_sizes()
+	if sizes.x <= 0 and sizes.y <= 0:
+		return
+
+	# De groep: blokjes van dezelfde grondstof binnen de straal. Alleen het blokje met het laagste
+	# nummer in de groep (de "aanvoerder") regelt het samenvoegen, zodat het één keer gebeurt.
+	var radius: float = _merge_setting("loot_merge_radius")
+	var group: Array = [self]
+	for node in get_tree().get_nodes_in_group("loot"):
+		if node == self or not node.has_method("can_merge"):
+			continue
+		if node.currency_type != currency_type or not node.can_merge():
+			continue
+		if node.global_position.distance_to(global_position) > radius:
+			continue
+		if node.get_instance_id() < get_instance_id():
+			return  # een ander blokje is de aanvoerder
+		group.append(node)
+
+	var total: int = 0
+	var center: Vector2 = Vector2.ZERO
+	for piece in group:
+		total += piece.amount
+		center += piece.global_position
+	center /= group.size()
+
+	# Hoe ziet de groep er na het samenvoegen uit? Zoveel mogelijk stenen, dan klompjes, de rest los.
+	var stones: int = floori(float(total) / sizes.y) if sizes.y > 0 else 0
+	var rest: int = total - stones * sizes.y
+	var chunks: int = floori(float(rest) / sizes.x) if sizes.x > 0 else 0
+	var singles: int = rest - chunks * sizes.x
+	if stones + chunks == 0 or group.size() <= stones + chunks + singles:
+		for piece in group:
+			piece.merging = false
+		return  # niets samen te voegen, of al zo samengevoegd als het kan
+
+	# Iedereen drijft naar het midden. Zijn ze er allemaal, dan wordt de groep omgezet.
+	var arrived: bool = true
+	for piece in group:
+		piece.merge_target = center
+		piece.merging = true
+		if piece.global_position.distance_to(center) > MERGE_CLOSE_ENOUGH:
+			arrived = false
+	if arrived:
+		_recompose(group, center, stones, chunks, singles, sizes)
+
+
+# Vervangt de groep door stenen, klompjes en losse blokjes op dezelfde plek.
+func _recompose(group: Array, center: Vector2, stones: int, chunks: int, singles: int, sizes: Vector2i) -> void:
+	var scene: PackedScene = load(scene_file_path)
+	var parent: Node = get_parent()
+	if scene == null or parent == null:
+		return
+	var pieces: Array = []
+	for i in stones:
+		pieces.append(sizes.y)
+	for i in chunks:
+		pieces.append(sizes.x)
+	for i in singles:
+		pieces.append(1)
+	for piece in group:
+		piece.queue_free()
+	for piece_amount in pieces:
+		var loot: Node = scene.instantiate()
+		loot.init_loot(currency_type, piece_amount)
+		# Grote stukken in het midden, losse blokjes er een beetje omheen.
+		var spread: float = 4.0 if piece_amount > 1 else 18.0
+		loot.global_position = center + Vector2(randf_range(-spread, spread), randf_range(-spread, spread))
+		parent.call_deferred("add_child", loot)
+	print("LOOT: ", group.size(), " stukjes samengevoegd tot ", stones, " steen, ", chunks, " klompje(s) en ", singles, " los.")
