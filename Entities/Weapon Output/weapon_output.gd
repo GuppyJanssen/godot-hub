@@ -2,7 +2,11 @@ extends Area2D
 # BEDIENING: Kogel/Projectiel (Volledig F1 Dashboard-Bewust!)
 
 @export var speed: float = 700.0
-@export var damage: int = 10
+## Schade per treffer. Een kommagetal, zodat skills (+1% per level) niet wegvallen door afronden.
+## Pas bij de treffer wordt hij afgerond (minimaal 1).
+@export var damage: float = 10.0
+## Grootte uit de SSOT (base_size van het wapen, met skills). Zet dit vóór add_child.
+var size_scale: float = 1.0
 ## Het damage type van het wapen (base_damage_type in de SSOT), voor de testdummy en later de counters.
 var damage_type: String = ""
 ## Kogel van een vijand (commando): raakt alleen de speler, en de F1-instellingen van de speler
@@ -33,14 +37,16 @@ func _ready() -> void:
 		area_entered.connect(_on_area_entered)
 		return
 
-	var size_mult = Game.debug_bullet_size_multiplier if Game.debug_bullet_size_multiplier else 1.0
-	var speed_mult = Game.debug_bullet_speed_multiplier if Game.debug_bullet_speed_multiplier else 1.0
+	var size_mult: float = Game.debug_bullet_size_multiplier if Game.debug_bullet_size_multiplier > 0.0 else 1.0
+	var speed_mult: float = Game.debug_bullet_speed_multiplier if Game.debug_bullet_speed_multiplier > 0.0 else 1.0
 
-	scale = Vector2(size_mult, size_mult)
+	var final_size: float = maxf(0.05, size_scale) * size_mult
+	scale = Vector2(final_size, final_size)
 	speed *= speed_mult
 
-	if Game.debug_damage_multiplier:
-		damage *= int(Game.debug_damage_multiplier)
+	# F1-schade: een kommagetal (0,3x moet ook werken; vroeger werd dat afgerond naar 0).
+	if Game.debug_damage_multiplier > 0.0:
+		damage *= Game.debug_damage_multiplier
 	
 	weapon_range = _read_weapon_range()
 	if Game.debug_range_multiplier:
@@ -99,8 +105,15 @@ func _on_body_entered(body: Node2D) -> void:
 			# Wie het wil weten (de testdummy), hoort eerst welk damage type deze treffer heeft.
 			if body.has_method("on_hit_info"):
 				body.on_hit_info(damage, damage_type)
-			body.take_damage(damage, true, impact_direction)
+			body.take_damage(hit_damage(), true, impact_direction)
 		queue_free()
+
+
+## De schade als heel getal voor take_damage: afgerond, en minimaal 1 als er schade is.
+func hit_damage() -> int:
+	if damage <= 0.0:
+		return 0
+	return maxi(1, roundi(damage))
 
 
 # --- ONTHOUDEN: de drie functies voor de groep "saveable" ---
@@ -122,6 +135,7 @@ func get_run_state() -> Dictionary:
 		"rot": global_rotation,
 		"speed": speed,
 		"damage": damage,
+		"size": scale.x,
 		"range": weapon_range,
 		"traveled": traveled_distance,
 		"enemy": from_enemy,
@@ -134,7 +148,10 @@ func apply_run_state(data: Dictionary) -> void:
 	global_position = Vector2(float(data.get("x", global_position.x)), float(data.get("y", global_position.y)))
 	global_rotation = float(data.get("rot", global_rotation))
 	speed = float(data.get("speed", speed))
-	damage = int(data.get("damage", damage))
+	damage = float(data.get("damage", damage))
+	var saved_size: float = float(data.get("size", scale.x))
+	if saved_size > 0.0:
+		scale = Vector2(saved_size, saved_size)
 	weapon_range = float(data.get("range", weapon_range))
 	traveled_distance = float(data.get("traveled", traveled_distance))
 	if bool(data.get("enemy", false)) and not from_enemy:

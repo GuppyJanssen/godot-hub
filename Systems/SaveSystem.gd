@@ -1,149 +1,240 @@
-extends Node
-# SINGLE SOURCE OF TRUTH: SaveSystem (Kogelvrije Dodenlijst-Modus)
+extends RefCounted
+class_name SaveSystem
+## SaveSystem – alles wat met de save-bestanden op schijf te maken heeft.
+##
+## Veiligheid (ontwikkelaarsnotities):
+## - Alleen JSON. Nooit .tres/.res uit user:// laden: zo'n bestand kan een script bevatten dat
+##   meteen wordt uitgevoerd. Een gedeelde of aangepaste save kan dan code op je pc draaien.
+## - De naam van het save-slot wordt gecontroleerd (is_valid_slot). Zo kan een aangepast
+##   app_config.json niet buiten de save-map schrijven of lezen (bijvoorbeeld "../../").
+## - read_json geeft altijd een Dictionary terug (leeg bij een ontbrekend of kapot bestand),
+##   zodat een beschadigde save het spel niet laat crashen.
+## - write_json schrijft eerst naar een .tmp-bestand en zet dat daarna op zijn plek.
+##   Valt het spel uit tijdens het opslaan, dan blijft de vorige save heel.
+##
+## Gebruik zonder instantie: SaveSystem.read_json(pad), SaveSystem.slot_dir().
+## Oude code die load("res://Systems/SaveSystem.gd").new() doet, werkt nog. Dit is een
+## RefCounted: hij ruimt zichzelf op, dus NOOIT .free() aanroepen.
 
-# NIEUW: Houdt live tijdens de run bij welke specifieke vijand-ID's zijn gesloopt!
+## Alleen deze slotnamen zijn toegestaan (pre_menu: Slot_1, Slot_2, Slot_3).
+const SLOT_NAMES: Array = ["Slot_1", "Slot_2", "Slot_3"]
+const APP_CONFIG_PATH := "user://app_config.json"
+const META_FILE := "meta_data.json"
+const RUN_FILE := "current_run.json"
+## Grootste save die we inlezen. Groter = vrijwel zeker kapot of aangepast.
+const MAX_FILE_BYTES := 20 * 1024 * 1024
+
+## Wordt nog gebruikt door neutral_spawner.gd (vervalt met deze instantie).
 var dead_enemies_cache: Dictionary = {}
-const SAVE_DIR: String = "user://Saves/"
 
 
-func get_loaded_meta_progress() -> Resource:
-	var meta_res = load("res://Resources/meta_progress.gd").new()
-	var full_path = "user://" + Game.active_save_slot + "/meta_data.json"
-	if FileAccess.file_exists(full_path):
-		var file = FileAccess.open(full_path, FileAccess.READ)
-		var json = JSON.new()
-		if json.parse(file.get_as_text()) == OK:
-			var save_dict = json.get_data()
-			# De kluis. Oude saves hadden currency_1 ... currency_6 (vaste volgorde); die worden omgezet.
-			if save_dict.has("resources") and save_dict["resources"] is Dictionary:
-				for id in save_dict["resources"]:
-					meta_res.add_amount(LootResources.normalize(id), int(save_dict["resources"][id]))
-			for i in range(1, 7):
-				var key = "currency_" + str(i)
-				if save_dict.has(key):
-					meta_res.add_amount(LootResources.normalize(i), int(save_dict[key]))
-			if save_dict.has("skills_data"): meta_res.skills_data = save_dict["skills_data"]
-			# JSON geeft getallen terug als float; de seed is een int.
-			if save_dict.has("tree_seed"): meta_res.tree_seed = int(save_dict["tree_seed"])
-			if save_dict.has("discovered_skills") and save_dict["discovered_skills"] is Array:
-				meta_res.discovered_skills = save_dict["discovered_skills"]
-		file.close()
+# ---------------------------------------------------------------- hulpfuncties
+
+static func is_valid_slot(slot_name: String) -> bool:
+	return SLOT_NAMES.has(slot_name)
+
+
+## De map van het actieve slot, bijvoorbeeld "user://Slot_2/". Leeg als het slot ongeldig is.
+static func slot_dir() -> String:
+	if not is_valid_slot(Game.active_save_slot):
+		return ""
+	return "user://" + Game.active_save_slot + "/"
+
+
+## Pad van een bestand in het actieve slot. Leeg als het slot ongeldig is.
+static func slot_file(file_name: String) -> String:
+	var dir: String = slot_dir()
+	return "" if dir == "" else dir + file_name
+
+
+## Leest een JSON-bestand. Geeft altijd een Dictionary (leeg als het niet lukt).
+static func read_json(path: String) -> Dictionary:
+	if path == "" or not FileAccess.file_exists(path):
+		return {}
+	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		push_warning("SaveSystem: kan %s niet openen (fout %d)." % [path, FileAccess.get_open_error()])
+		return {}
+	if file.get_length() > MAX_FILE_BYTES:
+		push_warning("SaveSystem: %s is te groot en wordt genegeerd." % path)
+		return {}
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	file.close()
+	if not parsed is Dictionary:
+		push_warning("SaveSystem: %s is beschadigd en wordt genegeerd." % path)
+		return {}
+	return parsed
+
+
+## Schrijft een Dictionary als JSON. Eerst naar .tmp, dan op zijn plek. Geeft true als het lukte.
+static func write_json(path: String, data: Dictionary) -> bool:
+	if path == "" or not path.begins_with("user://"):
+		push_error("SaveSystem: ongeldig opslagpad '%s'." % path)
+		return false
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	var tmp_path: String = path + ".tmp"
+	var file: FileAccess = FileAccess.open(tmp_path, FileAccess.WRITE)
+	if file == null:
+		push_error("SaveSystem: kan niet schrijven naar %s (fout %d)." % [tmp_path, FileAccess.get_open_error()])
+		return false
+	file.store_string(JSON.stringify(data, "\t"))
+	file.close()
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
+	var err: Error = DirAccess.rename_absolute(tmp_path, path)
+	if err != OK:
+		push_error("SaveSystem: kan %s niet vervangen (fout %d)." % [path, err])
+		return false
+	return true
+
+
+## Dictionary uit een Dictionary, of {} als het iets anders is (beschermt tegen kapotte saves).
+static func dict_or_empty(value: Variant) -> Dictionary:
+	return value if value is Dictionary else {}
+
+
+## Array uit een waarde, of [] als het iets anders is.
+static func array_or_empty(value: Variant) -> Array:
+	return value if value is Array else []
+
+
+# ---------------------------------------------------------------- meta (de kluis en de skills)
+
+func get_loaded_meta_progress() -> MetaProgress:
+	var meta_res: MetaProgress = MetaProgress.new()
+	var save_dict: Dictionary = read_json(slot_file(META_FILE))
+	if save_dict.is_empty():
+		return meta_res
+
+	var saved_resources: Dictionary = dict_or_empty(save_dict.get("resources"))
+	for id in saved_resources:
+		meta_res.add_amount(LootResources.normalize(id), _safe_int(saved_resources[id]))
+	# Oude saves hadden currency_1 ... currency_6 (vaste volgorde); die worden omgezet.
+	for i in range(1, 7):
+		var key: String = "currency_" + str(i)
+		if save_dict.has(key):
+			meta_res.add_amount(LootResources.normalize(i), _safe_int(save_dict[key]))
+
+	# Alleen skills die in de SSOT bestaan, met een level dat binnen de grenzen valt.
+	var saved_skills: Dictionary = dict_or_empty(save_dict.get("skills_data"))
+	for skill_id in saved_skills:
+		if not Ssot.has_row(str(skill_id)):
+			continue
+		var entry: Variant = saved_skills[skill_id]
+		var level: int = _safe_int(entry.get("level", 0) if entry is Dictionary else entry)
+		var clean: Dictionary = entry.duplicate() if entry is Dictionary else {}
+		clean["level"] = clampi(level, 0, Ssot.get_int(str(skill_id), "fill_levels_amount", 100))
+		meta_res.skills_data[str(skill_id)] = clean
+
+	# JSON geeft getallen terug als float; de seed is een int.
+	meta_res.tree_seed = _safe_int(save_dict.get("tree_seed", 0))
+	for skill_id in array_or_empty(save_dict.get("discovered_skills")):
+		if skill_id is String and Ssot.has_row(skill_id) and not meta_res.discovered_skills.has(skill_id):
+			meta_res.discovered_skills.append(skill_id)
 	return meta_res
 
 
-func save_meta_progress(meta_resource: Resource) -> void:
-	if Game.active_save_slot == "": return
-	var slot_dir = "user://" + Game.active_save_slot + "/"
-	if not DirAccess.dir_exists_absolute(slot_dir): DirAccess.make_dir_absolute(slot_dir)
-	
-	var save_dict = {
+func save_meta_progress(meta_resource: MetaProgress) -> void:
+	if meta_resource == null or slot_dir() == "":
+		return
+	write_json(slot_file(META_FILE), {
 		"resources": meta_resource.resources,
 		"skills_data": meta_resource.skills_data,
 		"tree_seed": meta_resource.tree_seed,
-		"discovered_skills": meta_resource.discovered_skills
-	}
-	var file = FileAccess.open(slot_dir + "meta_data.json", FileAccess.WRITE)
-	if file:
-		file.store_string(JSON.stringify(save_dict, "\t"))
-		file.close()
+		"discovered_skills": meta_resource.discovered_skills,
+	})
 
+
+# ---------------------------------------------------------------- current_run.json (positie, schade)
 
 func save_current_run(player_node: CharacterBody2D) -> void:
-	if Game.active_save_slot == "" or not is_instance_valid(player_node): return
-	var slot_dir = "user://" + Game.active_save_slot + "/"
-	var full_path = slot_dir + "current_run.json"
-	
-	var existing_damage = {}
-	
-	if FileAccess.file_exists(full_path):
-		var read_file = FileAccess.open(full_path, FileAccess.READ)
-		if is_instance_valid(read_file):
-			var json = JSON.new()
-			if json.parse(read_file.get_as_text()) == OK:
-				var data = json.get_data()
-				if data.has("target_damage_taken"): existing_damage = data["target_damage_taken"]
-			read_file.close()
-		
-	var room_key = "L" + str(LevelManager.current_layer) + "_R" + str(LevelManager.current_room_index)
-	
-	var room_damage_dict = {}
-	if existing_damage.has(room_key):
-		room_damage_dict = existing_damage[room_key]
-		
-	var active_targets = player_node.get_tree().get_nodes_in_group("targets")
-	for target in active_targets:
-		if is_instance_valid(target) and "current_health" in target:
-			room_damage_dict[target.name] = target.max_health - target.current_health
-			
-	if "dead_enemies_cache" in self and dead_enemies_cache.has(room_key):
-		for dead_id in dead_enemies_cache[room_key]:
-			room_damage_dict[dead_id] = 50
-			
-	existing_damage[room_key] = room_damage_dict
-	
-	# DE LOOT-SCAN IS HIER VOLLEDIG VERWIJDERD!
-	var run_data = {
-		"player_position_x": player_node.global_position.x, "player_position_y": player_node.global_position.y,
-		"player_hp": player_node.stats.current_health if player_node.stats else 100,
-		"current_layer": LevelManager.current_layer, "current_room_index": LevelManager.current_room_index,
-		"target_damage_taken": existing_damage
-	}
-	
-	var write_file = FileAccess.open(full_path, FileAccess.WRITE)
-	if is_instance_valid(write_file):
-		write_file.store_string(JSON.stringify(run_data, "\t"))
-		write_file.close()
-		print("SAVESYSTEM: Status voor ", room_key, " succesvol opgeslagen zonder loot-cache.")
+	if slot_dir() == "" or not is_instance_valid(player_node):
+		return
+	var full_path: String = slot_file(RUN_FILE)
+	var run_data: Dictionary = read_json(full_path)
+	var existing_damage: Dictionary = dict_or_empty(run_data.get("target_damage_taken"))
 
+	var room_key: String = "L" + str(LevelManager.current_layer) + "_R" + str(LevelManager.current_room_index)
+	var room_damage_dict: Dictionary = dict_or_empty(existing_damage.get(room_key))
+
+	for target in player_node.get_tree().get_nodes_in_group("targets"):
+		if is_instance_valid(target) and "current_health" in target and "max_health" in target:
+			room_damage_dict[str(target.name)] = target.max_health - target.current_health
+	if dead_enemies_cache.has(room_key):
+		for dead_id in dead_enemies_cache[room_key]:
+			room_damage_dict[str(dead_id)] = 50
+	existing_damage[room_key] = room_damage_dict
+
+	run_data["player_position_x"] = player_node.global_position.x
+	run_data["player_position_y"] = player_node.global_position.y
+	run_data["current_layer"] = LevelManager.current_layer
+	run_data["current_room_index"] = LevelManager.current_room_index
+	run_data["target_damage_taken"] = existing_damage
+	write_json(full_path, run_data)
 
 
 func load_current_run(player_node: CharacterBody2D) -> void:
-	if Game.active_save_slot == "" or not is_instance_valid(player_node): return
-	var full_path = "user://" + Game.active_save_slot + "/current_run.json"
-	if not FileAccess.file_exists(full_path): return
-	
-	var file = FileAccess.open(full_path, FileAccess.READ)
-	var json = JSON.new()
-	if json.parse(file.get_as_text()) == OK:
-		var data = json.get_data()
-		var room_key = "L" + str(LevelManager.current_layer) + "_R" + str(LevelManager.current_room_index)
-		
-		if LevelManager.is_loading_from_continue:
-			player_node.global_position = Vector2(data.get("player_position_x", 960), data.get("player_position_y", 540))
-			
-		# Herstel de HP van de vijanden. Als ze al dood waren, queue_free()!
-		if data.has("target_damage_taken") and data["target_damage_taken"].has(room_key):
-			var d_map = data["target_damage_taken"][room_key]
-			for target in player_node.get_tree().get_nodes_in_group("targets"):
-				if d_map.has(target.name):
-					target.current_health = max(0, target.max_health - int(d_map[target.name]))
-					if target.current_health <= 0: target.queue_free()
-					
+	if slot_dir() == "" or not is_instance_valid(player_node):
+		return
+	var data: Dictionary = read_json(slot_file(RUN_FILE))
+	if data.is_empty():
+		return
+	var room_key: String = "L" + str(LevelManager.current_layer) + "_R" + str(LevelManager.current_room_index)
 
-	file.close()
+	if LevelManager.is_loading_from_continue:
+		player_node.global_position = Vector2(_safe_float(data.get("player_position_x", 960.0)), _safe_float(data.get("player_position_y", 540.0)))
+
+	# Herstel de HP van de vijanden. Waren ze al dood, dan verdwijnen ze.
+	var d_map: Dictionary = dict_or_empty(dict_or_empty(data.get("target_damage_taken")).get(room_key))
+	for target in player_node.get_tree().get_nodes_in_group("targets"):
+		if d_map.has(str(target.name)) and "current_health" in target and "max_health" in target:
+			target.current_health = maxi(0, int(target.max_health) - _safe_int(d_map[str(target.name)]))
+			if target.current_health <= 0:
+				target.queue_free()
 
 
 func delete_current_run_save() -> void:
-	var full_path = "user://" + Game.active_save_slot + "/current_run.json"
-	if FileAccess.file_exists(full_path): DirAccess.remove_absolute(full_path)
+	var full_path: String = slot_file(RUN_FILE)
+	if full_path != "" and FileAccess.file_exists(full_path):
+		DirAccess.remove_absolute(full_path)
 
-# Slaat het laatst gebruikte slot permanent op de schijf op
+
+## Bestaat er een current_run.json in het actieve slot?
+static func has_current_run() -> bool:
+	var full_path: String = slot_file(RUN_FILE)
+	return full_path != "" and FileAccess.file_exists(full_path)
+
+
+# ---------------------------------------------------------------- laatst gebruikte slot
+
+## Slaat het laatst gebruikte slot op ("" = geen). Ongeldige namen worden niet opgeslagen.
 func save_last_used_slot(slot_name: String) -> void:
-	var file = FileAccess.open("user://app_config.json", FileAccess.WRITE)
-	if file:
-		var config_data = {"last_slot": slot_name}
-		file.store_string(JSON.stringify(config_data))
-		file.close()
+	if slot_name != "" and not is_valid_slot(slot_name):
+		push_warning("SaveSystem: ongeldig slot '%s' niet opgeslagen." % slot_name)
+		return
+	write_json(APP_CONFIG_PATH, {"last_slot": slot_name})
 
-# Leest het laatst gebruikte slot uit van de schijf
+
+## Het laatst gebruikte slot, of "" als er geen (geldig) slot is.
 func load_last_used_slot() -> String:
-	if FileAccess.file_exists("user://app_config.json"):
-		var file = FileAccess.open("user://app_config.json", FileAccess.READ)
-		var json = JSON.new()
-		if json.parse(file.get_as_text()) == OK:
-			var config_data = json.get_data()
-			if config_data.has("last_slot"):
-				file.close()
-				return config_data["last_slot"]
-		file.close()
+	var slot: Variant = read_json(APP_CONFIG_PATH).get("last_slot", "")
+	if slot is String and is_valid_slot(slot):
+		return slot
 	return ""
+
+
+# ---------------------------------------------------------------- getallen uit JSON
+
+static func _safe_int(value: Variant) -> int:
+	if value is int or value is float:
+		return int(value)
+	if value is String and value.is_valid_float():
+		return int(value.to_float())
+	return 0
+
+
+static func _safe_float(value: Variant) -> float:
+	if value is int or value is float:
+		var f: float = float(value)
+		return f if is_finite(f) else 0.0
+	return 0.0

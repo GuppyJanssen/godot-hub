@@ -8,6 +8,10 @@ var current_health: int = 50
 # Bewegingsstats (Snelheid waarmee ze achter je aan jagen)
 @export var movement_speed: float = 140.0
 @export var rotation_speed: float = 4.0
+## Versnellen en afremmen (pixels per seconde²). Komen uit de SSOT: base_acceleration en
+## base_friction van het type (met _modifier van type en factie). Dit zijn de standaarden als die leeg zijn.
+var acceleration: float = 400.0
+var friction: float = 300.0
 
 # Editor-keuze voor welk Excel-type deze vijand is
 @export_range(1, 6) var test_body_type: int = 1
@@ -149,6 +153,9 @@ func _load_stats() -> void:
 		max_health = int(EnemyStats.value(faction, unit_type, STAT_HEALTH, max_health))
 		movement_speed = EnemyStats.value(faction, unit_type, STAT_SPEED, movement_speed)
 		_apply_size(EnemyStats.value(faction, unit_type, "size", 1.0))
+		rotation_speed = maxf(0.0, EnemyStats.value(faction, unit_type, "rotation_speed", rotation_speed))
+		acceleration = maxf(0.0, EnemyStats.value(faction, unit_type, "acceleration", acceleration))
+		friction = maxf(0.0, EnemyStats.value(faction, unit_type, "friction", friction))
 		print(name, " geboren als factie ", faction, " / ", unit_type, ". HP: ", max_health)
 	else:
 		# Geen factie of type ingevuld: een oude testvijand. De waarden kwamen vroeger uit de
@@ -292,7 +299,7 @@ func _physics_process(delta: float) -> void:
 	
 	# Testvijand: niet bewegen of aanvallen, alleen uitrollen na een zetje.
 	if passive:
-		velocity = velocity.move_toward(Vector2.ZERO, 300.0 * delta)
+		velocity = velocity.move_toward(Vector2.ZERO, friction * delta)
 		move_and_slide()
 		RoomBounds.apply(self, body_radius, true)
 		return
@@ -300,7 +307,7 @@ func _physics_process(delta: float) -> void:
 	var player = Game.active_player
 	if not is_instance_valid(player):
 		# Rem rustig af tot stilstand als de speler dood of onzichtbaar is
-		velocity = velocity.move_toward(Vector2.ZERO, 300.0 * delta)
+		velocity = velocity.move_toward(Vector2.ZERO, friction * delta)
 		move_and_slide()
 		RoomBounds.apply(self, body_radius, true)
 		return
@@ -328,7 +335,7 @@ func _physics_process(delta: float) -> void:
 				if distance <= kamikaze_trigger_distance:
 					_explode()
 					return
-				velocity = direction * movement_speed * kamikaze_speed_factor
+				velocity = velocity.move_toward(direction * movement_speed * kamikaze_speed_factor, acceleration * kamikaze_speed_factor * delta)
 			"keep_distance":
 				var keep: float = (scan_radius if scan_radius > 0.0 else 400.0) * keep_distance_factor
 				var target_velocity: Vector2 = Vector2.ZERO
@@ -336,9 +343,9 @@ func _physics_process(delta: float) -> void:
 					target_velocity = direction * movement_speed       # dichterbij, of terug in zicht
 				elif distance < keep - 40.0:
 					target_velocity = -direction * movement_speed      # te dichtbij: afstand nemen
-				velocity = velocity.move_toward(target_velocity, 400.0 * delta)
+				velocity = velocity.move_toward(target_velocity, acceleration * delta)
 			_:
-				velocity = direction * movement_speed
+				velocity = velocity.move_toward(direction * movement_speed, acceleration * delta)
 		if behavior_agro != "kamikaze":
 			_try_shoot(player, distance, delta)
 	elif _investigating:
@@ -346,7 +353,7 @@ func _physics_process(delta: float) -> void:
 		var to_target: Vector2 = _investigate_target - global_position
 		if to_target.length() < 30.0:
 			_investigating = false
-		velocity = velocity.move_toward(to_target.normalized() * movement_speed * investigate_speed_factor, 300.0 * delta)
+		velocity = velocity.move_toward(to_target.normalized() * movement_speed * investigate_speed_factor, acceleration * delta)
 		facing = velocity
 	else:
 		_wander(delta)
@@ -383,7 +390,7 @@ func _wander(delta: float) -> void:
 				randf_range(WANDER_AREA.position.y, WANDER_AREA.end.y))
 		_wander_timer = randf_range(3.0, 6.0)
 	var to_target: Vector2 = (_wander_target - global_position).normalized()
-	velocity = velocity.move_toward(to_target * movement_speed * wander_speed_factor, 200.0 * delta)
+	velocity = velocity.move_toward(to_target * movement_speed * wander_speed_factor, acceleration * delta)
 
 
 # Kijkt of de vijand de speler ziet, of een kogel voorbij ziet komen. Blinde vijanden doen niets.
@@ -505,6 +512,12 @@ func _explode() -> void:
 
 
 # --- 4. SCHADE-AFHANDELING EN ARCADE-FLITS ---
+## Schade die de speler krijgt als hij tegen deze vijand aan vliegt: base_damage van het type
+## (met _modifier van type en factie). Leeg = 10.
+func get_contact_damage() -> float:
+	return maxf(0.0, EnemyStats.value(faction, unit_type, "damage", 10.0))
+
+
 func take_damage(amount: int, flash: bool = true, hit_dir: Vector2 = Vector2.ZERO) -> void:
 	if current_health <= 0: 
 		return

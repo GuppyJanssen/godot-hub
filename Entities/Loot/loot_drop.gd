@@ -50,6 +50,8 @@ const MERGE_DEFAULTS := {
 	"loot_merge_wait": 2.0,
 	"loot_merge_duration": 2.5,
 }
+## De SSOT-rij met de magneet en het oppakken van de speler.
+const PLAYER_ROW := "player_base"
 const GROW_SECONDS := 0.8          # zo lang groeit een net samengesmolten stuk naar zijn echte grootte
 const NEIGHBOR_REFRESH := 0.15     # seconden tussen het opnieuw zoeken van buren
 const MERGE_CHECK_SECONDS := 0.25  # hoe vaak een stukje kijkt of er genoeg in zijn cirkel ligt
@@ -147,16 +149,17 @@ func _physics_process(delta: float) -> void:
 		return
 	_age += delta
 
-	# De magneet van de speler wint altijd.
+	# De magneet van de speler wint altijd. Afstanden en snelheid komen uit de SSOT-rij
+	# player_base (base_pickup_radius, base_magnet_radius, base_magnet_speed), met de skills erbij.
+	# Vroeger zocht dit naar velden die niet bestonden, dus golden altijd 150 / 550.
 	var player = Game.active_player
 	if is_instance_valid(player):
-		var magnet_range: float = 150.0
-		if player.stats and "loot_magnet_range" in player.stats:
-			magnet_range = float(player.stats.loot_magnet_range)
-		if global_position.distance_to(player.global_position) <= magnet_range:
-			var magnet_speed: float = 550.0
-			if player.stats and "loot_magnet_speed" in player.stats:
-				magnet_speed = float(player.stats.loot_magnet_speed)
+		var distance: float = global_position.distance_to(player.global_position)
+		if distance <= StatCalc.player_value(PLAYER_ROW, "pickup_radius", 30.0):
+			_execute_pickup(player)
+			return
+		if distance <= StatCalc.player_value(PLAYER_ROW, "magnet_radius", 150.0):
+			var magnet_speed: float = StatCalc.player_value(PLAYER_ROW, "magnet_speed", 550.0)
 			velocity = (player.global_position - global_position).normalized() * magnet_speed
 			global_position += velocity * delta
 			return
@@ -272,15 +275,15 @@ static func _star_points(outer: float, inner: float) -> PackedVector2Array:
 func _on_area_entered(area: Area2D) -> void:
 	if not is_instance_valid(area):
 		return
-	if area.is_in_group("player") or "player" in area.name.to_lower() or area.get_parent().is_in_group("player") or "player" in area.get_parent().name.to_lower():
-		var target_player = area.get_parent() if "player" in area.get_parent().name.to_lower() else Game.active_player
-		_execute_pickup(target_player)
+	# Alleen de echte speler (groep "player"), niet alles met "player" in de naam.
+	if area.is_in_group("player"):
+		_execute_pickup(Game.active_player)
 
 
 func _on_body_entered(body: Node2D) -> void:
 	if not is_instance_valid(body):
 		return
-	if body.is_in_group("player") or "player" in body.name.to_lower():
+	if body.is_in_group("player"):
 		_execute_pickup(body)
 
 

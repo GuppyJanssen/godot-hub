@@ -107,4 +107,3 @@ static func bank_run_loot() -> void:
 			meta.add_amount(str(id), int(RunState.loot[id]))
 		save_system.save_meta_progress(meta)
 		print("KLUIS: run-buit gestort: ", RunState.loot)
-	save_system.free()

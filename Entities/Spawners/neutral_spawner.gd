@@ -38,23 +38,19 @@ func _ready() -> void:
 	active_scene = get_tree().current_scene
 	
 	room_key = "L" + str(LevelManager.current_layer) + "_R" + str(LevelManager.current_room_index)
-	var full_path = "user://" + Game.active_save_slot + "/current_run.json"
+	var full_path: String = SaveSystem.slot_file(SaveSystem.RUN_FILE)
 	
 	# Unieke database ID
 	my_id = "NeutralSpawner_" + str(int(global_position.x)) + "_0_" + str(int(global_position.y)) + "_0"
 	
 	var object_already_destroyed: bool = false
-	if FileAccess.file_exists(full_path):
-		var spawner_file = FileAccess.open(full_path, FileAccess.READ)
-		var json = JSON.new()
-		if json.parse(spawner_file.get_as_text()) == OK:
-			var data = json.get_data()
-			if data.has("target_damage_taken") and data["target_damage_taken"].has(room_key):
-				var room_damage = data["target_damage_taken"][room_key]
-				# Als het geplaatste gebouw/object in een eerdere sessie al is gesloopt, blijft het leeg
-				if room_damage.has(my_id) and float(room_damage[my_id]) >= spawner_max_health:
-					object_already_destroyed = true
-		spawner_file.close()
+	var data: Dictionary = SaveSystem.read_json(full_path)
+	var room_damage: Dictionary = SaveSystem.dict_or_empty(SaveSystem.dict_or_empty(data.get("target_damage_taken")).get(room_key))
+	# Als het geplaatste gebouw/object in een eerdere sessie al is gesloopt, blijft het leeg
+	if room_damage.has(my_id) and SaveSystem._safe_float(room_damage[my_id]) >= spawner_max_health:
+		object_already_destroyed = true
+	if RunState.is_dead(LevelManager.current_layer, LevelManager.current_room_index, my_id):
+		object_already_destroyed = true
 		
 	if object_already_destroyed:
 		print("NEUTRAL SPAWNER: Object ", my_id, " was al permanent gesloopt. Geen spawn.")
@@ -130,16 +126,9 @@ func _deferred_destruction() -> void:
 	if is_in_group("targets"): remove_from_group("targets")
 	if is_in_group("enemies"): remove_from_group("enemies")
 	
-	# Meld de vernietiging met de maximale schade-waarde aan het SaveSystem
-	var save_system_script = load("res://Systems/SaveSystem.gd")
-	if save_system_script:
-		var save_instance = save_system_script.new()
-		if save_instance:
-			if not save_instance.dead_enemies_cache.has(room_key):
-				save_instance.dead_enemies_cache[room_key] = []
-			if not my_id in save_instance.dead_enemies_cache[room_key]:
-				save_instance.dead_enemies_cache[room_key].append(my_id)
-				print("SPAWNER: Destructie succesvol opgeslagen in dead_enemies_cache.")
+	# Onthoud de vernietiging in RunState (vroeger ging dit naar een SaveSystem dat meteen weer
+	# verdween, dus werd het nooit bewaard).
+	RunState.mark_dead(LevelManager.current_layer, LevelManager.current_room_index, my_id)
 				
 	if is_instance_valid(spawn_timer):
 		spawn_timer.stop()

@@ -91,7 +91,7 @@ func _on_body_exited(body: Node2D) -> void:
 
 
 func _is_player(body: Node) -> bool:
-	return is_instance_valid(body) and (body.is_in_group("player") or "player" in body.name.to_lower())
+	return is_instance_valid(body) and body.is_in_group("player")
 
 
 func _try_pickup(swap: bool) -> void:

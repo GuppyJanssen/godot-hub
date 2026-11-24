@@ -21,7 +21,7 @@ var _vault_timer: float = 0.0
 const VAULT_REFRESH_SECONDS := 0.5
 
 # Eén SaveSystem dat hergebruikt wordt (voor de saldo-weergave in de skill tree).
-var _save_sys: Node = null
+var _save_sys: SaveSystem = null
 
 
 func _ready() -> void:
@@ -69,7 +69,7 @@ func _find_active_player() -> void:
 				player_stats = player.stats
 			return
 			
-	player_stats = load("res://Resources/Player_Data.tres")
+	player_stats = null
 
 
 func _process(_delta: float) -> void:
@@ -174,8 +174,6 @@ func _update_resource_rows(delta: float, in_run: bool) -> void:
 		entry["label"].text = text
 
 
-# Ruim het hergebruikte SaveSystem op als de HUD verdwijnt.
+# Het SaveSystem is een RefCounted en ruimt zichzelf op.
 func _exit_tree() -> void:
-	if _save_sys != null:
-		_save_sys.free()
-		_save_sys = null
+	_save_sys = null

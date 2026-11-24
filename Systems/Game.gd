@@ -32,6 +32,7 @@ func _ready() -> void:
 	var save_system = load("res://Systems/SaveSystem.gd").new()
 	var remembered_slot = save_system.load_last_used_slot()
 	
+	# load_last_used_slot geeft alleen een geldige slotnaam terug (Slot_1 t/m Slot_3).
 	if remembered_slot != "":
 		active_save_slot = remembered_slot
 		get_tree().call_deferred("change_scene_to_file", "res://Systems/main_menu.tscn")
@@ -39,31 +40,8 @@ func _ready() -> void:
 		get_tree().call_deferred("change_scene_to_file", "res://Systems/pre_menu.tscn")
 
 
-# --- SSoT GLOBAL SAVE ENGINE: Beveiligt live X/Y coördinaten en de 6 winst-tellers ---
+# Slaat de plek van de speler op (bij "terug naar hoofdmenu"). Het echte werk doet de speler
+# zelf, via SaveSystem (veilig pad, atomisch schrijven). Hier stond eerst een kopie van die code.
 func save_live_run_state_to_disk() -> void:
-	if not is_instance_valid(active_player): return
-	
-	var slot_folder = "user://" + active_save_slot + "/"
-	var full_path = slot_folder + "current_run.json"
-	var run_data = {}
-	
-	# Laad bestaande data in zodat we kamer-indexen niet per ongeluk wissen
-	if FileAccess.file_exists(full_path):
-		var file = FileAccess.open(full_path, FileAccess.READ)
-		var json = JSON.new()
-		if json.parse(file.get_as_text()) == OK:
-			run_data = json.get_data()
-		file.close()
-		
-	# Injecteer de exacte pixelcoördinaten van DIT specifieke frame
-	run_data["current_layer"] = LevelManager.current_layer
-	run_data["current_room_index"] = LevelManager.current_room_index
-	run_data["player_x"] = active_player.global_position.x
-	run_data["player_y"] = active_player.global_position.y
-	
-	# De run-buit staat in RunState (run_state.json), niet hier.
-	
-	var write_file = FileAccess.open(full_path, FileAccess.WRITE)
-	write_file.store_string(JSON.stringify(run_data, "\t"))
-	write_file.close()
-	print("GLOBAL HUB: Run-state (Positie: ", active_player.global_position, ") waterdicht opgeslagen op schijf!")
+	if is_instance_valid(active_player) and active_player.has_method("save_live_run_state_to_disk"):
+		active_player.save_live_run_state_to_disk()

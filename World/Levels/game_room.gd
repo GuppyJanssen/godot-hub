@@ -109,9 +109,7 @@ func _ready() -> void:
 			var save_instance = save_system_script.new()
 			if save_instance and save_instance.has_method("load_current_run"):
 				save_instance.load_current_run(active_player)
-			# Het losse SaveSystem is klaar: opruimen, anders blijft het in het geheugen hangen.
-			if save_instance:
-				save_instance.free()
+			# SaveSystem is een RefCounted: hij ruimt zichzelf op (geen free()).
 				
 	if LevelManager.in_test_room:
 		# Testkamer: schietschijf en testvijanden. Niets terugzetten en niets bewaren
@@ -316,7 +314,6 @@ func _save_before_transition() -> void:
 	# Bestaande save (positie, HP, schade aan vijanden die nog leven).
 	var save_instance = load("res://Systems/SaveSystem.gd").new()
 	save_instance.save_current_run(active_player)
-	save_instance.free()
 	
 	# RunState: dode vijanden, gehaalde kamers en speeltijd.
 	RunState.ring = LevelManager.current_layer
@@ -393,11 +390,19 @@ func _restore_room() -> void:
 			continue
 		
 		var scene_path: String = str(data.get("scene", ""))
-		if scene_path == "" or not ResourceLoader.exists(scene_path):
+		# Veiligheid: alleen scenes uit het spel zelf (res://). Een aangepaste save kan anders een
+		# scene uit user:// laten laden, met een script erin dat dan wordt uitgevoerd.
+		if not _is_safe_scene_path(scene_path):
+			push_warning("KAMER: onveilig of onbekend scene-pad in de save genegeerd: '%s'" % scene_path)
+			continue
+		if not ResourceLoader.exists(scene_path):
 			print("KAMER: kan ", unit_id, " niet terugzetten, scene onbekend: '", scene_path, "'")
 			continue
 		
-		var inst = load(scene_path).instantiate()
+		var packed: PackedScene = load(scene_path) as PackedScene
+		if packed == null:
+			continue
+		var inst = packed.instantiate()
 		# Sommige objecten (vijanden) worden aan hun naam herkend en moeten die terugkrijgen.
 		if data.get("keep_name", false):
 			inst.name = str(data.get("name", inst.name))
@@ -406,3 +411,10 @@ func _restore_room() -> void:
 			inst.apply_run_state(data)
 	
 	room_ready = true
+
+
+## Mag dit scene-pad uit een save geladen worden? Alleen .tscn/.scn uit res://, zonder "..".
+static func _is_safe_scene_path(scene_path: String) -> bool:
+	if not scene_path.begins_with("res://") or ".." in scene_path:
+		return false
+	return scene_path.ends_with(".tscn") or scene_path.ends_with(".scn")

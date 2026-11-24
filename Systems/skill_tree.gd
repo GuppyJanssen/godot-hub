@@ -330,14 +330,12 @@ func _update_popup() -> void:
 func _load_meta() -> MetaProgress:
 	var save_system = load("res://Systems/SaveSystem.gd").new()
 	var meta: MetaProgress = save_system.get_loaded_meta_progress() as MetaProgress
-	save_system.free()
 	return meta if meta else MetaProgress.new()
 
 
 func _save_meta() -> void:
 	var save_system = load("res://Systems/SaveSystem.gd").new()
 	save_system.save_meta_progress(current_meta)
-	save_system.free()
 
 
 ## Nieuwe save (of een oude save van voor deze boom): kies één keer een seed en sla die meteen op,

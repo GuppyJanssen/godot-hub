@@ -21,6 +21,9 @@ func _on_slot_3_button_pressed() -> void:
 
 # HULPFUNCTIE: Handelt de centrale slot-activatie en scene-wissel crashvrij af
 func _activate_save_slot(slot_name: String) -> void:
+	if not SaveSystem.is_valid_slot(slot_name):
+		push_error("Ongeldig save slot: %s" % slot_name)
+		return
 	if is_instance_valid(Game):
 		Game.active_save_slot = slot_name
 		print("Actief save slot ingesteld op: ", Game.active_save_slot)
@@ -29,8 +32,6 @@ func _activate_save_slot(slot_name: String) -> void:
 		var save_system = load("res://Systems/SaveSystem.gd").new()
 		if save_system:
 			save_system.save_last_used_slot(slot_name)
-			if save_system.has_method("get_loaded_meta_progress"):
-				var _meta = save_system.get_loaded_meta_progress()
 			
 	# Wissel direct door naar het Main Menu
 	get_tree().change_scene_to_file("res://Systems/main_menu.tscn")

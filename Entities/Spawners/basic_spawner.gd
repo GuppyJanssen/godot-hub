@@ -31,6 +31,8 @@ class_name EnemySpawner
 @export var total_enemies_to_spawn: int = -1    # -1 = Oneindig doorgaan tot hij kapot is
 @export var spawn_interval_seconds: float = 3.0
 @export var spawn_on_start: bool = true
+## Vijanden per keer (base_spawn_amount in de SSOT). De Inspector-waarde geldt als de SSOT leeg is.
+@export var spawn_per_wave: int = 1
 
 # Interne variabelen
 var spawner_current_health: float = 150.0
@@ -56,6 +58,9 @@ func _ready() -> void:
 	# Levens van de fabriek uit de SSOT (rij unit_factory, plus de factie-modifier).
 	# Staat dat er niet, dan telt Spawner Max Health uit de Inspector.
 	spawner_max_health = EnemyStats.value(faction, building_type, "max_health", spawner_max_health)
+	# Tempo uit de SSOT: base_spawn_rate = seconden tussen twee keer, base_spawn_amount = vijanden per keer.
+	spawn_interval_seconds = maxf(0.2, EnemyStats.value(faction, building_type, "spawn_rate", spawn_interval_seconds))
+	spawn_per_wave = maxi(1, roundi(EnemyStats.value(faction, building_type, "spawn_amount", spawn_per_wave)))
 	spawner_current_health = spawner_max_health
 	# Grootte uit de SSOT (base_size). Voor gebouwen telt die vanaf een fabriek: 1 = even groot als een fabriek.
 	_apply_size(EnemyStats.value(faction, building_type, "size", 1.0))
@@ -166,7 +171,8 @@ func _on_spawn_timer_timeout() -> void:
 	if total_enemies_to_spawn != -1 and enemies_spawned_count >= total_enemies_to_spawn:
 		if is_instance_valid(spawn_timer): spawn_timer.stop()
 		return
-	spawn_single_enemy()
+	for _i in spawn_per_wave:
+		spawn_single_enemy()
 
 
 func spawn_single_enemy() -> void:
@@ -201,6 +207,11 @@ func spawn_single_enemy() -> void:
 	inst.add_to_group("targets")
 	inst.add_to_group("enemies")
 	enemies_spawned_count += 1
+
+
+## Schade die de speler krijgt als hij tegen dit gebouw aan vliegt (base_damage). Leeg = 10.
+func get_contact_damage() -> float:
+	return maxf(0.0, EnemyStats.value(faction, building_type, "damage", 10.0))
 
 
 # --- SCHADE OPVANGEN EN PERMANENTE VERNIETIGING ---

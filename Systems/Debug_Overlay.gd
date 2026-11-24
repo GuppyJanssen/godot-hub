@@ -6,9 +6,19 @@ var vbox: VBoxContainer
 var seed_label: Label = null
 var _seed_label_timer: float = 0.0
 
+## Het F1-menu (God Mode, geld, schaal) staat alleen aan in de editor en in debug-builds.
+## In een gewone export (release) is het uit, zodat spelers niet kunnen valsspelen.
+## Zet dit op true als je het toch in een release-build wil testen.
+const ALLOW_IN_RELEASE := false
+
+
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
+	if not (OS.is_debug_build() or ALLOW_IN_RELEASE):
+		set_process(false)
+		set_process_unhandled_input(false)
+		return
 	layer = 100
 	_build_debug_ui()
 
@@ -269,7 +279,6 @@ func _set_money_values(target_amount: int) -> void:
 		for id in LootResources.ids():
 			meta.resources[str(id)] = target_amount
 		save_system.save_meta_progress(meta)
-	save_system.free()
 	_force_hud_refresh()
 	_update_dashboard()
 

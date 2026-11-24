@@ -54,7 +54,8 @@ static func fire(shooter: Node2D, weapon: SsotWeapon, target_pos: Vector2, muzzl
 	for i in maxi(1, weapon.bullets_per_shot):
 		var bullet = scene.instantiate()
 		bullet.from_enemy = true
-		bullet.damage = int(round(weapon.damage))
+		bullet.damage = weapon.damage
+		bullet.size_scale = weapon.size
 		bullet.speed = weapon.projectile_speed
 		bullet.damage_type = weapon.damage_type
 		bullet.range_override = weapon.weapon_range

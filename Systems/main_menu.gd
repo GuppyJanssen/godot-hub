@@ -3,9 +3,7 @@ extends Control
 # --- GECORRIGEERD: Main Menu Opstart-as ---
 func _ready() -> void:
 	# Bepaal of er een actieve run openstaat op de schijf (Net als bij jullie Continue-knop!)
-	var slot_folder = "user://" + Game.active_save_slot + "/"
-	var run_file = slot_folder + "current_run.json"
-	var has_active_run: bool = FileAccess.file_exists(run_file)
+	var has_active_run: bool = SaveSystem.has_current_run()
 	
 	# Zoek de Skill Tree knop op in het hoofdmenu
 	# Pas deze naam aan als jullie knop in de scèneboom anders heet (bijv. SkillTreeButton)
@@ -29,29 +27,17 @@ func _on_continue_button_pressed() -> void:
 	if not RunState.load_run():
 		RunState.start_new_run()
 	
-	var full_path = "user://" + Game.active_save_slot + "/current_run.json"
-	
-	if FileAccess.file_exists(full_path):
-		var file = FileAccess.open(full_path, FileAccess.READ)
-		var json = JSON.new()
-		if json.parse(file.get_as_text()) == OK:
-			var run_data = json.get_data()
-			
-			# SSoT GEHEUGENSTREEK: Haal de opgeslagen Ring en Kamer live van de schijf!
-			if is_instance_valid(LevelManager):
-				if run_data.has("current_layer"):
-					LevelManager.current_layer = int(run_data["current_layer"])
-				elif run_data.has("level_index"): 
-					LevelManager.current_layer = int(run_data["level_index"])
-					
-				if run_data.has("current_room_index"):
-					LevelManager.current_room_index = int(run_data["current_room_index"])
-				elif run_data.has("room_index"):
-					LevelManager.current_room_index = int(run_data["room_index"])
-					
-				print("MAIN MENU: Locatie succesvol hersteld! Router gezet op Ring: ", LevelManager.current_layer, " | Kamer: ", LevelManager.current_room_index)
-		file.close()
-	
+	var run_data: Dictionary = SaveSystem.read_json(SaveSystem.slot_file(SaveSystem.RUN_FILE))
+	if not run_data.is_empty() and is_instance_valid(LevelManager):
+		# Ring en kamer uit de save, begrensd tot wat er in de wereld bestaat.
+		var max_layer: int = LevelManager.LAYER_WIDTHS.size() - 1
+		var layer: int = SaveSystem._safe_int(run_data.get("current_layer", run_data.get("level_index", 0)))
+		LevelManager.current_layer = clampi(layer, 0, max_layer)
+		var width: int = LevelManager.LAYER_WIDTHS[LevelManager.current_layer]
+		var room_index: int = SaveSystem._safe_int(run_data.get("current_room_index", run_data.get("room_index", 0)))
+		LevelManager.current_room_index = clampi(room_index, 0, width - 1)
+		print("MAIN MENU: Locatie hersteld: Ring ", LevelManager.current_layer, " | Kamer ", LevelManager.current_room_index)
+
 	# Vertel de hub en de Player dat we een bestaande run hervatten (dit activeert de pixel-spawn en herstelt de +winst!)
 	Game.should_load_run = true
 	get_tree().change_scene_to_file("res://World/Levels/game_room.tscn")
@@ -68,9 +54,6 @@ func _on_new_run_button_pressed() -> void:
 	LootResources.bank_run_loot()
 	RunState.start_new_run(1, _read_seed())
 	
-	var slot_folder = "user://" + Game.active_save_slot + "/"
-	var run_file = slot_folder + "current_run.json"
-	
 	# =========================================================================
 	# 2. HARD-LOCK RESETS & SCHONE LEI CONFORM BLUEPRINT
 	# =========================================================================
@@ -84,8 +67,7 @@ func _on_new_run_button_pressed() -> void:
 		Game.remove_meta("transit_energy")
 		
 	# Wis de JSON van de schijf zodat continue verdwijnt
-	if FileAccess.file_exists(run_file):
-		DirAccess.remove_absolute(run_file)
+	SaveSystem.new().delete_current_run_save()
 		
 	# Reset ook de LevelManager zodat de opbouw vanaf nul begint
 	if is_instance_valid(LevelManager):

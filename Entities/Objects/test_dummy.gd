@@ -48,7 +48,7 @@ func _ready() -> void:
 
 
 ## De kogel vertelt welk damage type hij heeft (vlak voor take_damage).
-func on_hit_info(_amount: int, damage_type: String) -> void:
+func on_hit_info(_amount: float, damage_type: String) -> void:
 	_last_type = damage_type
 
 

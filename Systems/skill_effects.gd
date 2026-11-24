@@ -22,6 +22,30 @@ const MAX_LEVEL := 100.0
 ## Kolommen die op _modifier eindigen of met base_ beginnen, maar GEEN stat van de speler zijn.
 const IGNORED_STATS := ["decay", "decay_per_minute"]
 
+## Een skill-kolom heet soms anders dan de stat die de speler leest. Hier wordt hij omgezet:
+## base_shield (skill_shield) telt op bij max_shield, shield_regen_modifier bij shield_regen_amount.
+const STAT_ALIASES := {
+	"shield": "max_shield",
+	"energy": "max_energy",
+	"health": "max_health",
+	"shield_regen": "shield_regen_amount",
+}
+## Staat weapon_type op "auto" in een skill-rij, dan maakt die skill op zijn maximale level
+## elk wapen full-auto (de stat "full_auto", zie SsotWeapon).
+const WEAPON_TYPE_COLUMN := "weapon_type"
+const MAX_LEVEL_COLUMN := "fill_levels_amount"
+
+
+## Leest de gekochte levels uit de save en de run-punten uit RunState, en zet alles in Mods.
+## Roep dit aan bij het begin van elke kamer en na een aankoop of run-punt.
+static func refresh_from_save() -> void:
+	var meta: MetaProgress = SaveSystem.new().get_loaded_meta_progress()
+	var bought: Dictionary = {}
+	for skill_id in meta.skills_data:
+		var entry: Variant = meta.skills_data[skill_id]
+		bought[skill_id] = float(entry.get("level", 0)) if entry is Dictionary else 0.0
+	apply_all(effective_levels(bought, RunState.run_points))
+
 
 ## Telt de gekochte levels en de run-punten (run-items) bij elkaar op, tot maximaal 100.
 static func effective_levels(bought: Dictionary, run_points: Dictionary) -> Dictionary:
@@ -59,11 +83,11 @@ static func apply_one(skill_id: String, level: float) -> void:
 	for column in row:
 		var column_name: String = column
 		if column_name.begins_with("base_"):
-			var stat: String = column_name.trim_prefix("base_")
+			var stat: String = STAT_ALIASES.get(column_name.trim_prefix("base_"), column_name.trim_prefix("base_"))
 			if not stat in IGNORED_STATS:
 				flat_per_stat[stat] = Ssot.get_number(skill_id, column_name) * level
 		elif column_name.ends_with("_modifier"):
-			var stat: String = column_name.trim_suffix("_modifier")
+			var stat: String = STAT_ALIASES.get(column_name.trim_suffix("_modifier"), column_name.trim_suffix("_modifier"))
 			if not stat in IGNORED_STATS:
 				percent_per_stat[stat] = Ssot.get_number(skill_id, column_name) * level
 
@@ -72,6 +96,11 @@ static func apply_one(skill_id: String, level: float) -> void:
 		stats[stat] = true
 	for stat in percent_per_stat:
 		stats[stat] = true
+
+	if str(row.get(WEAPON_TYPE_COLUMN, "")).strip_edges().to_lower() == "auto" \
+			and level >= Ssot.get_number(skill_id, MAX_LEVEL_COLUMN, MAX_LEVEL):
+		flat_per_stat["full_auto"] = 1.0
+		stats["full_auto"] = true
 
 	for stat in stats:
 		Mods.set_modifier(source, stat,

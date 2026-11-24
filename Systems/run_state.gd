@@ -224,7 +224,9 @@ func _load_weapons(data: Dictionary) -> void:
 	var saved: Variant = data.get("weapon_slots", [])
 	if saved is Array:
 		for slot in mini(saved.size(), WEAPON_SLOT_COUNT):
-			weapon_slots[slot] = str(saved[slot])
+			# Alleen wapens die in de SSOT bestaan (een aangepaste save kan van alles bevatten).
+			var weapon_id: String = str(saved[slot])
+			weapon_slots[slot] = weapon_id if Ssot.has_row(weapon_id) else ""
 	# Oude save of geen enkel wapen: begin met het startwapen.
 	var first_filled: int = -1
 	for slot in WEAPON_SLOT_COUNT:
@@ -234,7 +236,7 @@ func _load_weapons(data: Dictionary) -> void:
 	if first_filled < 0:
 		weapon_slots[0] = STARTER_WEAPON
 		first_filled = 0
-	weapon_selected = clampi(int(data.get("weapon_selected", first_filled)), 0, WEAPON_SLOT_COUNT - 1)
+	weapon_selected = clampi(SaveSystem._safe_int(data.get("weapon_selected", first_filled)), 0, WEAPON_SLOT_COUNT - 1)
 	if str(weapon_slots[weapon_selected]) == "":
 		weapon_selected = first_filled
 	weapons_changed.emit()
@@ -316,16 +318,17 @@ func get_run_points(skill_id: String) -> float:
 
 ## De map van het actieve save-slot, bijvoorbeeld "user://Slot_2/".
 func save_dir() -> String:
-	return "user://" + Game.active_save_slot + "/"
+	return SaveSystem.slot_dir()
 
 
 func save_path() -> String:
-	return save_dir() + FILE_NAME
+	var dir: String = save_dir()
+	return "" if dir == "" else dir + FILE_NAME
 
 
 ## Staat er een run klaar om verder te spelen? (Voor de Continue-knop.)
 func has_saved_run() -> bool:
-	return FileAccess.file_exists(save_path())
+	return save_path() != "" and FileAccess.file_exists(save_path())
 
 
 ## Schrijft de hele run weg. Roep dit aan bij een kamerwissel en bij "terug naar hoofdmenu".
@@ -359,14 +362,10 @@ func save() -> bool:
 	if war != null:
 		data["faction_war"] = war.get_state()
 
-	DirAccess.make_dir_recursive_absolute(save_dir())
-	var file: FileAccess = FileAccess.open(save_path(), FileAccess.WRITE)
-	if file == null:
-		push_error("RunState: kan niet schrijven naar %s" % save_path())
+	if save_path() == "":
+		push_error("RunState: geen geldig save-slot, de run wordt niet opgeslagen.")
 		return false
-	file.store_string(JSON.stringify(data, "\t"))
-	file.close()
-	return true
+	return SaveSystem.write_json(save_path(), data)
 
 
 ## Leest de opgeslagen run terug (Continue). Geeft true terug als het gelukt is.
@@ -374,45 +373,47 @@ func load_run() -> bool:
 	if not has_saved_run():
 		return false
 
-	var file: FileAccess = FileAccess.open(save_path(), FileAccess.READ)
-	if file == null:
-		push_error("RunState: kan %s niet openen." % save_path())
+	# SaveSystem.read_json geeft altijd een Dictionary; alles hieronder controleert ook het type,
+	# zodat een kapotte of aangepaste save het spel niet laat crashen.
+	var data: Dictionary = SaveSystem.read_json(save_path())
+	if data.is_empty():
+		push_error("RunState: %s is leeg of beschadigd." % save_path())
 		return false
-	var parsed: Variant = JSON.parse_string(file.get_as_text())
-	file.close()
-	if not parsed is Dictionary:
-		push_error("RunState: %s is beschadigd." % save_path())
-		return false
-	var data: Dictionary = parsed
 
 	active = true
-	run_seconds = float(data.get("run_seconds", 0.0))
-	difficulty = int(data.get("difficulty", 1))
-	run_seed = int(data.get("run_seed", 0))
-	ring = int(data.get("ring", 0))
-	room = int(data.get("room", 0))
-	player_position = Vector2(float(data.get("player_x", 0.0)), float(data.get("player_y", 0.0)))
+	run_seconds = maxf(0.0, SaveSystem._safe_float(data.get("run_seconds", 0.0)))
+	difficulty = clampi(SaveSystem._safe_int(data.get("difficulty", 1)), 0, 2)
+	run_seed = maxi(0, SaveSystem._safe_int(data.get("run_seed", 0)))
+	ring = clampi(SaveSystem._safe_int(data.get("ring", 0)), 0, LevelManager.LAYER_WIDTHS.size() - 1)
+	room = maxi(0, SaveSystem._safe_int(data.get("room", 0)))
+	player_position = Vector2(SaveSystem._safe_float(data.get("player_x", 0.0)), SaveSystem._safe_float(data.get("player_y", 0.0)))
 
 	# JSON maakt van elk getal een kommagetal. Loot zetten we terug naar hele getallen.
 	loot.clear()
-	var saved_loot: Dictionary = data.get("loot", {})
+	var saved_loot: Dictionary = SaveSystem.dict_or_empty(data.get("loot"))
 	for currency in saved_loot:
 		# Oude namen (element1 ...) worden omgezet naar de nieuwe id's (biomass ...).
 		var id: String = LootResources.normalize(currency)
-		loot[id] = int(loot.get(id, 0)) + int(saved_loot[currency])
+		if id == "":
+			continue
+		loot[id] = maxi(0, int(loot.get(id, 0)) + SaveSystem._safe_int(saved_loot[currency]))
 
 	rooms.clear()
-	var saved_rooms: Dictionary = data.get("rooms", {})
+	var saved_rooms: Dictionary = SaveSystem.dict_or_empty(data.get("rooms"))
 	for key in saved_rooms:
-		var saved: Dictionary = saved_rooms[key]
-		rooms[key] = {
+		var saved: Dictionary = SaveSystem.dict_or_empty(saved_rooms[key])
+		rooms[str(key)] = {
 			"cleared": bool(saved.get("cleared", false)),
-			"dead": saved.get("dead", []),
-			"changes": saved.get("changes", {}),
+			"dead": SaveSystem.array_or_empty(saved.get("dead")),
+			"changes": SaveSystem.dict_or_empty(saved.get("changes")),
 		}
 
-	run_points = data.get("run_points", {})
-	extra = data.get("extra", {})
+	run_points.clear()
+	var saved_points: Dictionary = SaveSystem.dict_or_empty(data.get("run_points"))
+	for skill_id in saved_points:
+		if Ssot.has_row(str(skill_id)):
+			run_points[str(skill_id)] = clampf(SaveSystem._safe_float(saved_points[skill_id]), 0.0, RUN_POINTS_MAX)
+	extra = SaveSystem.dict_or_empty(data.get("extra"))
 	_load_weapons(data)
 
 	var game: Node = get_node_or_null("/root/Game")
