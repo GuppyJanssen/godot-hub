@@ -60,8 +60,10 @@ func _spawn() -> void:
 		_object.unit_type = unit_type
 	_object.name = "Test_%s_%s_%d" % [faction, unit_type, get_instance_id()]
 	_object.position = position
-	get_parent().add_child(_object)
 	_object.tree_exited.connect(_on_object_gone)
+	# Uitgesteld: _spawn kan midden in een physics-stap komen (bijvoorbeeld als de testkamer opent
+	# of een object net kapot is). Dan mag Godot geen nieuwe botsvormen toevoegen.
+	get_parent().add_child.call_deferred(_object)
 
 
 ## Een gebouw staat stil: base_speed 0 in de SSOT (fabriek, toren, HQ). Die krijgen de gebouw-scene,

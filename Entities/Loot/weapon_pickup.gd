@@ -90,8 +90,10 @@ func _on_body_exited(body: Node2D) -> void:
 		_refresh_labels()
 
 
+## De speler zelf (Game.active_player) of iets in de groep "player". De groep zit op de Area2D van de
+## speler, niet op zijn lichaam; _on_area_entered geeft het lichaam door, daarom ook de eerste check.
 func _is_player(body: Node) -> bool:
-	return is_instance_valid(body) and body.is_in_group("player")
+	return is_instance_valid(body) and (body == Game.active_player or body.is_in_group("player"))
 
 
 func _try_pickup(swap: bool) -> void:

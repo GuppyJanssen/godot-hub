@@ -296,7 +296,7 @@ func _on_area_entered(area: Area2D) -> void:
 func _on_body_entered(body: Node2D) -> void:
 	if not is_instance_valid(body):
 		return
-	if body.is_in_group("player"):
+	if body == Game.active_player or body.is_in_group("player"):
 		_execute_pickup(body)
 
 

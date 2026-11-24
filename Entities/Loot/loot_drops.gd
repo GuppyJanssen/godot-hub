@@ -121,7 +121,7 @@ static func split_into_pieces(count: int, resource: String) -> Array:
 		singles -= chunks * sizes.x
 	# Nog steeds te veel? Klompjes samen tot stenen.
 	if singles + chunks > max_pieces and sizes.y > sizes.x and sizes.x > 0 and sizes.y % sizes.x == 0:
-		var per_stone: int = sizes.y / sizes.x
+		var per_stone: int = floori(float(sizes.y) / sizes.x)
 		var stones_needed: int = ceili(float(singles + chunks - max_pieces) / maxi(1, per_stone - 1))
 		stones = mini(stones_needed, floori(float(chunks) / per_stone))
 		chunks -= stones * per_stone
