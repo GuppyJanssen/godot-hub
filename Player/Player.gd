@@ -21,6 +21,8 @@ var current_weapon_stats: Dictionary = {}
 ## Toetsen voor de vier wapenvakken: 1 = boven, 2 = rechts, 3 = onder, 4 = links.
 const WEAPON_SLOT_KEYS: Array = [KEY_1, KEY_2, KEY_3, KEY_4]
 var _weapon_wheel: Node = null
+## De SSOT-rij met de stats van de speler.
+const PLAYER_ROW := "player_base"
 ## Schade en damage type bij tegen een vijand of gebouw aan vliegen (rammen).
 const RAM_DAMAGE := 10
 const RAM_DAMAGE_TYPE := "kinetic"
@@ -134,10 +136,12 @@ func _physics_process(delta: float) -> void:
 		
 	input_dir = input_dir.normalized()
 
-	# Haal multipliers op uit de globale Game hub
-	var current_accel = current_weapon_stats.get("acceleration", 1500.0) * Game.debug_acceleration_multiplier
-	var current_friction = current_weapon_stats.get("friction", 800.0) * Game.debug_friction_multiplier
-	var current_max_speed = current_weapon_stats.get("max_speed", 450.0) * Game.debug_max_speed_multiplier
+	# Beweging uit de SSOT-rij player_base (base_speed, base_acceleration, base_friction), met de
+	# skills erbovenop (StatCalc.player_value) en de F1-multipliers. Eerst kwamen deze waarden uit
+	# current_weapon_stats, waar ze nooit in stonden, dus golden altijd vaste getallen (450 / 1500 / 800).
+	var current_accel = StatCalc.player_value(PLAYER_ROW, "acceleration", 1500.0) * Game.debug_acceleration_multiplier
+	var current_friction = StatCalc.player_value(PLAYER_ROW, "friction", 300.0) * Game.debug_friction_multiplier
+	var current_max_speed = StatCalc.player_value(PLAYER_ROW, "speed", 450.0) * Game.debug_max_speed_multiplier
 
 	# 3. BEREKEN DE GLIJDENDE ICE/SKATER PHYSICS
 	if input_dir != Vector2.ZERO:

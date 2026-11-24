@@ -513,6 +513,7 @@ func _drop_specific_loot(hit_dir: Vector2) -> void:
 	# Factie-loot (biomass, circuitry ...) bovenop de gewone loot. Een opgeblazen kamikaze geeft geen factie-loot.
 	if _loot_factor >= 1.0:
 		LootDrops.spawn_faction_loot(get_tree().current_scene, global_position, hit_dir, faction, unit_type, LootDrops.splatter_settings(faction, unit_type))
+		LootDrops.spawn_bonus_loot(get_tree().current_scene, global_position, hit_dir, faction, unit_type, LootDrops.splatter_settings(faction, unit_type))
 	print("VIJAND DROP: '", name, "' laat ", total_drops, " blokjes vallen.")
 
 

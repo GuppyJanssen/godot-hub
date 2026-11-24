@@ -19,6 +19,11 @@ class_name LootDrops
 ##   Een eigen vijand-rij (enemy_organic_light) of een _modifier op de factie-rij werkt ook, net als bij
 ##   de gewone loot. Zo valt er bij een grunt weinig en bij een HQ altijd factie-loot.
 ##
+## EXTRA DROP (los van factie, bijvoorbeeld Keepium van het HQ), op de TYPE-rij:
+##   bonus_loot_type      welke grondstof (een loot-rij), bijvoorbeeld keepium. Leeg = geen extra drop.
+##   bonus_loot_chance    kans per kill, 0 t/m 1 (HQ: 0.2 = 20%).
+##   bonus_loot_min / bonus_loot_max   aantal blokjes als het valt.
+##
 ## Gebruik:
 ##   var aantal: int = LootDrops.roll_count("a", "light")
 ##   LootDrops.spawn(get_tree().current_scene, global_position, richting, aantal,
@@ -118,3 +123,23 @@ static func spawn_faction_loot(parent: Node, origin: Vector2, hit_dir: Vector2, 
 		var count: int = randi_range(minimum, maximum)
 		spawn(parent, origin, hit_dir, count, id, settings)
 		print("FACTIE-LOOT: ", count, "x ", id, " van ", faction, " ", unit_type)
+
+
+## Extra drop van een vijandtype (bijvoorbeeld Keepium van het HQ). Zie de uitleg bovenaan.
+static func spawn_bonus_loot(parent: Node, origin: Vector2, hit_dir: Vector2, faction: String, unit_type: String, settings: Dictionary) -> void:
+	if unit_type == "":
+		return
+	var id: String = LootResources.normalize(EnemyStats.text(faction, unit_type, "bonus_loot_type", ""))
+	if id == "":
+		return
+	if not LootResources.exists(id):
+		push_warning("LootDrops: onbekende bonus_loot_type '%s' bij %s." % [id, unit_type])
+		return
+	var chance: float = clampf(EnemyStats.value(faction, unit_type, "bonus_loot_chance", 0.0), 0.0, 1.0)
+	if randf() >= chance:
+		return
+	var minimum: int = maxi(0, roundi(EnemyStats.value(faction, unit_type, "bonus_loot_min", 1.0)))
+	var maximum: int = maxi(minimum, roundi(EnemyStats.value(faction, unit_type, "bonus_loot_max", float(minimum))))
+	var count: int = randi_range(minimum, maximum)
+	spawn(parent, origin, hit_dir, count, id, settings)
+	print("EXTRA DROP: ", count, "x ", id, " van ", faction, " ", unit_type)

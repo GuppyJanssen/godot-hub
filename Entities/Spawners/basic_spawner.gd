@@ -251,6 +251,7 @@ func _deferred_destruction() -> void:
 	if is_instance_valid(active_scene):
 		LootDrops.spawn(active_scene, global_position, last_hit_dir, count, resource, LootDrops.splatter_settings(faction, building_type))
 		LootDrops.spawn_faction_loot(active_scene, global_position, last_hit_dir, faction, building_type, LootDrops.splatter_settings(faction, building_type))
+		LootDrops.spawn_bonus_loot(active_scene, global_position, last_hit_dir, faction, building_type, LootDrops.splatter_settings(faction, building_type))
 		print("SPAWNER: ", my_id, " laat ", count, " blokjes vallen.")
 		
 	# Wis de node nu veilig aan de start van het volgende frame

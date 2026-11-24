@@ -26,6 +26,8 @@ extends Area2D
 ##   loot_cluster_friction afremming tijdens het samendrijven (pixels per seconde²). Let op: het
 ##                         samendrijven gaat met (loot_merge_speed - loot_cluster_friction) vooruit.
 ##   loot_merge_wait       seconden dat een stukje stil moet liggen voordat het mag samenklonteren
+##   loot_merge_duration   seconden dat het samensmelten zelf duurt (de "lavalamp": de stukjes glijden
+##                         langzaam in elkaar en het nieuwe stuk groeit daarna rustig tot zijn grootte)
 ##
 ## Ontwikkelaarsnotities:
 ## - Geen physics-lichamen: botsen en trekken worden hier zelf uitgerekend, met een lijst buren die
@@ -46,7 +48,9 @@ const MERGE_DEFAULTS := {
 	"loot_orbit_strength": 6.0,
 	"loot_cluster_friction": 45.0,
 	"loot_merge_wait": 2.0,
+	"loot_merge_duration": 2.5,
 }
+const GROW_SECONDS := 0.8          # zo lang groeit een net samengesmolten stuk naar zijn echte grootte
 const NEIGHBOR_REFRESH := 0.15     # seconden tussen het opnieuw zoeken van buren
 const MERGE_CHECK_SECONDS := 0.25  # hoe vaak een stukje kijkt of er genoeg in zijn cirkel ligt
 const SETTLED_SPEED := 25.0        # pas gaan zoeken als de splatter bijna uitgedreven is
@@ -67,7 +71,15 @@ var _orbit_sign: float = 1.0        # draairichting om de buur: +1 of -1
 var _settled: bool = false          # splatter voorbij: nu het samendrijven
 var radius: float = BASE_RADIUS     # straal na schalen, voor botsen
 var _settled_time: float = 0.0     # hoe lang het stukje al aan het samendrijven is
-var _consumed: bool = false         # al opgegaan in een klompje of steen (wordt zo verwijderd)
+var _consumed: bool = false
+# Samensmelten (lavalamp): alle stukjes van een groep glijden langzaam naar één punt.
+var _merging: bool = false
+var _merge_from: Vector2 = Vector2.ZERO
+var _merge_center: Vector2 = Vector2.ZERO
+var _merge_t: float = 0.0
+var _merge_leader: Node = null
+var _merge_group: Array = []       # alleen bij de leider: wie er meesmelten
+var _target_scale: float = 1.0     # de echte grootte; een nieuw stuk groeit hier naartoe         # al opgegaan in een klompje of steen (wordt zo verwijderd)
 
 @onready var color_rect: ColorRect = $ColorRect
 
@@ -149,6 +161,15 @@ func _physics_process(delta: float) -> void:
 			global_position += velocity * delta
 			return
 
+	# Net samengesmolten: rustig groeien tot de echte grootte.
+	if scale.x < _target_scale:
+		var grown: float = minf(_target_scale, scale.x + _target_scale * delta / GROW_SECONDS)
+		scale = Vector2(grown, grown)
+
+	if _merging:
+		_update_melt(delta)
+		return
+
 	_neighbor_timer -= delta
 	if _neighbor_timer <= 0.0:
 		_neighbor_timer = NEIGHBOR_REFRESH
@@ -190,6 +211,7 @@ func init_loot(id: String, amt: int) -> void:
 		size_scale = CHUNK_SCALE
 		shape_kind = "circle"
 	scale = Vector2(size_scale, size_scale)
+	_target_scale = size_scale
 	radius = BASE_RADIUS * size_scale
 
 	# De ColorRect uit de scene wordt niet meer gebruikt: alle vormen zijn een Polygon2D met rand.
@@ -283,7 +305,7 @@ func ready_to_merge() -> bool:
 
 ## Doet dit stukje mee met samendrijven en samenklonteren?
 func can_merge() -> bool:
-	return _settled and not _consumed and is_inside_tree() and not is_queued_for_deletion()
+	return _settled and not _consumed and not _merging and is_inside_tree() and not is_queued_for_deletion()
 
 
 # Alle loot binnen loot_merge_radius. Die lijst gebruiken we voor botsen en voor de dichtste buur.
@@ -323,7 +345,7 @@ func _pull_towards_neighbor(delta: float) -> void:
 # Elk stukje duwt alleen zichzelf de helft weg; de ander doet in zijn eigen beurt de andere helft.
 func _resolve_collisions() -> void:
 	for other in _neighbors:
-		if not is_instance_valid(other) or other.is_queued_for_deletion():
+		if not is_instance_valid(other) or other.is_queued_for_deletion() or other._merging:
 			continue
 		var offset: Vector2 = global_position - other.global_position
 		var distance: float = offset.length()
@@ -385,8 +407,57 @@ func _try_merge() -> void:
 		for piece in group:
 			center += piece.global_position
 		center /= group.size()
-		_recompose(group, center, stones, chunks, singles, sizes)
+		_start_melt(group, center)
 		return
+
+
+# Begint het samensmelten: alle stukjes glijden in loot_merge_duration seconden naar 'center'.
+# Dit stukje is de leider en zet ze aan het eind om in het nieuwe stuk.
+func _start_melt(group: Array, center: Vector2) -> void:
+	_merge_group = group
+	for piece in group:
+		piece._merging = true
+		piece._merge_from = piece.global_position
+		piece._merge_center = center
+		piece._merge_t = 0.0
+		piece._merge_leader = self
+		piece.velocity = Vector2.ZERO
+
+
+# Eén stap van het samensmelten. Rustig op gang, rustig aankomen (smoothstep), zoals een lavalamp.
+func _update_melt(delta: float) -> void:
+	var duration: float = maxf(0.05, _setting("loot_merge_duration"))
+	_merge_t += delta
+	global_position = _merge_from.lerp(_merge_center, smoothstep(0.0, 1.0, _merge_t / duration))
+	if _merge_leader == self:
+		if _merge_t >= duration:
+			_finish_melt()
+	elif _merge_t > duration + 1.0:
+		# De leider is weg (bijvoorbeeld opgepakt): gewoon weer los verder.
+		_merging = false
+		_merge_leader = null
+
+
+# Klaar met smelten: tel wat er nog is (iets kan onderweg opgepakt zijn) en maak het nieuwe stuk.
+func _finish_melt() -> void:
+	var sizes: Vector2i = LootResources.chunk_sizes(resource_id)
+	var group: Array = []
+	var total: int = 0
+	for piece in _merge_group:
+		if is_instance_valid(piece) and not piece.is_queued_for_deletion() and piece._merging and piece._merge_leader == self:
+			group.append(piece)
+			total += piece.amount
+	_merge_group = []
+	var stones: int = floori(float(total) / sizes.y) if sizes.y > 0 else 0
+	var rest: int = total - stones * sizes.y
+	var chunks: int = floori(float(rest) / sizes.x) if sizes.x > 0 else 0
+	var singles: int = rest - chunks * sizes.x
+	if group.size() < 2 or stones + chunks + singles >= group.size():
+		for piece in group:
+			piece._merging = false
+			piece._merge_leader = null
+		return
+	_recompose(group, _merge_center, stones, chunks, singles, sizes)
 
 
 # Vervangt de groep door stenen, klompjes en losse blokjes op dezelfde plek.
@@ -414,6 +485,8 @@ func _recompose(group: Array, center: Vector2, stones: int, chunks: int, singles
 		loot.global_position = center + Vector2(randf_range(-spread, spread), randf_range(-spread, spread))
 		loot._settled = true
 		loot._age = _setting("loot_merge_delay")
-		loot._settled_time = _setting("loot_merge_wait")
+		loot._settled_time = 0.0
+		# Begint klein en groeit rustig tot zijn echte grootte (zie GROW_SECONDS).
+		loot.scale = Vector2(loot._target_scale, loot._target_scale) * 0.55
 		parent.call_deferred("add_child", loot)
 	print("LOOT: ", group.size(), " stukjes ", resource_id, " samengevoegd tot ", stones, " steen, ", chunks, " klompje(s) en ", singles, " los.")

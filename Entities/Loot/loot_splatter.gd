@@ -19,10 +19,10 @@ class_name LootSplatter
 ## Afstellen gebeurt in de SSOT, per vijand-rij. Lege cel = de standaard hieronder.
 
 ## Standaardwaarden om mee te testen.
-const DEFAULT_SPREAD_DEGREES := 35.0   # bredere kegel (±35°)
-const DEFAULT_MIN_SPEED := 60.0        # de traagste stukjes: vallen dicht bij de vijand
-const DEFAULT_MAX_SPEED := 400.0       # de snelste stukjes: het eind van de streep
-const DEFAULT_DRAG := 600.0            # afremming per seconde: hoe snel het "splat"
+const DEFAULT_SPREAD_DEGREES := 55.0   # brede kegel (±55°)
+const DEFAULT_MIN_SPEED := 90.0        # de traagste stukjes: vallen dicht bij de vijand
+const DEFAULT_MAX_SPEED := 480.0       # de snelste stukjes: het eind van de streep
+const DEFAULT_DRAG := 260.0            # afremming per seconde: hoe snel het "splat"
 const DEFAULT_START_OFFSET := 4.0      # grootte van de vlek waar het begint (± px)
 
 ## Kolomnamen in de SSOT. base_loot_splatter is de maximale snelheid,
