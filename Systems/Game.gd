@@ -1,22 +1,5 @@
 extends Node
 
-# 1. JULLIE ENUMS STAAN HIER BOVENAAN
-enum LootType {
-	OLRITE,
-	METAL,
-	KEEPIUM,
-	ELEMENT_1,
-	ELEMENT_2,
-	ELEMENT_3,
-	PLACEHOLDER_A,
-	PLACEHOLDER_B,
-	PLACEHOLDER_C,
-	PLACEHOLDER_D,
-	PLACEHOLDER_E,
-	SPECIAL_BOSS_DROP,
-	UPGRADE_TOKEN
-}
-
 # 2. HIERONDER VOLGEN JULLIE NORMALE VARIABELEN
 var active_player: CharacterBody2D = null
 var active_save_slot: String = ""
@@ -76,13 +59,7 @@ func save_live_run_state_to_disk() -> void:
 	run_data["player_x"] = active_player.global_position.x
 	run_data["player_y"] = active_player.global_position.y
 	
-	# Beveilig alle 6 de winst-slots uit de hub metadata
-	run_data["run_loot_olrite"] = int(get_meta("run_loot_olrite")) if has_meta("run_loot_olrite") else 0
-	run_data["run_loot_metal"]  = int(get_meta("run_loot_metal"))  if has_meta("run_loot_metal")  else 0
-	run_data["run_loot_keepium"] = int(get_meta("run_loot_keepium")) if has_meta("run_loot_keepium") else 0
-	run_data["run_loot_element1"] = int(get_meta("run_loot_element1")) if has_meta("run_loot_element1") else 0
-	run_data["run_loot_element2"] = int(get_meta("run_loot_element2")) if has_meta("run_loot_element2") else 0
-	run_data["run_loot_element3"] = int(get_meta("run_loot_element3")) if has_meta("run_loot_element3") else 0
+	# De run-buit staat in RunState (run_state.json), niet hier.
 	
 	var write_file = FileAccess.open(full_path, FileAccess.WRITE)
 	write_file.store_string(JSON.stringify(run_data, "\t"))

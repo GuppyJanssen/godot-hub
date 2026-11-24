@@ -1,62 +1,100 @@
 extends Area2D
-# BEDIENING: Loot Drop (100% SSoT-Geconsolideerd voor alle 6 de grondstoffen!)
+## Eén stukje loot op de grond: een los blokje (vierkant), een klompje (cirkel) of een steen (ster).
+##
+## WELKE GRONDSTOF: resource_id is een id uit de SSOT (rij met data_type loot: olrite, metal ...).
+## Zie LootResources voor naam, kleur en klontergroottes.
+##
+## HOE HET BEWEEGT:
+## 1. Eerst de splatter: het stukje vliegt weg in de richting van de kogel en remt snel af.
+## 2. Ligt het bijna stil (en is loot_merge_delay voorbij), dan zoekt het het dichtstbijzijnde stukje
+##    van dezelfde grondstof waar het nog NIET tegenaan ligt, en drijft daar langzaam naartoe.
+##    Zo groeien kleine groepjes vanzelf aan elkaar in plaats van allemaal naar één punt te gaan.
+## 3. Stukjes botsen: ze kunnen niet door elkaar heen, duwen elkaar weg en verliezen daarbij wat vaart.
+## 4. Elk stukje draait een beetje om zijn buur heen (links- of rechtsom, per stukje gekozen) en
+##    remt af door wrijving. Daardoor modderen ze wat tegen elkaar aan voordat ze stil liggen.
+## 5. Samenklonteren pas als er binnen een cirkel (loot_merge_circle) genoeg ligt: samen minstens een
+##    klompje (loot_chunk_small) of een steen (loot_chunk_large). De totale hoeveelheid blijft gelijk:
+##    6 klompjes van 15 + 7 losse = 97 = één steen.
+##
+## INSTELLINGEN (SSOT-rij "world"; leeg = de standaard in MERGE_DEFAULTS):
+##   loot_merge_delay      seconden na het neerkomen voordat een stukje gaat zoeken
+##   loot_merge_speed      hoe hard een stukje naar zijn buur trekt (pixels per seconde²)
+##   loot_merge_radius     hoe ver een stukje kijkt voor een buur (pixels)
+##   loot_merge_circle     straal van de cirkel waarin genoeg moet liggen om samen te klonteren
+##   loot_orbit_strength   hoe hard een stukje om zijn buur heen draait (pixels per seconde²)
+##   loot_cluster_friction afremming tijdens het samendrijven (pixels per seconde²)
+##
+## Ontwikkelaarsnotities:
+## - Geen physics-lichamen: botsen en trekken worden hier zelf uitgerekend, met een lijst buren die
+##   elke NEIGHBOR_REFRESH seconden wordt bijgewerkt (niet elk frame alle loot langs).
+## - Wordt de speler dichtbij genoeg, dan wint de magneet van de speler het altijd.
 
-var currency_type: int = 1 
+var resource_id: String = "olrite"
 var amount: int = 1
 
 var velocity: Vector2 = Vector2.ZERO
-var loot_friction: float = 150.0 
+var loot_friction: float = 150.0
 
-# --- SAMENKLONTEREN ---
-# Losse blokjes van dezelfde grondstof die bij elkaar liggen, drijven na een korte pauze langzaam
-# naar elkaar toe en worden samen een klompje (bijvoorbeeld 15 Olrite) of een steen (97 Olrite).
-# Wat overblijft, blijft los liggen: 20 blokjes = 1 klompje van 15 + 5 losse.
-# Per grondstof in de SSOT (rij olrite, metal ...): loot_chunk_small en loot_chunk_large.
-# Leeg = deze grondstof klontert niet. Algemene instellingen op de rij "world" (leeg = standaard):
-# loot_merge_delay, loot_merge_speed, loot_merge_radius.
-const CURRENCY_ROWS: Array = ["", "olrite", "metal", "keepium", "element_1", "element_2", "element_3"]
-const MERGE_DEFAULTS := {"loot_merge_delay": 0.4, "loot_merge_speed": 35.0, "loot_merge_radius": 160.0}
-const MERGE_CHECK_SECONDS := 0.2   # hoe vaak een blokje kijkt of er iets samen te voegen valt
-const MERGE_CLOSE_ENOUGH := 14.0   # zo dicht bij het midden telt als "aangekomen"
-const SETTLED_SPEED := 25.0        # pas samentrekken als de splatter bijna uitgedreven is
+const MERGE_DEFAULTS := {
+	"loot_merge_delay": 0.4,
+	"loot_merge_speed": 60.0,
+	"loot_merge_radius": 160.0,
+	"loot_merge_circle": 40.0,
+	"loot_orbit_strength": 18.0,
+	"loot_cluster_friction": 45.0,
+}
+const NEIGHBOR_REFRESH := 0.15     # seconden tussen het opnieuw zoeken van buren
+const MERGE_CHECK_SECONDS := 0.25  # hoe vaak een stukje kijkt of er genoeg in zijn cirkel ligt
+const SETTLED_SPEED := 25.0        # pas gaan zoeken als de splatter bijna uitgedreven is
+const BASE_RADIUS := 6.0           # straal van een los blokje (zonder schaal)
 const CHUNK_SCALE := 1.7           # grootte van een klompje
 const STONE_SCALE := 2.6           # grootte van een steen
+const BOUNCE := 0.35               # hoeveel vaart er overblijft bij een botsing (0 = plof, 1 = stuiter)
+const OUTLINE_COLOR := Color(0.0, 0.0, 0.0, 0.9)
+const OUTLINE_WIDTH := 1.3
 
 var _age: float = 0.0
+var _neighbor_timer: float = 0.0
 var _merge_timer: float = 0.0
-var merge_target: Vector2 = Vector2.ZERO
-var merging: bool = false
+var _neighbors: Array = []          # loot in de buurt (alle grondstoffen, voor botsen)
+var _orbit_sign: float = 1.0        # draairichting om de buur: +1 of -1
+var _settled: bool = false          # splatter voorbij: nu het samendrijven
+var radius: float = BASE_RADIUS     # straal na schalen, voor botsen
 
 @onready var color_rect: ColorRect = $ColorRect
 
 
 func _ready() -> void:
 	add_to_group("loot")
-	add_to_group("saveable")  # dit blokje wil onthouden worden (zie game_room.gd)
-	
+	add_to_group("saveable")  # dit stukje wil onthouden worden (zie game_room.gd)
+	_orbit_sign = 1.0 if randf() < 0.5 else -1.0
+	# Spreid het zoeken over de frames, zodat niet alle stukjes tegelijk rekenen.
+	_neighbor_timer = randf() * NEIGHBOR_REFRESH
+	_merge_timer = randf() * MERGE_CHECK_SECONDS
 	if not body_entered.is_connected(_on_body_entered):
 		body_entered.connect(_on_body_entered)
 	if not area_entered.is_connected(_on_area_entered):
 		area_entered.connect(_on_area_entered)
 
 
-# Geeft het blokje zijn vaart mee: een smalle streep in de richting van de kogel.
+# Geeft het stukje zijn vaart mee: een smalle streep in de richting van de kogel.
 func launch_splatter(hit_dir: Vector2, settings: Dictionary) -> void:
 	velocity = LootSplatter.random_velocity(hit_dir, settings)
 	loot_friction = float(settings.get("drag", LootSplatter.DEFAULT_DRAG))
+	_settled = false
 
 
 # --- ONTHOUDEN: de drie functies voor de groep "saveable" ---
 
-# Loot heeft geen vaste naam, dus elk blokje krijgt een eigen nummer.
+# Loot heeft geen vaste naam, dus elk stukje krijgt een eigen nummer.
 func get_run_id() -> String:
 	return "loot_" + str(get_instance_id())
 
 
-# Wat dit blokje wil bewaren: soort, aantal, plek en de vaart die het nog had.
+# Wat dit stukje wil bewaren: soort, aantal, plek en de vaart die het nog had.
 func get_run_state() -> Dictionary:
 	return {
-		"type": currency_type,
+		"type": resource_id,
 		"amount": amount,
 		"x": global_position.x,
 		"y": global_position.y,
@@ -66,66 +104,76 @@ func get_run_state() -> Dictionary:
 	}
 
 
-# Bij het verlaten van de kamer: spring naar de plek waar dit blokje tot stilstand was gekomen
-# en bewaar het zonder vaart. Zo beweegt het niet meer als je terugkomt. (Bij "terug naar
-# hoofdmenu" wordt dit niet aangeroepen; dan houdt het blokje zijn vaart, zoals het hoort.)
+# Bij het verlaten van de kamer: spring naar de plek waar dit stukje tot stilstand was gekomen
+# en bewaar het zonder vaart. Zo beweegt het niet meer als je terugkomt.
 func settle_for_room_exit() -> void:
 	var speed: float = velocity.length()
 	if speed > 0.0 and loot_friction > 0.0:
 		global_position += velocity.normalized() * (speed * speed / (2.0 * loot_friction))
 	velocity = Vector2.ZERO
-	merging = false
 
 
-# Zet de bewaarde gegevens terug.
+# Zet de bewaarde gegevens terug. Oude saves bewaarden een nummer (1 = olrite ...).
 func apply_run_state(data: Dictionary) -> void:
-	init_loot(int(data.get("type", 1)), int(data.get("amount", 1)))
+	var id: String = LootResources.normalize(data.get("type", "olrite"))
+	init_loot(id if id != "" else "olrite", int(data.get("amount", 1)))
 	global_position = Vector2(float(data.get("x", 0.0)), float(data.get("y", 0.0)))
 	velocity = Vector2(float(data.get("vx", 0.0)), float(data.get("vy", 0.0)))
 	loot_friction = float(data.get("friction", loot_friction))
 
 
 func _physics_process(delta: float) -> void:
-	if not is_inside_tree() or get_tree() == null: return
-	
+	if not is_inside_tree() or get_tree() == null:
+		return
+	_age += delta
+
+	# De magneet van de speler wint altijd.
 	var player = Game.active_player
-	var pulling_to_player: bool = false
-	
 	if is_instance_valid(player):
-		var live_magnet_range: float = 150.0
+		var magnet_range: float = 150.0
 		if player.stats and "loot_magnet_range" in player.stats:
-			live_magnet_range = float(player.stats.loot_magnet_range)
-			
-		var distance_to_player = global_position.distance_to(player.global_position)
-		
-		if distance_to_player <= live_magnet_range:
-			pulling_to_player = true
-			var direction_to_player = (player.global_position - global_position).normalized()
-			
-			var live_magnet_speed: float = 550.0
+			magnet_range = float(player.stats.loot_magnet_range)
+		if global_position.distance_to(player.global_position) <= magnet_range:
+			var magnet_speed: float = 550.0
 			if player.stats and "loot_magnet_speed" in player.stats:
-				live_magnet_speed = float(player.stats.loot_magnet_speed)
-				
-			velocity = direction_to_player * live_magnet_speed
+				magnet_speed = float(player.stats.loot_magnet_speed)
+			velocity = (player.global_position - global_position).normalized() * magnet_speed
 			global_position += velocity * delta
-			
-	if not pulling_to_player:
-		if velocity.length() > 0:
-			global_position += velocity * delta
-			velocity = velocity.move_toward(Vector2.ZERO, loot_friction * delta)
-		_update_merge(delta)
+			return
+
+	_neighbor_timer -= delta
+	if _neighbor_timer <= 0.0:
+		_neighbor_timer = NEIGHBOR_REFRESH
+		_refresh_neighbors()
+
+	if not _settled:
+		# Splatter: alleen uitdrijven met de (sterke) splatter-afremming.
+		velocity = velocity.move_toward(Vector2.ZERO, loot_friction * delta)
+		if velocity.length() <= SETTLED_SPEED and _age >= _setting("loot_merge_delay"):
+			_settled = true
 	else:
-		merging = false
+		_pull_towards_neighbor(delta)
+		velocity = velocity.move_toward(Vector2.ZERO, _setting("loot_cluster_friction") * delta)
+
+	global_position += velocity * delta
+	_resolve_collisions()
+
+	if _settled:
+		_merge_timer -= delta
+		if _merge_timer <= 0.0:
+			_merge_timer = MERGE_CHECK_SECONDS
+			_try_merge()
 
 
-func init_loot(type: int, amt: int) -> void:
-	currency_type = type
+# --- VORM EN KLEUR ---
+
+func init_loot(id: String, amt: int) -> void:
+	resource_id = id
 	amount = amt
-	# Vorm en grootte: los blokje = vierkantje, klompje = cirkel (groter), steen = 5-puntige ster
-	# (nog groter). De botsing groeit mee met de schaal.
+	# Los blokje = vierkant, klompje = cirkel (groter), steen = 5-puntige ster (nog groter).
 	var size_scale: float = 1.0
 	var shape_kind: String = "square"
-	var sizes: Vector2i = _chunk_sizes()
+	var sizes: Vector2i = LootResources.chunk_sizes(resource_id)
 	if sizes.y > 0 and amount >= sizes.y:
 		size_scale = STONE_SCALE
 		shape_kind = "star"
@@ -133,43 +181,49 @@ func init_loot(type: int, amt: int) -> void:
 		size_scale = CHUNK_SCALE
 		shape_kind = "circle"
 	scale = Vector2(size_scale, size_scale)
-	
-	var color: Color = _currency_color()
-	var active_rect = color_rect if is_instance_valid(color_rect) else (get_node("ColorRect") if has_node("ColorRect") else null)
-	if is_instance_valid(active_rect):
-		active_rect.color = color
-		active_rect.visible = shape_kind == "square"
-	
-	# Cirkel en ster zijn een Polygon2D die we hier zelf maken.
+	radius = BASE_RADIUS * size_scale
+
+	# De ColorRect uit de scene wordt niet meer gebruikt: alle vormen zijn een Polygon2D met rand.
+	var rect = color_rect if is_instance_valid(color_rect) else get_node_or_null("ColorRect")
+	if is_instance_valid(rect):
+		rect.visible = false
+
+	var points: PackedVector2Array
+	match shape_kind:
+		"star":
+			points = _star_points(7.0, 3.0)
+		"circle":
+			points = _circle_points(6.0)
+		_:
+			points = PackedVector2Array([Vector2(-6, -6), Vector2(6, -6), Vector2(6, 6), Vector2(-6, 6)])
+
 	var poly: Polygon2D = get_node_or_null("ShapePolygon") as Polygon2D
-	if shape_kind == "square":
-		if poly != null:
-			poly.visible = false
-		return
 	if poly == null:
 		poly = Polygon2D.new()
 		poly.name = "ShapePolygon"
 		add_child(poly)
-	poly.visible = true
-	poly.color = color
-	poly.polygon = _star_points(7.0, 3.0) if shape_kind == "star" else _circle_points(6.0)
+	poly.polygon = points
+	poly.color = LootResources.color(resource_id)
+
+	# Donkere rand, zodat je ziet welke vorm er ligt. De rand schaalt mee met het stukje,
+	# dus de breedte wordt gedeeld door de schaal (anders is de rand van een ster veel dikker).
+	var outline: Line2D = get_node_or_null("Outline") as Line2D
+	if outline == null:
+		outline = Line2D.new()
+		outline.name = "Outline"
+		outline.closed = true
+		outline.joint_mode = Line2D.LINE_JOINT_ROUND
+		outline.antialiased = true
+		add_child(outline)
+	outline.points = points
+	outline.default_color = OUTLINE_COLOR
+	outline.width = OUTLINE_WIDTH / size_scale
 
 
-func _currency_color() -> Color:
-	match currency_type:
-		1: return Color(0.0, 0.564, 0.275, 1.0)  # Olrite
-		2: return Color(0.556, 0.556, 0.556, 1.0) # Metal
-		3: return Color(0.634, 0.022, 0.575, 1.0) # Keepium
-		4: return Color(0.1, 0.5, 0.9, 1.0)       # Element 1
-		5: return Color(1.0, 0.85, 0.0, 1.0)      # Element 2
-		6: return Color(0.863, 0.0, 0.0, 1.0)     # Element 3
-	return Color.WHITE
-
-
-static func _circle_points(radius: float) -> PackedVector2Array:
+static func _circle_points(r: float) -> PackedVector2Array:
 	var points: PackedVector2Array = PackedVector2Array()
 	for i in 16:
-		points.append(Vector2.RIGHT.rotated(TAU * i / 16.0) * radius)
+		points.append(Vector2.RIGHT.rotated(TAU * i / 16.0) * r)
 	return points
 
 
@@ -177,141 +231,132 @@ static func _circle_points(radius: float) -> PackedVector2Array:
 static func _star_points(outer: float, inner: float) -> PackedVector2Array:
 	var points: PackedVector2Array = PackedVector2Array()
 	for i in 10:
-		var radius: float = outer if i % 2 == 0 else inner
-		points.append(Vector2.UP.rotated(TAU * i / 10.0) * radius)
+		var r: float = outer if i % 2 == 0 else inner
+		points.append(Vector2.UP.rotated(TAU * i / 10.0) * r)
 	return points
 
 
+# --- OPPAKKEN ---
+
 func _on_area_entered(area: Area2D) -> void:
-	if not is_instance_valid(area): return
+	if not is_instance_valid(area):
+		return
 	if area.is_in_group("player") or "player" in area.name.to_lower() or area.get_parent().is_in_group("player") or "player" in area.get_parent().name.to_lower():
 		var target_player = area.get_parent() if "player" in area.get_parent().name.to_lower() else Game.active_player
 		_execute_pickup(target_player)
 
 
 func _on_body_entered(body: Node2D) -> void:
-	if not is_instance_valid(body): return
+	if not is_instance_valid(body):
+		return
 	if body.is_in_group("player") or "player" in body.name.to_lower():
 		_execute_pickup(body)
 
 
-# --- GECORRIGEERD: Schrijft de winst direct en kogelvrij weg naar de Global Hub ---
+# De buit van deze run staat in RunState.loot (zie LootResources).
 func _execute_pickup(player_node: Node2D) -> void:
-	if not is_instance_valid(player_node): return
-	
-	print("LOOT: Speler raapt ", amount, " eenheden van type ", currency_type, " succesvol op!")
-	
-	# SSoT LOCK: We slaan de winst-tellers onvoorwaardelijk op in de Autoload Hub metadata.
-	# Hierdoor hoeft Player.gd de variabelen zelf niet te bezitten, wat crashes voorkomt!
-	if is_instance_valid(Game):
-		var current_olrite = int(Game.get_meta("run_loot_olrite")) if Game.has_meta("run_loot_olrite") else 0
-		var current_metal  = int(Game.get_meta("run_loot_metal"))  if Game.has_meta("run_loot_metal")  else 0
-		var current_keep   = int(Game.get_meta("run_loot_keepium")) if Game.has_meta("run_loot_keepium") else 0
-		var current_elem1  = int(Game.get_meta("run_loot_element1")) if Game.has_meta("run_loot_element1") else 0
-		var current_elem2  = int(Game.get_meta("run_loot_element2")) if Game.has_meta("run_loot_element2") else 0
-		var current_elem3  = int(Game.get_meta("run_loot_element3")) if Game.has_meta("run_loot_element3") else 0
-		
-		match currency_type:
-			1: Game.set_meta("run_loot_olrite", current_olrite + amount)
-			2: Game.set_meta("run_loot_metal", current_metal + amount)
-			3: Game.set_meta("run_loot_keepium", current_keep + amount)
-			4: Game.set_meta("run_loot_element1", current_elem1 + amount)
-			5: Game.set_meta("run_loot_element2", current_elem2 + amount)
-			6: Game.set_meta("run_loot_element3", current_elem3 + amount)
-	
-	# RunState telt mee, naast de bestaande telling in Game.
-	var names: Array = ["", "olrite", "metal", "keepium", "element1", "element2", "element3"]
-	RunState.add_loot(names[currency_type], amount)
-	
-	# Wis het opgezogen kristal vloeibaar uit de arena
+	if not is_instance_valid(player_node) or is_queued_for_deletion():
+		return
+	RunState.add_loot(resource_id, amount)
 	queue_free()
 
 
-# --- SAMENKLONTEREN ---
+# --- SAMENDRIJVEN, BOTSEN EN SAMENKLONTEREN ---
 
-# Klompje- en steengrootte voor deze grondstof (0 = niet).
-func _chunk_sizes() -> Vector2i:
-	if currency_type < 1 or currency_type >= CURRENCY_ROWS.size():
-		return Vector2i.ZERO
-	var row: String = CURRENCY_ROWS[currency_type]
-	return Vector2i(Ssot.get_int(row, "loot_chunk_small", 0), Ssot.get_int(row, "loot_chunk_large", 0))
-
-
-static func _merge_setting(setting_name: String) -> float:
+static func _setting(setting_name: String) -> float:
 	return Ssot.get_number("world", setting_name, float(MERGE_DEFAULTS[setting_name]))
 
 
-# Mag dit blokje meedoen met samenklonteren? (Pauze voorbij en de splatter bijna uitgedreven.)
+## Doet dit stukje mee met samendrijven en samenklonteren?
 func can_merge() -> bool:
-	return is_inside_tree() and not is_queued_for_deletion() and _age >= _merge_setting("loot_merge_delay") and velocity.length() <= SETTLED_SPEED
+	return _settled and is_inside_tree() and not is_queued_for_deletion()
 
 
-func _update_merge(delta: float) -> void:
-	_age += delta
-	# Langzaam naar het midden van de groep drijven (het "ruimte"-gevoel).
-	if merging:
-		global_position = global_position.move_toward(merge_target, _merge_setting("loot_merge_speed") * delta)
-	_merge_timer -= delta
-	if _merge_timer > 0.0:
+# Alle loot binnen loot_merge_radius. Die lijst gebruiken we voor botsen en voor de dichtste buur.
+func _refresh_neighbors() -> void:
+	_neighbors.clear()
+	var search: float = _setting("loot_merge_radius")
+	for node in get_tree().get_nodes_in_group("loot"):
+		if node == self or not (node is Area2D) or not node.has_method("can_merge"):
+			continue
+		if node.global_position.distance_to(global_position) <= search:
+			_neighbors.append(node)
+
+
+# Trek naar het dichtstbijzijnde stukje van dezelfde grondstof waar dit stukje nog niet tegenaan ligt,
+# en draai er een beetje omheen.
+func _pull_towards_neighbor(delta: float) -> void:
+	if LootResources.chunk_sizes(resource_id) == Vector2i.ZERO:
+		return  # deze grondstof klontert niet
+	var target: Node2D = null
+	var best: float = INF
+	for other in _neighbors:
+		if not is_instance_valid(other) or not other.can_merge() or other.resource_id != resource_id:
+			continue
+		var distance: float = other.global_position.distance_to(global_position)
+		var touching: float = (radius + other.radius) * 1.15
+		if distance > touching and distance < best:
+			best = distance
+			target = other
+	if target == null:
 		return
-	_merge_timer = MERGE_CHECK_SECONDS
-	if not can_merge():
-		return
-	var sizes: Vector2i = _chunk_sizes()
+	var direction: Vector2 = (target.global_position - global_position).normalized()
+	velocity += direction * _setting("loot_merge_speed") * delta
+	velocity += direction.orthogonal() * _orbit_sign * _setting("loot_orbit_strength") * delta
+
+
+# Stukjes kunnen niet door elkaar: duw ze uit elkaar en haal wat vaart weg (een zachte botsing).
+# Elk stukje duwt alleen zichzelf de helft weg; de ander doet in zijn eigen beurt de andere helft.
+func _resolve_collisions() -> void:
+	for other in _neighbors:
+		if not is_instance_valid(other) or other.is_queued_for_deletion():
+			continue
+		var offset: Vector2 = global_position - other.global_position
+		var distance: float = offset.length()
+		var min_distance: float = radius + other.radius
+		if distance >= min_distance:
+			continue
+		var normal: Vector2 = offset / distance if distance > 0.01 else Vector2.RIGHT.rotated(randf() * TAU)
+		global_position += normal * (min_distance - distance) * 0.5
+		# Alleen de vaart richting de ander wordt (grotendeels) weggenomen: dat voelt als stoten.
+		var into: float = velocity.dot(-normal)
+		if into > 0.0:
+			velocity += normal * into * (1.0 + BOUNCE) * 0.5
+
+
+# Ligt er binnen loot_merge_circle genoeg van deze grondstof voor een klompje of een steen?
+# Dan worden die stukjes samengevoegd. Het stukje met het laagste nummer in de cirkel doet het werk,
+# zodat het maar één keer gebeurt.
+func _try_merge() -> void:
+	var sizes: Vector2i = LootResources.chunk_sizes(resource_id)
 	if sizes.x <= 0 and sizes.y <= 0:
 		return
-
-	# De groep: alle blokjes van dezelfde grondstof die via elkaar verbonden zijn (elk blokje ligt
-	# binnen de straal van minstens één ander blokje in de groep). Zo telt een hele hoop mee, ook
-	# als die breder is dan de straal. Alleen het blokje met het laagste nummer in de groep
-	# (de "aanvoerder") regelt het samenvoegen, zodat het één keer gebeurt.
-	var radius: float = _merge_setting("loot_merge_radius")
-	var candidates: Array = []
-	for node in get_tree().get_nodes_in_group("loot"):
-		if node == self or not node.has_method("can_merge"):
-			continue
-		if node.currency_type != currency_type or not node.can_merge():
-			continue
-		candidates.append(node)
+	var circle: float = _setting("loot_merge_circle")
 	var group: Array = [self]
-	var index: int = 0
-	while index < group.size():
-		var current: Node2D = group[index]
-		index += 1
-		for k in range(candidates.size() - 1, -1, -1):
-			var other: Node2D = candidates[k]
-			if other.global_position.distance_to(current.global_position) <= radius:
-				if other.get_instance_id() < get_instance_id():
-					return  # een ander blokje in deze groep is de aanvoerder
-				group.append(other)
-				candidates.remove_at(k)
+	var total: int = amount
+	for other in _neighbors:
+		if not is_instance_valid(other) or not other.can_merge() or other.resource_id != resource_id:
+			continue
+		if other.global_position.distance_to(global_position) > circle:
+			continue
+		if other.get_instance_id() < get_instance_id():
+			return  # een ander stukje in deze cirkel is de baas
+		group.append(other)
+		total += other.amount
 
-	var total: int = 0
-	var center: Vector2 = Vector2.ZERO
-	for piece in group:
-		total += piece.amount
-		center += piece.global_position
-	center /= group.size()
-
-	# Hoe ziet de groep er na het samenvoegen uit? Zoveel mogelijk stenen, dan klompjes, de rest los.
 	var stones: int = floori(float(total) / sizes.y) if sizes.y > 0 else 0
 	var rest: int = total - stones * sizes.y
 	var chunks: int = floori(float(rest) / sizes.x) if sizes.x > 0 else 0
 	var singles: int = rest - chunks * sizes.x
-	if stones + chunks == 0 or group.size() <= stones + chunks + singles:
-		for piece in group:
-			piece.merging = false
-		return  # niets samen te voegen, of al zo samengevoegd als het kan
+	# Alleen samenvoegen als er echt minder stukken uitkomen (anders liggen ze al zo goed als het kan).
+	if stones + chunks == 0 or stones + chunks + singles >= group.size():
+		return
 
-	# Iedereen drijft naar het midden. Zijn ze er allemaal, dan wordt de groep omgezet.
-	var arrived: bool = true
+	var center: Vector2 = Vector2.ZERO
 	for piece in group:
-		piece.merge_target = center
-		piece.merging = true
-		if piece.global_position.distance_to(center) > MERGE_CLOSE_ENOUGH:
-			arrived = false
-	if arrived:
-		_recompose(group, center, stones, chunks, singles, sizes)
+		center += piece.global_position
+	center /= group.size()
+	_recompose(group, center, stones, chunks, singles, sizes)
 
 
 # Vervangt de groep door stenen, klompjes en losse blokjes op dezelfde plek.
@@ -331,9 +376,12 @@ func _recompose(group: Array, center: Vector2, stones: int, chunks: int, singles
 		piece.queue_free()
 	for piece_amount in pieces:
 		var loot: Node = scene.instantiate()
-		loot.init_loot(currency_type, piece_amount)
-		# Grote stukken in het midden, losse blokjes er een beetje omheen.
-		var spread: float = 4.0 if piece_amount > 1 else 18.0
+		loot.init_loot(resource_id, piece_amount)
+		# Grote stukken in het midden, losse blokjes er een beetje omheen. De botsing duwt ze daarna
+		# vanzelf netjes uit elkaar.
+		var spread: float = 3.0 if piece_amount > 1 else 14.0
 		loot.global_position = center + Vector2(randf_range(-spread, spread), randf_range(-spread, spread))
+		loot._settled = true
+		loot._age = _setting("loot_merge_delay")
 		parent.call_deferred("add_child", loot)
-	print("LOOT: ", group.size(), " stukjes samengevoegd tot ", stones, " steen, ", chunks, " klompje(s) en ", singles, " los.")
+	print("LOOT: ", group.size(), " stukjes ", resource_id, " samengevoegd tot ", stones, " steen, ", chunks, " klompje(s) en ", singles, " los.")

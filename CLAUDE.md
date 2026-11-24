@@ -209,3 +209,13 @@ Nog niet aangesloten (staan klaar, worden nergens aangeroepen): `stat_calc.gd`, 
   SSOT: grondstoffenrijen (data_type loot) met resource_kind en rarity_tier; element_1..3 heten in-game Biomass,
   Circuitry, Crystal (entry_id blijft tot de grondstoffenlijst in de code zit). Nieuwe rijen cryo, arc_coil, thermion,
   isotope, neutronium_core, void_shard worden nog niet door de code gebruikt.
+- **24 nov (3): grondstoffenlijst.** Element 1-3 bestaan niet meer. Alle grondstoffen zijn rijen met data_type loot in de SSOT
+  (olrite, metal, keepium, biomass, circuitry, crystal, cryo, arc_coil, thermion, isotope, neutronium_core, void_shard).
+  Code: Systems/loot_resources.gd (LootResources). Kluis = MetaProgress.resources (id -> aantal, meta_data.json "resources");
+  run-buit = RunState.loot. Einde run (dood, opgeven, nieuwe run): LootResources.bank_run_loot(). Oude saves
+  (currency_1..6, element1, loot-type 1..6) worden bij het laden omgezet via LootResources.normalize().
+  Speler en PlayerStats hebben geen currency-velden meer; Game.get_meta("run_loot_*") bestaat niet meer.
+  HUD toont alleen grondstoffen met een aantal > 0. Skill-kosten: fill_costs_per_point "id:prijs".
+  Loot-gedrag (loot_drop.gd): trekt naar dichtste niet-rakende buur, botst, draait, klontert pas als binnen
+  loot_merge_circle genoeg ligt. Instellingen in de SSOT-rij world (loot_merge_*, loot_orbit_strength, loot_cluster_friction).
+  Elke kolomkop in de SSOT heeft een notitie met uitleg.

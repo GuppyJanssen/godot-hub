@@ -1,13 +1,9 @@
 extends Resource
 class_name MetaProgress
 
-# --- PERMANENTE BANKREKENING (De 6 echte sci-fi grondstoffen) ---
-@export var currency_1: int = 0 # Olrite
-@export var currency_2: int = 0 # Metal
-@export var currency_3: int = 0 # Keepium
-@export var currency_4: int = 0 # Element 1
-@export var currency_5: int = 0 # Element 2
-@export var currency_6: int = 0 # Element 3
+# --- DE KLUIS: grondstoffen en currencies die je houdt na een run ---
+## id uit de SSOT (olrite, metal, biomass ...) -> aantal. Zie LootResources.
+@export var resources: Dictionary = {}
 
 # --- UNIVERSELE DATA-DRIVEN UPGRADELIJST ---
 # BINGO: Hierin slaan we ALLES dynamic op!
@@ -22,6 +18,24 @@ class_name MetaProgress
 ## Skills die ooit gekocht zijn in deze save. Die zie je in de boom; de rest is een zwart vakje.
 ## Blijft staan, ook als de skill door verval weer op 0 komt.
 @export var discovered_skills: Array = []
+
+
+func get_amount(id: String) -> int:
+	return int(resources.get(id, 0))
+
+
+func add_amount(id: String, amount: int) -> void:
+	if id == "":
+		return
+	resources[id] = maxi(0, get_amount(id) + amount)
+
+
+## Haalt 'amount' van 'id' af als er genoeg is. Geeft false (en verandert niets) als het niet past.
+func try_spend(id: String, amount: int) -> bool:
+	if amount < 0 or get_amount(id) < amount:
+		return false
+	resources[id] = get_amount(id) - amount
+	return true
 
 
 # FUTURE-PROOF SLOT: Hier kunnen jullie later makkelijk extra meta-progressie kwijt, zoals:

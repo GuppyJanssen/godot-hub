@@ -247,9 +247,9 @@ func _deferred_destruction() -> void:
 	
 	# Loot uit de SSOT (rij unit_factory): soort, aantal en splatter. Standaard Metal.
 	var count: int = LootDrops.roll_count(faction, building_type)
-	var currency: int = LootDrops.currency_index(faction, building_type, 2)
+	var resource: String = LootDrops.resource_id(faction, building_type, "metal")
 	if is_instance_valid(active_scene):
-		LootDrops.spawn(active_scene, global_position, last_hit_dir, count, currency, LootDrops.splatter_settings(faction, building_type))
+		LootDrops.spawn(active_scene, global_position, last_hit_dir, count, resource, LootDrops.splatter_settings(faction, building_type))
 		print("SPAWNER: ", my_id, " laat ", count, " blokjes vallen.")
 		
 	# Wis de node nu veilig aan de start van het volgende frame

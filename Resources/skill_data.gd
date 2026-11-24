@@ -21,7 +21,7 @@ func get_csv_stats() -> Dictionary:
 # Vraagt live de eenmalige unlock-eisen op: de valuta-kolommen (olrite, metal, ...) van de SSOT-rij.
 func get_csv_unlock_requirements() -> Dictionary:
 	var result: Dictionary = {}
-	for currency in ["olrite", "metal", "keepium", "element_1", "element_2", "element_3"]:
+	for currency in LootResources.ids():
 		if Ssot.has_value(skill_id, currency):
 			result[currency] = Ssot.get_number(skill_id, currency)
 	return result

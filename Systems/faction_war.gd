@@ -66,7 +66,7 @@ const DEFAULTS := {
 	"reoccupy_delay": 120.0,                 # seconden dat een door de speler geleegde kamer leeg blijft
 	"kill_damage": 4.0,                      # sterkte die een factie verliest per gedode vijand
 	"start_empty_chance": 0.03,              # kans dat een kamer bij de start leeg is (0.03 = 3%)
-	"start_empty_chance_lowest_ring": 0.25,  # idem, in de onderste ring met facties (ring 1)
+	"start_empty_chance_lowest_ring": 0.10,  # idem, in de onderste ring met facties (ring 1)
 	"start_edge_strength": 20.0,             # sterkte van een startkamer aan de grens met een andere factie
 }
 

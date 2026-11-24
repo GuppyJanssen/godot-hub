@@ -7,17 +7,15 @@ class_name LootDrops
 ##   loot_drop_max     maximum aantal blokjes
 ##   loot_drop_chance  kans op telkens één blokje extra. Met 3 / 10 / 0.5: 50% kans op 3,
 ##                     25% op 4, 12,5% op 5, enzovoort.
-##   loot_drop_type    welke grondstof: olrite, metal, keepium, element_1, element_2, element_3
+##   loot_drop_type    welke grondstof: een entry_id van een rij met data_type loot (olrite, metal, biomass ...)
 ##   base_loot_splatter en de andere splatter-kolommen: zie loot_splatter.gd
 ##
 ## Gebruik:
 ##   var aantal: int = LootDrops.roll_count("a", "light")
 ##   LootDrops.spawn(get_tree().current_scene, global_position, richting, aantal,
-##       LootDrops.currency_index("a", "light"), LootDrops.splatter_settings("a", "light"))
+##       LootDrops.resource_id("a", "light"), LootDrops.splatter_settings("a", "light"))
 
 const LOOT_SCENE := "res://Entities/Loot/loot_drop.tscn"
-## Volgorde van de grondstoffen. Het nummer van een blokje is de plek in deze lijst + 1 (olrite = 1).
-const CURRENCIES := ["olrite", "metal", "keepium", "element_1", "element_2", "element_3"]
 
 ## Zonder SSOT-waarden: 3 tot 10 blokjes, 50% kans op telkens één extra.
 const DEFAULT_MIN := 3.0
@@ -42,18 +40,20 @@ static func roll_count(faction: String, unit_type: String) -> int:
 	return count
 
 
-## Welke grondstof er valt, als nummer (1 = olrite, 2 = metal ...). 'fallback' als de SSOT niets zegt.
-static func currency_index(faction: String, unit_type: String, fallback: int = 1) -> int:
+## Welke grondstof er valt, als id uit de SSOT (olrite, metal, biomass ...). 'fallback' als de SSOT
+## niets zegt of de grondstof niet bestaat.
+static func resource_id(faction: String, unit_type: String, fallback: String = "olrite") -> String:
+	if fallback == "":
+		fallback = "olrite"
 	if faction == "" or unit_type == "":
 		return fallback
-	var wanted: String = EnemyStats.text(faction, unit_type, "loot_drop_type", "").strip_edges().to_lower().replace(" ", "_")
+	var wanted: String = LootResources.normalize(EnemyStats.text(faction, unit_type, "loot_drop_type", ""))
 	if wanted == "":
 		return fallback
-	for i in CURRENCIES.size():
-		if str(CURRENCIES[i]).replace("_", "") == wanted.replace("_", ""):
-			return i + 1
-	push_warning("LootDrops: onbekende loot_drop_type '%s'." % wanted)
-	return fallback
+	if not LootResources.exists(wanted):
+		push_warning("LootDrops: onbekende loot_drop_type '%s' (geen rij met data_type loot)." % wanted)
+		return fallback
+	return wanted
 
 
 ## De splatter-instellingen. base_loot_splatter = de maximale snelheid; leeg = de standaard.
@@ -71,7 +71,7 @@ static func splatter_settings(faction: String, unit_type: String) -> Dictionary:
 
 ## Zet 'count' blokjes van één eenheid neer en laat ze uitspatten in de richting 'hit_dir'.
 ## Geen richting (Vector2.ZERO)? Dan de lijn van de speler naar 'origin'.
-static func spawn(parent: Node, origin: Vector2, hit_dir: Vector2, count: int, currency: int, settings: Dictionary) -> void:
+static func spawn(parent: Node, origin: Vector2, hit_dir: Vector2, count: int, resource: String, settings: Dictionary) -> void:
 	if count <= 0 or not is_instance_valid(parent):
 		return
 	if hit_dir == Vector2.ZERO and is_instance_valid(Game.active_player):
@@ -82,7 +82,7 @@ static func spawn(parent: Node, origin: Vector2, hit_dir: Vector2, count: int, c
 	var offset: float = float(settings.get("start_offset", LootSplatter.DEFAULT_START_OFFSET))
 	for i in count:
 		var loot: Node = loot_scene.instantiate()
-		loot.init_loot(currency, 1)
+		loot.init_loot(resource, 1)
 		loot.global_position = origin + Vector2(randf_range(-offset, offset), randf_range(-offset, offset))
 		loot.launch_splatter(hit_dir, settings)
 		parent.add_child(loot)

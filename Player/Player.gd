@@ -7,21 +7,8 @@ class_name Player
 var stats: Resource = null
 var can_fire: bool = true
 
-# Live run-portemonnee administratie
-var run_currency_olrite: int = 0
-var run_currency_metal: int = 0
-var run_currency_keepium: int = 0
-var run_currency_element1: int = 0
-var run_currency_element2: int = 0
-var run_currency_element3: int = 0
-
-# Live run-winst tellers (De + tellers in de HUD)
-var run_loot_olrite: int = 0
-var run_loot_metal: int = 0 
-var run_loot_keepium: int = 0
-var run_loot_element1: int = 0
-var run_loot_element2: int = 0
-var run_loot_element3: int = 0
+# De grondstoffen staan niet meer in de speler: de kluis in MetaProgress.resources,
+# de buit van deze run in RunState.loot (zie LootResources).
 
 # --- REGENERATIE EN ENERGIE MOTOR ---
 var shield_regen_timer: Timer
@@ -62,7 +49,6 @@ func _ready() -> void:
 		stats = raw_stats.duplicate()
 		print("PLAYER ENGINE: Unieke, slot-geïsoleerde resource-kopie online via schijf: ", custom_tres_path)
 
-	var is_absolute_start = (LevelManager.current_layer == 0 and LevelManager.current_room_index == 0 and not Game.should_load_run)
 
 	if stats:
 		if stats.max_health <= 0: stats.max_health = 100
@@ -82,88 +68,10 @@ func _ready() -> void:
 			stats.current_shield = stats.max_shield
 			stats.current_energy = stats.max_energy
 		
-		# Laad het basissaldo in uit de database-resource
-		run_currency_olrite = stats.currency_olrite
-		run_currency_metal = stats.currency_metal if "currency_metal" in stats else (stats.currency_gold if "currency_gold" in stats else 0)
-		run_currency_keepium = stats.currency_keepium
-		run_currency_element1 = stats.currency_element1
-		run_currency_element2 = stats.currency_element2
-		run_currency_element3 = stats.currency_element3
-		
-		# 1. Directe SSoT-sync van het basissaldo met de Meta Progress database voor alle 6 de slots!
-		var save_sys = load("res://Systems/SaveSystem.gd").new()
-		if save_sys and save_sys.has_method("get_loaded_meta_progress"):
-			var meta_data = save_sys.get_loaded_meta_progress()
-			if meta_data:
-				# Slot 1: Olrite
-				run_currency_olrite = meta_data.currency_olrite if "currency_olrite" in meta_data else (meta_data.currency_1 if "currency_1" in meta_data else 0)
-				
-				# Slot 2: Metal (Met fallbacks voor gold/metal/currency_2)
-				run_currency_metal = meta_data.currency_metal if "currency_metal" in meta_data else (meta_data.currency_gold if "currency_gold" in meta_data else (meta_data.currency_2 if "currency_2" in meta_data else 0))
-				
-				# Slot 3: Keepium
-				run_currency_keepium = meta_data.currency_keepium if "currency_keepium" in meta_data else (meta_data.currency_3 if "currency_3" in meta_data else 0)
-				
-				# Slot 4: Element 1
-				run_currency_element1 = meta_data.currency_element1 if "currency_element1" in meta_data else (meta_data.currency_4 if "currency_4" in meta_data else 0)
-				
-				# Slot 5: Element 2
-				run_currency_element2 = meta_data.currency_element2 if "currency_element2" in meta_data else (meta_data.currency_5 if "currency_5" in meta_data else 0)
-				
-				# Slot 6: Element 3
-				run_currency_element3 = meta_data.currency_element3 if "currency_element3" in meta_data else (meta_data.currency_6 if "currency_6" in meta_data else 0)
-				
-				print("PLAYER ENGINE: Vaste portemonnee succesvol gesynchroniseerd met Meta Progress. Olrite: ", run_currency_olrite)
-
-		
-		if is_absolute_start:
-			print("PLAYER: Absolute start van een New Run. Reset winst-buffers naar +0")
-			run_loot_olrite = 0
-			run_loot_metal = 0
-			run_loot_keepium = 0
-			run_loot_element1 = 0
-			run_loot_element2 = 0
-			run_loot_element3 = 0
-			
-			if is_instance_valid(Game):
-				Game.set_meta("run_loot_olrite", 0)
-				Game.set_meta("run_loot_metal", 0)
-				Game.set_meta("run_loot_keepium", 0)
-				Game.set_meta("run_loot_element1", 0)
-				Game.set_meta("run_loot_element2", 0)
-				Game.set_meta("run_loot_element3", 0)
-		else:
-			# Herstel alle 6 de grondstofbalken vloeibaar bij een kamerwissel via de Global Hub metadata
-			if is_instance_valid(Game):
-				run_loot_olrite = int(Game.get_meta("run_loot_olrite")) if Game.has_meta("run_loot_olrite") else 0
-				run_loot_metal = int(Game.get_meta("run_loot_metal")) if Game.has_meta("run_loot_metal") else 0
-				run_loot_keepium = int(Game.get_meta("run_loot_keepium")) if Game.has_meta("run_loot_keepium") else 0
-				run_loot_element1 = int(Game.get_meta("run_loot_element1")) if Game.has_meta("run_loot_element1") else 0
-				run_loot_element2 = int(Game.get_meta("run_loot_element2")) if Game.has_meta("run_loot_element2") else 0
-				run_loot_element3 = int(Game.get_meta("run_loot_element3")) if Game.has_meta("run_loot_element3") else 0
-			
-		# Laad de live run-variabelen direct in vanuit de stabiele schijf-resource
-		run_currency_olrite = stats.currency_olrite
-		run_currency_metal = stats.currency_metal
-		run_currency_keepium = stats.currency_keepium
-		run_currency_element1 = stats.currency_element1
-		run_currency_element2 = stats.currency_element2
-		run_currency_element3 = stats.currency_element3
-
 	# 3. TIMING FIX: We wachten tot de LevelManager én het SaveSystem klaar zijn
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await get_tree().process_frame
-
-	if stats:
-		# BINGO: Als de debug-knop de live run_currencies heeft veranderd, 
-		# drukken we ze hier direct terug in de stats-resource zodat de transities werken!
-		if stats.currency_olrite != run_currency_olrite: stats.currency_olrite = run_currency_olrite
-		if stats.currency_metal != run_currency_metal: stats.currency_metal = run_currency_metal
-		if stats.currency_keepium != run_currency_keepium: stats.currency_keepium = run_currency_keepium
-		if stats.currency_element1 != run_currency_element1: stats.currency_element1 = run_currency_element1
-		if stats.currency_element2 != run_currency_element2: stats.currency_element2 = run_currency_element2
-		if stats.currency_element3 != run_currency_element3: stats.currency_element3 = run_currency_element3
 
 	# 4. LEIDENDE AS: Wapenstats inladen uit de CSV
 	# Het wapen komt uit het gekozen wapenvak van deze run (RunState).
@@ -523,51 +431,10 @@ func take_damage(amount: int, _flash: bool = true, _hit_dir: Vector2 = Vector2.Z
 		# DOODSCHECK
 		if stats.current_health <= 0:
 			print("PLAYER: Astronaut is overleden. Start run-afhandeling via Global Hub...")
+			# De buit van deze run gaat naar de kluis.
+			LootResources.bank_run_loot()
+			Game.should_load_run = false
 			var save_sys = load("res://Systems/SaveSystem.gd").new()
-			if save_sys and save_sys.has_method("get_loaded_meta_progress") and is_instance_valid(Game):
-				var meta = save_sys.get_loaded_meta_progress()
-				if meta:
-					var w_olrite = int(Game.get_meta("run_loot_olrite")) if Game.has_meta("run_loot_olrite") else 0
-					var w_metal  = int(Game.get_meta("run_loot_metal"))  if Game.has_meta("run_loot_metal")  else 0
-					var w_keep   = int(Game.get_meta("run_loot_keepium")) if Game.has_meta("run_loot_keepium") else 0
-					var w_elem1  = int(Game.get_meta("run_loot_element1")) if Game.has_meta("run_loot_element1") else 0
-					var w_elem2  = int(Game.get_meta("run_loot_element2")) if Game.has_meta("run_loot_element2") else 0
-					var w_elem3  = int(Game.get_meta("run_loot_element3")) if Game.has_meta("run_loot_element3") else 0
-					
-					if "currency_olrite" in meta: meta.currency_olrite += w_olrite
-					elif "currency_1" in meta: meta.currency_1 += w_olrite
-					if "currency_metal" in meta: meta.currency_metal += w_metal
-					elif "currency_2" in meta: meta.currency_2 += w_metal
-					if "currency_keepium" in meta: meta.currency_keepium += w_keep
-					elif "currency_3" in meta: meta.currency_3 += w_keep
-					if "currency_element1" in meta: meta.currency_element1 += w_elem1
-					elif "currency_4" in meta: meta.currency_4 += w_elem1
-					if "currency_element2" in meta: meta.currency_element2 += w_elem2
-					elif "currency_5" in meta: meta.currency_5 += w_elem2
-					if "currency_element3" in meta: meta.currency_element3 += w_elem3
-					elif "currency_6" in meta: meta.currency_6 += w_elem3
-					
-					if save_sys.has_method("save_meta_progress"):
-						save_sys.save_meta_progress(meta)
-						
-					if stats:
-						stats.currency_olrite += w_olrite
-						stats.currency_metal = meta.currency_metal if "currency_metal" in meta else (meta.currency_2 if "currency_2" in meta else stats.currency_metal + w_metal)
-						stats.currency_keepium += w_keep
-						stats.currency_element1 += w_elem1
-						stats.currency_element2 += w_elem2
-						stats.currency_element3 += w_elem3
-						
-						var slot_folder = "user://" + Game.active_save_slot + "/"
-						ResourceSaver.save(stats, slot_folder + "Player_Data.tres")
-
-				Game.set_meta("run_loot_olrite", 0)
-				Game.set_meta("run_loot_metal", 0)
-				Game.set_meta("run_loot_keepium", 0)
-				Game.set_meta("run_loot_element1", 0)
-				Game.set_meta("run_loot_element2", 0)
-				Game.set_meta("run_loot_element3", 0)
-				Game.should_load_run = false
 
 			if save_sys and save_sys.has_method("delete_current_run_save"):
 				save_sys.delete_current_run_save()
@@ -610,13 +477,7 @@ func _force_continue_position() -> void:
 			global_transform.origin = found_pos
 			print("PLAYER HARD-LOCK: Positie succesvol hersteld op pixel: ", global_position)
 			
-		# Herstel de run-loot winst-tellers uit de JSON zodat ze in de HUD blijven staan
-		if run_data.has("run_loot_olrite"): Game.set_meta("run_loot_olrite", int(float(run_data["run_loot_olrite"])))
-		if run_data.has("run_loot_metal"):  Game.set_meta("run_loot_metal",  int(float(run_data["run_loot_metal"])))
-		if run_data.has("run_loot_keepium"): Game.set_meta("run_loot_keepium", int(float(run_data["run_loot_keepium"])))
-		if run_data.has("run_loot_element1"): Game.set_meta("run_loot_element1", int(float(run_data["run_loot_element1"])))
-		if run_data.has("run_loot_element2"): Game.set_meta("run_loot_element2", int(float(run_data["run_loot_element2"])))
-		if run_data.has("run_loot_element3"): Game.set_meta("run_loot_element3", int(float(run_data["run_loot_element3"])))
+		# De run-buit komt uit RunState (run_state.json), niet uit dit bestand.
 		
 	c_file.close()
 
@@ -639,13 +500,6 @@ func save_live_run_state_to_disk() -> void:
 		Game.set_meta("transit_shield", int(stats.current_shield))
 		Game.set_meta("transit_energy", int(stats.current_energy))
 		
-		Game.set_meta("run_loot_olrite", run_loot_olrite)
-		Game.set_meta("run_loot_metal", run_loot_metal)
-		Game.set_meta("run_loot_keepium", run_loot_keepium)
-		Game.set_meta("run_loot_element1", run_loot_element1)
-		Game.set_meta("run_loot_element2", run_loot_element2)
-		Game.set_meta("run_loot_element3", run_loot_element3)
-	
 	# Schrijf de winst en status ook direct mee in de resource metadata
 	stats.set_meta("transit_health", int(stats.current_health))
 	stats.set_meta("transit_shield", int(stats.current_shield))
@@ -671,13 +525,6 @@ func save_live_run_state_to_disk() -> void:
 	run_data["current_room_index"] = LevelManager.current_room_index
 	run_data["player_x"] = global_position.x
 	run_data["player_y"] = global_position.y
-	
-	run_data["run_loot_olrite"] = run_loot_olrite
-	run_data["run_loot_metal"] = run_loot_metal
-	run_data["run_loot_keepium"] = run_loot_keepium
-	run_data["run_loot_element1"] = run_loot_element1
-	run_data["run_loot_element2"] = run_loot_element2
-	run_data["run_loot_element3"] = run_loot_element3
 	
 	var write_file = FileAccess.open(full_path, FileAccess.WRITE)
 	if write_file:

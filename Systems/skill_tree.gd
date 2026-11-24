@@ -10,7 +10,7 @@ extends Control
 ## - Linkermuisknop: kopen. Rechtermuisknop slepen: kaart verschuiven. Muiswiel: zoomen. Esc: terug.
 ##
 ## Ontwikkelaarsnotities:
-## - skills_data in de save houdt de vorm {"level", "currency_type", "loss_per_minute"} (zoals eerst),
+## - skills_data in de save houdt de vorm {"level", "currency", "loss_per_minute"} (currency = grondstof-id),
 ##   zodat verval en het pauzemenu gewoon blijven werken.
 ## - Zolang skill_kind nog niet in de sheet staat, gebruikt de code FALLBACK_KIND hieronder.
 
@@ -40,8 +40,6 @@ const FALLBACK_KIND := {
 	"skill_loot_magnet": "loot", "skill_pickup": "loot",
 	"skill_jump": "tree", "skill_vision": "tree", "skill_back_vision": "tree",
 }
-## Valuta in de volgorde van MetaProgress (0 = currency_1 = olrite).
-const CURRENCIES := ["olrite", "metal", "keepium", "element_1", "element_2", "element_3"]
 
 var current_meta: MetaProgress = null
 ## Hoeveel levels er per klik worden gekocht.
@@ -252,20 +250,19 @@ func _try_buy(skill_id: String) -> void:
 	var qty: int = mini(buy_amount, max_level - current_level)
 	if qty <= 0:
 		return
-	var cost: Vector2i = _cost(skill_id)   # x = valuta-index, y = prijs per level
-	var total: int = cost.y * qty
-	var field: String = "currency_" + str(cost.x + 1)
-	if int(current_meta.get(field)) < total:
-		print("SKILL TREE: onvoldoende ", CURRENCIES[cost.x], " voor ", skill_id, " (kosten: ", total, ")")
+	var cost: Dictionary = _cost(skill_id)
+	var total: int = int(cost["price"]) * qty
+	if not current_meta.try_spend(cost["id"], total):
+		print("SKILL TREE: onvoldoende ", cost["id"], " voor ", skill_id, " (kosten: ", total, ")")
 		return
-	current_meta.set(field, int(current_meta.get(field)) - total)
 
-	var data: Dictionary = {"level": 0, "currency_type": cost.x, "loss_per_minute": _loss_per_minute(skill_id)}
+	var data: Dictionary = {"level": 0, "currency": cost["id"], "loss_per_minute": _loss_per_minute(skill_id)}
 	var old = current_meta.skills_data.get(skill_id)
 	if old is Dictionary:
 		data = old.duplicate()
 	data["level"] = current_level + qty
-	data["currency_type"] = cost.x
+	data["currency"] = cost["id"]
+	data.erase("currency_type")  # oude sleutel (een nummer) uit eerdere saves
 	data["loss_per_minute"] = _loss_per_minute(skill_id)
 	current_meta.skills_data[skill_id] = data
 	if not current_meta.discovered_skills.has(skill_id):
@@ -277,20 +274,23 @@ func _try_buy(skill_id: String) -> void:
 	_update_popup()
 
 
-## Prijs uit de SSOT-kolom fill_costs_per_point ("olrite:5"). Standaard 5 olrite.
-func _cost(skill_id: String) -> Vector2i:
-	var currency: int = 0
+## Prijs uit de SSOT-kolom fill_costs_per_point: "grondstof:prijs per level", bijvoorbeeld "olrite:5".
+## Alleen een getal = olrite. Geeft {"id": grondstof-id, "price": prijs per level}.
+func _cost(skill_id: String) -> Dictionary:
+	var id: String = "olrite"
 	var price: int = 5
 	var text: String = Ssot.get_text(skill_id, "fill_costs_per_point", "")
 	if ":" in text:
 		var parts: PackedStringArray = text.split(":")
-		var index: int = CURRENCIES.find(parts[0].strip_edges().to_lower())
-		if index >= 0:
-			currency = index
+		var wanted: String = LootResources.normalize(parts[0])
+		if LootResources.exists(wanted):
+			id = wanted
+		else:
+			push_warning("SKILL TREE: onbekende grondstof '%s' in fill_costs_per_point van %s." % [parts[0], skill_id])
 		price = int(parts[1].strip_edges().to_float())
 	elif text.is_valid_float():
 		price = int(text.to_float())
-	return Vector2i(currency, maxi(price, 0))
+	return {"id": id, "price": maxi(price, 0)}
 
 
 func _loss_per_minute(skill_id: String) -> int:
@@ -305,8 +305,8 @@ func _update_popup() -> void:
 		skill_popup.visible = false
 		return
 	var node: SkillTreeNode = _nodes[_hovered_id]
-	var cost: Vector2i = _cost(_hovered_id)
-	var cost_text: String = "Kosten: %d %s per level" % [cost.y, CURRENCIES[cost.x]]
+	var cost: Dictionary = _cost(_hovered_id)
+	var cost_text: String = "Kosten: %d %s per level" % [cost["price"], LootResources.display_name(cost["id"])]
 	var title: String
 	var info: String
 	if node.discovered:

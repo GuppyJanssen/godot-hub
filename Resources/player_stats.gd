@@ -9,13 +9,7 @@ class_name PlayerStats
 @export var max_energy: int = 100
 @export var current_energy: int = 100
 
-@export_category("Live Portemonnee (Run)")
-@export var currency_olrite: int = 0      # Currency 1 (XP / Groen)
-@export var currency_metal: int = 0        # Currency 2 (Metal / Grijs)
-@export var currency_keepium: int = 0     # Currency 3 (Paars)
-@export var currency_element1: int = 0    # Currency 4 (Blauw)
-@export var currency_element2: int = 0    # Currency 5 (Geel)
-@export var currency_element3: int = 0    # Currency 6 (Rood)
+# Grondstoffen staan niet meer hier: de kluis in MetaProgress.resources, de run-buit in RunState.loot.
 
 @export_category("Live Beweging (Run)")
 @export var current_speed: float = 300.0

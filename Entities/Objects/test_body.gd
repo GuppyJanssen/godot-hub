@@ -508,8 +508,8 @@ func _drop_specific_loot(hit_dir: Vector2) -> void:
 		total_drops = int(floor(scaled)) + (1 if randf() < scaled - floor(scaled) else 0)
 
 	# Oude testvijanden zonder factie houden hun grondstof uit test_body_type.
-	var currency: int = LootDrops.currency_index(faction, unit_type, test_body_type)
-	LootDrops.spawn(get_tree().current_scene, global_position, hit_dir, total_drops, currency, LootDrops.splatter_settings(faction, unit_type))
+	var resource: String = LootDrops.resource_id(faction, unit_type, LootResources.normalize(test_body_type))
+	LootDrops.spawn(get_tree().current_scene, global_position, hit_dir, total_drops, resource, LootDrops.splatter_settings(faction, unit_type))
 	print("VIJAND DROP: '", name, "' laat ", total_drops, " blokjes vallen.")
 
 

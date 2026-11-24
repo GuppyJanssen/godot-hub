@@ -14,9 +14,14 @@ func get_loaded_meta_progress() -> Resource:
 		var json = JSON.new()
 		if json.parse(file.get_as_text()) == OK:
 			var save_dict = json.get_data()
+			# De kluis. Oude saves hadden currency_1 ... currency_6 (vaste volgorde); die worden omgezet.
+			if save_dict.has("resources") and save_dict["resources"] is Dictionary:
+				for id in save_dict["resources"]:
+					meta_res.add_amount(LootResources.normalize(id), int(save_dict["resources"][id]))
 			for i in range(1, 7):
 				var key = "currency_" + str(i)
-				if save_dict.has(key): meta_res.set(key, save_dict[key])
+				if save_dict.has(key):
+					meta_res.add_amount(LootResources.normalize(i), int(save_dict[key]))
 			if save_dict.has("skills_data"): meta_res.skills_data = save_dict["skills_data"]
 			# JSON geeft getallen terug als float; de seed is een int.
 			if save_dict.has("tree_seed"): meta_res.tree_seed = int(save_dict["tree_seed"])
@@ -32,9 +37,7 @@ func save_meta_progress(meta_resource: Resource) -> void:
 	if not DirAccess.dir_exists_absolute(slot_dir): DirAccess.make_dir_absolute(slot_dir)
 	
 	var save_dict = {
-		"currency_1": meta_resource.currency_1, "currency_2": meta_resource.currency_2,
-		"currency_3": meta_resource.currency_3, "currency_4": meta_resource.currency_4,
-		"currency_5": meta_resource.currency_5, "currency_6": meta_resource.currency_6,
+		"resources": meta_resource.resources,
 		"skills_data": meta_resource.skills_data,
 		"tree_seed": meta_resource.tree_seed,
 		"discovered_skills": meta_resource.discovered_skills
@@ -43,14 +46,6 @@ func save_meta_progress(meta_resource: Resource) -> void:
 	if file:
 		file.store_string(JSON.stringify(save_dict, "\t"))
 		file.close()
-
-
-func add_and_save_run_loot(c1: int, c2: int, c3: int, c4: int, c5: int, c6: int) -> void:
-	var meta = get_loaded_meta_progress()
-	if meta:
-		meta.currency_1 += c1; meta.currency_2 += c2; meta.currency_3 += c3
-		meta.currency_4 += c4; meta.currency_5 += c5; meta.currency_6 += c6
-		save_meta_progress(meta)
 
 
 func save_current_run(player_node: CharacterBody2D) -> void:
@@ -90,7 +85,6 @@ func save_current_run(player_node: CharacterBody2D) -> void:
 	var run_data = {
 		"player_position_x": player_node.global_position.x, "player_position_y": player_node.global_position.y,
 		"player_hp": player_node.stats.current_health if player_node.stats else 100,
-		"run_currency": player_node.run_currency_olrite,
 		"current_layer": LevelManager.current_layer, "current_room_index": LevelManager.current_room_index,
 		"target_damage_taken": existing_damage
 	}
@@ -116,10 +110,6 @@ func load_current_run(player_node: CharacterBody2D) -> void:
 		
 		if LevelManager.is_loading_from_continue:
 			player_node.global_position = Vector2(data.get("player_position_x", 960), data.get("player_position_y", 540))
-			
-		if data.has("run_currency") and player_node.stats:
-			player_node.run_currency_olrite = int(data["run_currency"])
-			player_node.stats.currency_olrite = player_node.run_currency_olrite
 			
 		# Herstel de HP van de vijanden. Als ze al dood waren, queue_free()!
 		if data.has("target_damage_taken") and data["target_damage_taken"].has(room_key):

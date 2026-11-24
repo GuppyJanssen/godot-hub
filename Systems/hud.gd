@@ -13,7 +13,12 @@ extends CanvasLayer
 
 var active_player_node: CharacterBody2D = null
 var player_stats: PlayerStats = null
-var currency_labels: Array[Label] = []
+## Eén regel per grondstof uit de SSOT (LootResources): id -> {"row": HBoxContainer, "label": Label}.
+var _resource_rows: Dictionary = {}
+## De kluis, opnieuw ingelezen elke VAULT_REFRESH_SECONDS (niet elk frame van schijf lezen).
+var _vault: MetaProgress = null
+var _vault_timer: float = 0.0
+const VAULT_REFRESH_SECONDS := 0.5
 
 # Eén SaveSystem dat hergebruikt wordt (voor de saldo-weergave in de skill tree).
 var _save_sys: Node = null
@@ -28,44 +33,8 @@ func _ready() -> void:
 	
 	_find_active_player()
 	
-	var currencies = [
-		{"name": "Olrite", "color": Color(0.0, 0.564, 0.275, 1.0)},
-		{"name": "Metal", "color": Color(0.556, 0.556, 0.556, 1.0)},
-		{"name": "Keepium", "color": Color(0.634, 0.022, 0.575, 1.0)},
-		{"name": "Element 1", "color": Color(0.1, 0.5, 0.9, 1.0)},
-		{"name": "Element 2", "color": Color(1.0, 0.85, 0.0, 1.0)},
-		{"name": "Element 3", "color": Color(0.863, 0.0, 0.0, 1.0)}
-	]
-	
-	if currency_container:
-		for child in currency_container.get_children():
-			child.queue_free()
-	
-	for i in range(6):
-		var hbox = HBoxContainer.new()
-		hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		currency_container.add_child(hbox)
-		
-		var icon = ColorRect.new()
-		icon.custom_minimum_size = Vector2(16, 14)
-		icon.color = currencies[i]["color"]
-		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		hbox.add_child(icon)
-		
-		var spacer = Control.new()
-		spacer.custom_minimum_size = Vector2(8, 0)
-		spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		hbox.add_child(spacer)
-		
-		var lbl = Label.new()
-		lbl.text = currencies[i]["name"] + ": 0"
-		lbl.add_theme_font_size_override("font_size", 20)
-		lbl.add_theme_color_override("font_outline_color", Color.BLACK)
-		lbl.add_theme_constant_override("outline_size", 4)
-		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		hbox.add_child(lbl)
-		
-		currency_labels.append(lbl)
+	_build_resource_rows()
+	_vault_timer = 0.0
 
 	# --- ANTI-FLITS BEVEILIGING VOOR MENU'S EN SKILL TREE ---
 	# Als we opstarten en er is GEEN actieve speler, verbergen we de boel direct in ready()
@@ -113,22 +82,8 @@ func _process(_delta: float) -> void:
 		
 		# REGEL A: Als de speler actief is in een run, tonen we de 'Saldo (+Winst)' HUD
 		if is_instance_valid(active_player_node):
-			var p = active_player_node
-			var w_olrite = str(Game.get_meta("run_loot_olrite")) if Game.has_meta("run_loot_olrite") else "0"
-			var w_metal  = str(Game.get_meta("run_loot_metal"))  if Game.has_meta("run_loot_metal")  else "0"
-			var w_keep   = str(Game.get_meta("run_loot_keepium")) if Game.has_meta("run_loot_keepium") else "0"
-			var w_elem1  = str(Game.get_meta("run_loot_element1")) if Game.has_meta("run_loot_element1") else "0"
-			var w_elem2  = str(Game.get_meta("run_loot_element2")) if Game.has_meta("run_loot_element2") else "0"
-			var w_elem3  = str(Game.get_meta("run_loot_element3")) if Game.has_meta("run_loot_element3") else "0"
-			
-			if currency_labels.size() >= 6:
-				currency_labels[0].text = "Olrite: " + str(p.run_currency_olrite) + " (+" + w_olrite + ")"
-				currency_labels[1].text = "Metal: " + str(p.run_currency_metal) + " (+" + w_metal + ")"
-				currency_labels[2].text = "Keepium: " + str(p.run_currency_keepium) + " (+" + w_keep + ")"
-				currency_labels[3].text = "Element 1: " + str(p.run_currency_element1) + " (+" + w_elem1 + ")"
-				currency_labels[4].text = "Element 2: " + str(p.run_currency_element2) + " (+" + w_elem2 + ")"
-				currency_labels[5].text = "Element 3: " + str(p.run_currency_element3) + " (+" + w_elem3 + ")"
-				
+			_update_resource_rows(_delta, true)
+
 			# Activeer de complete status-as en locatie tijdens de run
 			if is_instance_valid(status_container): status_container.visible = true
 			if is_instance_valid(location_label): location_label.visible = true
@@ -163,29 +118,60 @@ func _process(_delta: float) -> void:
 			if is_instance_valid(status_container): status_container.visible = false
 			if is_instance_valid(location_label): location_label.visible = false
 
-			# Laad de permanente Meta Progress database in voor de Skill Tree weergave
-			# Hergebruik steeds hetzelfde SaveSystem. Eerst werd hier elk frame een nieuw
-			# aangemaakt dat nooit werd opgeruimd.
-			if _save_sys == null:
-				_save_sys = load("res://Systems/SaveSystem.gd").new()
-			var save_sys = _save_sys
-			if save_sys and save_sys.has_method("get_loaded_meta_progress"):
-				var meta = save_sys.get_loaded_meta_progress()
-				if meta and currency_labels.size() >= 6:
-					var m_olrite = meta.currency_olrite if "currency_olrite" in meta else (meta.currency_1 if "currency_1" in meta else 0)
-					var m_metal  = meta.currency_metal if "currency_metal" in meta else (meta.currency_2 if "currency_2" in meta else 0)
-					var m_keep   = meta.currency_keepium if "currency_keepium" in meta else (meta.currency_3 if "currency_3" in meta else 0)
-					var m_elem1  = meta.currency_element1 if "currency_element1" in meta else (meta.currency_4 if "currency_4" in meta else 0)
-					var m_elem2  = meta.currency_element2 if "currency_element2" in meta else (meta.currency_5 if "currency_5" in meta else 0)
-					var m_elem3  = meta.currency_element3 if "currency_element3" in meta else (meta.currency_6 if "currency_6" in meta else 0)
-					
-					# Schrijf de waarden nu loepzuiver met index-verwijzingen naar de 6 losse regels
-					currency_labels[0].text = "Olrite: " + str(m_olrite)
-					currency_labels[1].text = "Metal: " + str(m_metal)
-					currency_labels[2].text = "Keepium: " + str(m_keep)
-					currency_labels[3].text = "Element 1: " + str(m_elem1)
-					currency_labels[4].text = "Element 2: " + str(m_elem2)
-					currency_labels[5].text = "Element 3: " + str(m_elem3)
+			_update_resource_rows(_delta, false)
+
+
+# Maakt een regel (kleurblokje + tekst) voor elke grondstof in de SSOT.
+func _build_resource_rows() -> void:
+	_resource_rows.clear()
+	if not currency_container:
+		return
+	for child in currency_container.get_children():
+		child.queue_free()
+	for id in LootResources.ids():
+		var hbox = HBoxContainer.new()
+		hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hbox.visible = false
+		currency_container.add_child(hbox)
+
+		var icon = ColorRect.new()
+		icon.custom_minimum_size = Vector2(16, 14)
+		icon.color = LootResources.color(str(id))
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hbox.add_child(icon)
+
+		var spacer = Control.new()
+		spacer.custom_minimum_size = Vector2(8, 0)
+		spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hbox.add_child(spacer)
+
+		var lbl = Label.new()
+		lbl.add_theme_font_size_override("font_size", 20)
+		lbl.add_theme_color_override("font_outline_color", Color.BLACK)
+		lbl.add_theme_constant_override("outline_size", 4)
+		lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hbox.add_child(lbl)
+		_resource_rows[str(id)] = {"row": hbox, "label": lbl}
+
+
+# Werkt de grondstofregels bij: "Naam: kluis (+buit deze run)". In de skill tree alleen de kluis.
+# Grondstoffen waar je 0 van hebt (en +0 deze run) worden niet getoond.
+func _update_resource_rows(delta: float, in_run: bool) -> void:
+	_vault_timer -= delta
+	if _vault == null or _vault_timer <= 0.0:
+		_vault_timer = VAULT_REFRESH_SECONDS
+		if _save_sys == null:
+			_save_sys = load("res://Systems/SaveSystem.gd").new()
+		_vault = _save_sys.get_loaded_meta_progress() as MetaProgress
+	for id in _resource_rows:
+		var owned: int = _vault.get_amount(id) if _vault != null else 0
+		var gained: int = RunState.get_loot(id) if in_run else 0
+		var entry: Dictionary = _resource_rows[id]
+		entry["row"].visible = owned > 0 or gained > 0
+		var text: String = "%s: %d" % [LootResources.display_name(id), owned]
+		if in_run:
+			text += " (+%d)" % gained
+		entry["label"].text = text
 
 
 # Ruim het hergebruikte SaveSystem op als de HUD verdwijnt.

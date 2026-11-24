@@ -109,6 +109,7 @@ func end_run() -> Dictionary:
 # ---------------------------------------------------------------- loot
 
 func add_loot(currency: String, amount: int) -> void:
+	currency = LootResources.normalize(currency)
 	var total: int = get_loot(currency) + amount
 	loot[currency] = total
 	loot_changed.emit(currency, total)
@@ -396,7 +397,9 @@ func load_run() -> bool:
 	loot.clear()
 	var saved_loot: Dictionary = data.get("loot", {})
 	for currency in saved_loot:
-		loot[currency] = int(saved_loot[currency])
+		# Oude namen (element1 ...) worden omgezet naar de nieuwe id's (biomass ...).
+		var id: String = LootResources.normalize(currency)
+		loot[id] = int(loot.get(id, 0)) + int(saved_loot[currency])
 
 	rooms.clear()
 	var saved_rooms: Dictionary = data.get("rooms", {})
