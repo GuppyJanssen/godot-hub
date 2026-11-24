@@ -92,7 +92,10 @@ func _update_dashboard() -> void:
 	if is_instance_valid(Game) and Game.active_player:
 		current_auto_raw = float(Game.active_player.current_weapon_stats.get("is_full_auto", 0.0))
 
-	_add_dashboard_row("God Mode", "Status: Live", "Toggle: " + ("AAN" if Game.debug_is_invincible else "UIT"), _toggle_invincible)
+	_add_dashboard_row("God Mode", "Geen schade/energie", "Toggle: " + ("AAN" if Game.debug_is_invincible else "UIT"), _toggle_invincible)
+	_add_dashboard_row("Refill", "HP, schild, energie", "Alles vol", _refill_player)
+	_add_dashboard_row("Oorlogskaart", "Factie-oorlog", "Kaart: " + ("AAN" if _war_map_visible() else "UIT"), _toggle_war_map)
+	_add_dashboard_row("Oorlog tempo", "Tijd versnellen", "Snelheid: [" + str(FactionWar.debug_time_scale) + "x]", _cycle_war_speed)
 	_add_dashboard_row("One Punch", "Status: Live", "Toggle: " + ("AAN" if Game.debug_damage_multiplier > 1.0 else "UIT"), _toggle_damage)
 	_add_dashboard_row("Weapon Mode", "Stand", "Toggle: [" + ("AUTO" if current_auto_raw > 0.5 else "SEMI") + "]", _toggle_weapon_mode)
 	_add_dashboard_row("Mirror Spawn", "Transitielogica", "Modus: [" + ("MIRROR" if Game.debug_use_mirror_spawn else "CENTER") + "]", _toggle_mirror_spawn)
@@ -105,6 +108,22 @@ func _update_dashboard() -> void:
 	_add_dashboard_row("Bullet Size", "Multiplier", "Mult: [" + str(Game.debug_bullet_size_multiplier) + "x]", _cycle_bullet_size)
 	_add_dashboard_row("Weapon Range", "Multiplier", "Mult: [" + str(Game.debug_range_multiplier) + "x]", _cycle_range)
 	_add_dashboard_row("Muzzles Spawn", "Live Aantal", "Aantal: [" + ("SSOT" if Game.debug_muzzle_count <= 0 else str(Game.debug_muzzle_count)) + "]", _cycle_muzzles)
+
+	# Wapens: elk wapen uit de SSOT als knop. Het wapen komt naast de speler op de grond te liggen,
+	# zodat je het oppakken en ruilen (alle vier de vakken vol = E) kunt testen.
+	var weapons_label = Label.new()
+	weapons_label.text = "--- WAPENS (op de grond naast je) ---"
+	weapons_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(weapons_label)
+	var weapons_grid = GridContainer.new()
+	weapons_grid.columns = 3
+	vbox.add_child(weapons_grid)
+	for weapon_id in Ssot.get_ids("weapon_base"):
+		var btn_weapon = Button.new()
+		btn_weapon.text = Ssot.get_text(weapon_id, "ingame_name", weapon_id)
+		btn_weapon.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn_weapon.pressed.connect(_spawn_weapon.bind(str(weapon_id)))
+		weapons_grid.add_child(btn_weapon)
 
 	var money_label = Label.new()
 	money_label.text = "--- ECONOMIE CHEATS ---"
@@ -145,6 +164,55 @@ func _add_dashboard_row(label_name: String, status_text: String, button_text: St
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn.pressed.connect(click_callable)
 	hbox.add_child(btn)
+
+# Legt een wapen naast de speler op de grond (F1-knop).
+func _spawn_weapon(weapon_id: String) -> void:
+	var player = Game.active_player
+	if not is_instance_valid(player):
+		return
+	WeaponPickup.spawn(get_tree().current_scene, weapon_id, player.global_position + Vector2(90, 0))
+
+
+# Zet HP, schild en energie van de speler op maximaal.
+func _refill_player() -> void:
+	var player = Game.active_player
+	if not is_instance_valid(player) or not player.stats:
+		return
+	player.stats.current_health = player.stats.max_health
+	player.stats.current_shield = player.stats.max_shield
+	player.stats.current_energy = player.stats.max_energy
+	Game.set_meta("transit_health", player.stats.current_health)
+	Game.set_meta("transit_shield", player.stats.current_shield)
+	Game.set_meta("transit_energy", player.stats.current_energy)
+	print("F1: HP, schild en energie bijgevuld.")
+
+
+# De kaart van de factie-oorlog (FactionWarMap, ook met F2). Bestaat alleen in de editor en debug-exports.
+func _war_map() -> Node:
+	return get_node_or_null("/root/FactionWarMap")
+
+
+func _war_map_visible() -> bool:
+	var war_map: Node = _war_map()
+	return war_map != null and war_map.visible
+
+
+func _toggle_war_map() -> void:
+	var war_map: Node = _war_map()
+	if war_map != null:
+		war_map.toggle()
+	_update_dashboard()
+
+
+# Oorlog sneller laten lopen: 1x, 10x, 60x (net als F3 op de kaart).
+func _cycle_war_speed() -> void:
+	var war_map: Node = _war_map()
+	if war_map != null:
+		war_map.cycle_speed()
+	else:
+		FactionWar.debug_time_scale = 1.0 if FactionWar.debug_time_scale >= 60.0 else (60.0 if FactionWar.debug_time_scale >= 10.0 else 10.0)
+	_update_dashboard()
+
 
 func _toggle_invincible() -> void:
 	Game.debug_is_invincible = not Game.debug_is_invincible

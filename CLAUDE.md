@@ -178,3 +178,18 @@ Nog niet aangesloten (staan klaar, worden nergens aangeroepen): `stat_calc.gd`, 
   (`loot_merge_speed`) naar elkaar toe binnen `loot_merge_radius` (rij `world`, leeg = standaard) en worden stenen,
   klompjes en losse blokjes. Groottes per grondstof: `loot_chunk_small` / `loot_chunk_large` (olrite 15/97, metal 8/90).
 - **Muzzles:** de speler schiet uit `base_muzzle_count` lopen naast elkaar; F1 kan dat overschrijven (SSOT, 1, 2, 4).
+- **Wapenvakken (run):** de speler begint met alleen het pistool. `RunState.weapon_slots` = 4 vakken (0 boven = altijd
+  pistool, 1 rechts, 2 onder, 3 links), `weapon_selected`, bewaard in de run-save. Wisselen: scrollen of 1-4; het
+  wapenwiel (`Systems/weapon_wheel.gd`) is dan even zichtbaar. Wapens op de grond: `Entities/Loot/weapon_pickup.tscn`
+  (WeaponPickup.spawn). Leeg vak = meteen oppakken en kiezen; alles vol = F (gebruik-knop) ruilt het gekozen wapen
+  (ook het pistool), het oude wapen blijft liggen (saveable). F1 heeft een knop per wapen die het naast de speler legt.
+- **God Mode** (F1): geen schade, geen energieverbruik, en de speler vliegt door alle barrieres (RoomBounds en
+  game_room laten hem eruit, ook als er nog vijanden zijn; de kamer telt dan niet als gehaald).
+- **Testkamer** onder de startkamer (alleen met God Mode, via de onderkant van ring 0): `LevelManager.in_test_room`,
+  ring blijft 0. `Systems/test_room.gd` (TestRoom) zet een TestDummy (`Entities/Objects/test_dummy.gd`: schade,
+  damage type, schade/sec) neer, plus één object per vijandtype uit de SSOT (rijen `unit_<type>`, data_type `unit_type`;
+  fabriek = factory.tscn, elk ander type voorlopig test_body.tscn) van één factie (`TestEnemyRespawner`, respawn na 1 s,
+  `passive` op test_body en basic_spawner: niet aanvallen, geen vijanden maken, niet bewaren, wel loot). Een wisselvlak
+  (erover vliegen) gaat naar de volgende factie (a, b, c, ab, bc, ca, later d-i). Niets in de testkamer wordt bewaard. Terug: omhoog vliegen. Kogels geven hun `damage_type` door via `on_hit_info()`.
+- **Loot-vormen:** los blokje = vierkantje, klompje (`loot_chunk_small`) = cirkel ×1.7, steen (`loot_chunk_large`) =
+  5-puntige ster ×2.6. Samenklonteren telt de hoeveelheid, dus klompjes + losse blokjes kunnen samen een steen worden.

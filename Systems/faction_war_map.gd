@@ -17,7 +17,7 @@ extends CanvasLayer
 ##   - Een dun streepje bovenin een vakje = die kamer wordt aangevallen (kleur van de aanvaller).
 ##   - Wit kader = de kamer waar de speler nu is.
 ##
-## Later kan deze kaart naar het F1-debugscherm verhuizen.
+## In het F1-menu staan ook knoppen voor de kaart en de snelheid.
 
 const MAP_WIDTH := 1200.0
 const ROW_HEIGHT := 34.0
@@ -49,7 +49,8 @@ func _ready() -> void:
 
 	_view = Control.new()
 	_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_view.position = Vector2(40.0, 40.0)
+	# Rechts van het F1-paneel (dat staat links, 500 px breed), zodat ze allebei open kunnen.
+	_view.position = Vector2(580.0, 40.0)
 	add_child(_view)
 	_view.draw.connect(_draw_map)
 
@@ -60,15 +61,25 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if key_event.keycode == KEY_F2:
-		visible = not visible
-		_view.queue_redraw()
+		toggle()
 		get_viewport().set_input_as_handled()
 	elif key_event.keycode == KEY_F3 and visible:
-		_speed_index = (_speed_index + 1) % SPEEDS.size()
-		FactionWar.debug_time_scale = SPEEDS[_speed_index]
-		print("FACTIEOORLOG-KAART: snelheid ", SPEEDS[_speed_index], "x")
-		_view.queue_redraw()
+		cycle_speed()
 		get_viewport().set_input_as_handled()
+
+
+## Kaart aan of uit (F2, of de knop in het F1-menu).
+func toggle() -> void:
+	visible = not visible
+	_view.queue_redraw()
+
+
+## De oorlog sneller laten lopen: 1x, 10x, 60x (F3, of de knop in het F1-menu).
+func cycle_speed() -> void:
+	_speed_index = (_speed_index + 1) % SPEEDS.size()
+	FactionWar.debug_time_scale = SPEEDS[_speed_index]
+	print("FACTIEOORLOG-KAART: snelheid ", SPEEDS[_speed_index], "x")
+	_view.queue_redraw()
 
 
 func _process(delta: float) -> void:

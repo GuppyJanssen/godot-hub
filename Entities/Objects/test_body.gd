@@ -17,6 +17,8 @@ var current_health: int = 50
 # De fabriek vult ze in bij het maken. Voor een vijand die vast in de kamer staat,
 # vul je ze in de Inspector in. Leeg = de oude manier via test_body_type.
 @export var faction: String = ""
+## Testvijand (testkamer): staat stil, valt niet aan en wordt niet onthouden (dropt wel loot).
+@export var passive: bool = false
 @export var unit_type: String = ""
 
 # Hoe de stats in de SSOT heten (base_max_health, max_health_modifier, base_speed ...).
@@ -96,7 +98,8 @@ const LEGACY_TEST_HEALTH := {1: 50, 2: 80}
 func _ready() -> void:
 	add_to_group("targets")
 	add_to_group("enemies")
-	add_to_group("saveable")  # deze vijand wil onthouden worden (zie game_room.gd)
+	if not passive:
+		add_to_group("saveable")  # deze vijand wil onthouden worden (zie game_room.gd)
 	
 	# 1. DATA LADEN UIT DE SINGLE SOURCE OF TRUTH (SSoT) CSV
 	_load_stats()
@@ -108,6 +111,8 @@ func _ready() -> void:
 	
 	# 2. SSoT GEBOORTE-CHECK (Voorkomt herrijzenis uit de dood)
 	# Onzichtbaar tot we weten of dit object deze run al kapot is (anders zie je hem even flitsen).
+	if passive:
+		return  # testvijand: niets terugzetten of onthouden
 	visible = false
 	await get_tree().process_frame
 	
@@ -228,6 +233,13 @@ func _physics_process(delta: float) -> void:
 	# Geen voorkant: gewoon doortollen. In de ruimte remt niets het draaien af.
 	if not faces_player:
 		global_rotation += spin * delta
+	
+	# Testvijand: niet bewegen of aanvallen, alleen uitrollen na een zetje.
+	if passive:
+		velocity = velocity.move_toward(Vector2.ZERO, 300.0 * delta)
+		move_and_slide()
+		RoomBounds.apply(self, body_radius, true)
+		return
 	
 	var player = Game.active_player
 	if not is_instance_valid(player):
@@ -444,7 +456,7 @@ func take_damage(amount: int, flash: bool = true, hit_dir: Vector2 = Vector2.ZER
 	
 	# Geraakt worden is een duidelijk teken: een vijand die kan kijken, weet zo dat de speler er is.
 	# Hij slaat pas alarm na hit_alarm_delay seconden, zodat je hem nog stil kunt uitschakelen.
-	if scan_radius > 0.0 and not alerted and not _exploding and _hit_alarm_timer < 0.0:
+	if not passive and scan_radius > 0.0 and not alerted and not _exploding and _hit_alarm_timer < 0.0:
 		_hit_alarm_timer = hit_alarm_delay
 	
 	# Een treffer geeft een tollende vijand een zetje, linksom of rechtsom.
@@ -466,6 +478,12 @@ func _deferred_death(hit_dir: Vector2) -> void:
 	# Dit voorkomt dat queue_free() de deurenteller in game_room.gd een frame lang gijzelt!
 	if is_in_group("targets"): remove_from_group("targets")
 	if is_in_group("enemies"): remove_from_group("enemies")
+	
+	# Testvijand: niets onthouden en geen oorlog, wel loot (om loot en samenklonteren te testen).
+	if passive:
+		_drop_specific_loot(hit_dir)
+		queue_free()
+		return
 	
 	# Onthoud in RunState dat deze vijand dood is. RunState bewaart dat voor de hele run.
 	RunState.mark_dead(LevelManager.current_layer, LevelManager.current_room_index, name)

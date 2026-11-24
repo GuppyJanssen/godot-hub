@@ -121,24 +121,65 @@ func _physics_process(delta: float) -> void:
 func init_loot(type: int, amt: int) -> void:
 	currency_type = type
 	amount = amt
-	# Klompjes en stenen zijn groter (de botsing groeit mee).
+	# Vorm en grootte: los blokje = vierkantje, klompje = cirkel (groter), steen = 5-puntige ster
+	# (nog groter). De botsing groeit mee met de schaal.
 	var size_scale: float = 1.0
+	var shape_kind: String = "square"
 	var sizes: Vector2i = _chunk_sizes()
 	if sizes.y > 0 and amount >= sizes.y:
 		size_scale = STONE_SCALE
+		shape_kind = "star"
 	elif sizes.x > 0 and amount >= sizes.x:
 		size_scale = CHUNK_SCALE
+		shape_kind = "circle"
 	scale = Vector2(size_scale, size_scale)
 	
+	var color: Color = _currency_color()
 	var active_rect = color_rect if is_instance_valid(color_rect) else (get_node("ColorRect") if has_node("ColorRect") else null)
 	if is_instance_valid(active_rect):
-		match currency_type:
-			1: active_rect.color = Color(0.0, 0.564, 0.275, 1.0)  # Olrite
-			2: active_rect.color = Color(0.556, 0.556, 0.556, 1.0) # Metal
-			3: active_rect.color = Color(0.634, 0.022, 0.575, 1.0) # Keepium
-			4: active_rect.color = Color(0.1, 0.5, 0.9, 1.0)       # Element 1
-			5: active_rect.color = Color(1.0, 0.85, 0.0, 1.0)      # Element 2
-			6: active_rect.color = Color(0.863, 0.0, 0.0, 1.0)     # Element 3
+		active_rect.color = color
+		active_rect.visible = shape_kind == "square"
+	
+	# Cirkel en ster zijn een Polygon2D die we hier zelf maken.
+	var poly: Polygon2D = get_node_or_null("ShapePolygon") as Polygon2D
+	if shape_kind == "square":
+		if poly != null:
+			poly.visible = false
+		return
+	if poly == null:
+		poly = Polygon2D.new()
+		poly.name = "ShapePolygon"
+		add_child(poly)
+	poly.visible = true
+	poly.color = color
+	poly.polygon = _star_points(7.0, 3.0) if shape_kind == "star" else _circle_points(6.0)
+
+
+func _currency_color() -> Color:
+	match currency_type:
+		1: return Color(0.0, 0.564, 0.275, 1.0)  # Olrite
+		2: return Color(0.556, 0.556, 0.556, 1.0) # Metal
+		3: return Color(0.634, 0.022, 0.575, 1.0) # Keepium
+		4: return Color(0.1, 0.5, 0.9, 1.0)       # Element 1
+		5: return Color(1.0, 0.85, 0.0, 1.0)      # Element 2
+		6: return Color(0.863, 0.0, 0.0, 1.0)     # Element 3
+	return Color.WHITE
+
+
+static func _circle_points(radius: float) -> PackedVector2Array:
+	var points: PackedVector2Array = PackedVector2Array()
+	for i in 16:
+		points.append(Vector2.RIGHT.rotated(TAU * i / 16.0) * radius)
+	return points
+
+
+# Een 5-puntige ster: om en om een buitenpunt en een binnenpunt, met de punt naar boven.
+static func _star_points(outer: float, inner: float) -> PackedVector2Array:
+	var points: PackedVector2Array = PackedVector2Array()
+	for i in 10:
+		var radius: float = outer if i % 2 == 0 else inner
+		points.append(Vector2.UP.rotated(TAU * i / 10.0) * radius)
+	return points
 
 
 func _on_area_entered(area: Area2D) -> void:
@@ -220,20 +261,30 @@ func _update_merge(delta: float) -> void:
 	if sizes.x <= 0 and sizes.y <= 0:
 		return
 
-	# De groep: blokjes van dezelfde grondstof binnen de straal. Alleen het blokje met het laagste
-	# nummer in de groep (de "aanvoerder") regelt het samenvoegen, zodat het één keer gebeurt.
+	# De groep: alle blokjes van dezelfde grondstof die via elkaar verbonden zijn (elk blokje ligt
+	# binnen de straal van minstens één ander blokje in de groep). Zo telt een hele hoop mee, ook
+	# als die breder is dan de straal. Alleen het blokje met het laagste nummer in de groep
+	# (de "aanvoerder") regelt het samenvoegen, zodat het één keer gebeurt.
 	var radius: float = _merge_setting("loot_merge_radius")
-	var group: Array = [self]
+	var candidates: Array = []
 	for node in get_tree().get_nodes_in_group("loot"):
 		if node == self or not node.has_method("can_merge"):
 			continue
 		if node.currency_type != currency_type or not node.can_merge():
 			continue
-		if node.global_position.distance_to(global_position) > radius:
-			continue
-		if node.get_instance_id() < get_instance_id():
-			return  # een ander blokje is de aanvoerder
-		group.append(node)
+		candidates.append(node)
+	var group: Array = [self]
+	var index: int = 0
+	while index < group.size():
+		var current: Node2D = group[index]
+		index += 1
+		for k in range(candidates.size() - 1, -1, -1):
+			var other: Node2D = candidates[k]
+			if other.global_position.distance_to(current.global_position) <= radius:
+				if other.get_instance_id() < get_instance_id():
+					return  # een ander blokje in deze groep is de aanvoerder
+				group.append(other)
+				candidates.remove_at(k)
 
 	var total: int = 0
 	var center: Vector2 = Vector2.ZERO

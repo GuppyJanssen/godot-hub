@@ -148,7 +148,9 @@ func _process(_delta: float) -> void:
 					
 			# 2. LOCATIE LABEL BIJWERKEN
 			if is_instance_valid(LevelManager) and is_instance_valid(location_label):
-				if LevelManager.current_layer == 0:
+				if LevelManager.in_test_room:
+					location_label.text = "LOCATIE: Testkamer (terug: omhoog vliegen)"
+				elif LevelManager.current_layer == 0:
 					location_label.text = "LOCATIE: Zuidpool (Startbasis)"
 				elif LevelManager.current_layer == LevelManager.LAYER_WIDTHS.size() - 1:
 					location_label.text = "LOCATIE: Noordpool (Eindbaas-Arena)"

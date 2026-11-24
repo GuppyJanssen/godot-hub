@@ -20,6 +20,8 @@ class_name EnemySpawner
 ## van het type "factory": zijn levens komen uit de SSOT-rij unit_factory (plus de factie-modifier).
 @export var spawn_unit_type: String = "light"
 @export var sprite_scale: float = 1.0
+## Testfabriek (testkamer): maakt geen vijanden en wordt niet onthouden (dropt wel loot).
+@export var passive: bool = false
 
 # --- CONFIGURATIE OPTIES ---
 @export var spawner_max_health: float = 150.0  # Hoeveel schade kan deze fabriek hebben?
@@ -46,7 +48,8 @@ var last_hit_dir: Vector2 = Vector2.ZERO  # richting van de laatste treffer, voo
 func _ready() -> void:
 	# 1. DOELWIT REGISTRATIE
 	add_to_group("targets")
-	add_to_group("saveable")  # deze fabriek wil onthouden worden (zie game_room.gd)
+	if not passive:
+		add_to_group("saveable")  # deze fabriek wil onthouden worden (zie game_room.gd)
 	# Levens van de fabriek uit de SSOT (rij unit_factory, plus de factie-modifier).
 	# Staat dat er niet, dan telt Spawner Max Health uit de Inspector.
 	spawner_max_health = EnemyStats.value(faction, "factory", "max_health", spawner_max_health)
@@ -80,6 +83,11 @@ func _ready() -> void:
 	# De kleur van de factie over de hele fabriek. De witte flits bij een treffer zit op de
 	# sprite zelf, dus die blijft gewoon werken.
 	modulate = EnemyStats.color(faction)
+	
+	# Testfabriek: niets terugzetten en geen vijanden maken.
+	if passive:
+		visible = true
+		return
 	
 	# Is deze fabriek deze run al gesloopt? RunState weet het.
 	var spawner_already_destroyed: bool = RunState.is_dead(room_layer, room_index, my_id)
@@ -224,8 +232,9 @@ func _deferred_destruction() -> void:
 	if is_in_group("targets"): remove_from_group("targets")
 	if is_in_group("enemies"): remove_from_group("enemies")
 	
-	# Onthoud in RunState dat deze fabriek kapot is.
-	RunState.mark_dead(room_layer, room_index, my_id)
+	# Onthoud in RunState dat deze fabriek kapot is (een testfabriek niet).
+	if not passive:
+		RunState.mark_dead(room_layer, room_index, my_id)
 	print("SPAWNER: Destructie onthouden in RunState.")
 				
 	if is_instance_valid(spawn_timer):

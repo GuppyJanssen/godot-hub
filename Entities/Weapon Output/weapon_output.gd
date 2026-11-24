@@ -3,6 +3,8 @@ extends Area2D
 
 @export var speed: float = 700.0
 @export var damage: int = 10
+## Het damage type van het wapen (base_damage_type in de SSOT), voor de testdummy en later de counters.
+var damage_type: String = ""
 
 # Bereik: komt uit de CSV via de wapenwaarden van de speler. Is het bereik op, dan verdwijnt de kogel.
 const FALLBACK_RANGE := 600.0
@@ -71,6 +73,9 @@ func _on_body_entered(body: Node2D) -> void:
 		if body.has_method("take_damage"):
 			# De vliegrichting van de kogel gaat mee, zodat de loot de goede kant op spat.
 			var impact_direction: Vector2 = transform.x.normalized()
+			# Wie het wil weten (de testdummy), hoort eerst welk damage type deze treffer heeft.
+			if body.has_method("on_hit_info"):
+				body.on_hit_info(damage, damage_type)
 			body.take_damage(damage, true, impact_direction)
 		queue_free()
 

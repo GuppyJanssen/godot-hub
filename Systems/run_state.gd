@@ -42,6 +42,16 @@ var rooms: Dictionary = {}         # "ring_kamer" -> { "cleared", "dead", "chang
 var run_points: Dictionary = {}    # skill_id -> punten die alleen deze run tellen
 var extra: Dictionary = {}         # vrije ruimte voor alles wat verder mee moet in de save
 
+## --- WAPENS VAN DEZE RUN ---
+## Vier vakken: 0 = boven, 1 = rechts, 2 = onder, 3 = links ("" = leeg).
+## Je begint met het startwapen in het bovenste vak; elk wapen (ook dat) kun je ruilen.
+## Wapens gelden alleen voor deze run.
+const WEAPON_SLOT_COUNT := 4
+const STARTER_WEAPON := "weapon_pistol"
+signal weapons_changed
+var weapon_slots: Array = [STARTER_WEAPON, "", "", ""]
+var weapon_selected: int = 0
+
 
 func _process(delta: float) -> void:
 	# Staat het spel op pauze, dan loopt _process niet. De tijd telt dus alleen tijdens het spelen.
@@ -67,6 +77,7 @@ func start_new_run(new_difficulty: int = 1, seed_value: int = -1) -> void:
 	rooms.clear()
 	run_points.clear()
 	extra.clear()
+	reset_weapons()
 	
 	# De factie-oorlog begint elke run opnieuw.
 	var war: Node = _faction_war()
@@ -86,6 +97,7 @@ func end_run() -> Dictionary:
 	rooms.clear()
 	run_points.clear()
 	extra.clear()
+	reset_weapons()
 	run_seconds = 0.0
 	var war: Node = _faction_war()
 	if war != null:
@@ -142,6 +154,89 @@ func is_cleared(room_ring: int, room_index: int) -> bool:
 	if not rooms.has(key):
 		return false
 	return rooms[key]["cleared"]
+
+
+## --- WAPENS ---
+
+## Terug naar alleen het startwapen (begin van een run).
+func reset_weapons() -> void:
+	weapon_slots = [STARTER_WEAPON, "", "", ""]
+	weapon_selected = 0
+	weapons_changed.emit()
+
+
+## Het wapen in het gekozen vak.
+func selected_weapon() -> String:
+	return str(weapon_slots[weapon_selected])
+
+
+func has_weapon(weapon_id: String) -> bool:
+	return weapon_slots.has(weapon_id)
+
+
+## Zet een wapen in het eerste lege vak en kies het meteen. Geeft het vak terug, of -1 als alles vol is.
+func add_weapon(weapon_id: String) -> int:
+	if weapon_id == "" or has_weapon(weapon_id):
+		return -1
+	for slot in WEAPON_SLOT_COUNT:
+		if str(weapon_slots[slot]) == "":
+			weapon_slots[slot] = weapon_id
+			weapon_selected = slot
+			weapons_changed.emit()
+			return slot
+	return -1
+
+
+## Ruilt het gekozen wapen voor 'weapon_id'. Geeft het wapen terug dat je laat vallen
+## ("" als ruilen niet kan).
+func replace_selected_weapon(weapon_id: String) -> String:
+	if weapon_id == "" or has_weapon(weapon_id):
+		return ""
+	var dropped: String = selected_weapon()
+	weapon_slots[weapon_selected] = weapon_id
+	weapons_changed.emit()
+	return dropped
+
+
+## Kies een vak (0 t/m 3). Lukt alleen als er een wapen in zit.
+func select_weapon_slot(slot: int) -> bool:
+	if slot < 0 or slot >= WEAPON_SLOT_COUNT or str(weapon_slots[slot]) == "":
+		return false
+	if slot == weapon_selected:
+		return false
+	weapon_selected = slot
+	weapons_changed.emit()
+	return true
+
+
+## Naar het volgende (+1) of vorige (-1) vak met een wapen, met de klok mee.
+func cycle_weapon(direction: int) -> bool:
+	for step in range(1, WEAPON_SLOT_COUNT):
+		var slot: int = posmod(weapon_selected + step * direction, WEAPON_SLOT_COUNT)
+		if str(weapon_slots[slot]) != "":
+			return select_weapon_slot(slot)
+	return false
+
+
+func _load_weapons(data: Dictionary) -> void:
+	weapon_slots = ["", "", "", ""]
+	var saved: Variant = data.get("weapon_slots", [])
+	if saved is Array:
+		for slot in mini(saved.size(), WEAPON_SLOT_COUNT):
+			weapon_slots[slot] = str(saved[slot])
+	# Oude save of geen enkel wapen: begin met het startwapen.
+	var first_filled: int = -1
+	for slot in WEAPON_SLOT_COUNT:
+		if str(weapon_slots[slot]) != "":
+			first_filled = slot
+			break
+	if first_filled < 0:
+		weapon_slots[0] = STARTER_WEAPON
+		first_filled = 0
+	weapon_selected = clampi(int(data.get("weapon_selected", first_filled)), 0, WEAPON_SLOT_COUNT - 1)
+	if str(weapon_slots[weapon_selected]) == "":
+		weapon_selected = first_filled
+	weapons_changed.emit()
 
 
 ## Een vaste seed voor één kamer, afgeleid van de seed van de run. 'generation' telt op als
@@ -249,6 +344,8 @@ func save() -> bool:
 		"rooms": rooms,
 		"run_points": run_points,
 		"extra": extra,
+		"weapon_slots": weapon_slots,
+		"weapon_selected": weapon_selected,
 	}
 
 	# Het seed-systeem (Game_toevoeging.gd) lift hier mee, als het is ingebouwd.
@@ -313,6 +410,7 @@ func load_run() -> bool:
 
 	run_points = data.get("run_points", {})
 	extra = data.get("extra", {})
+	_load_weapons(data)
 
 	var game: Node = get_node_or_null("/root/Game")
 	if game != null and game.has_method("load_seed_state"):

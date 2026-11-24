@@ -31,9 +31,9 @@ var shield_accumulator: float = 0.0
 
 
 var current_weapon_stats: Dictionary = {}
-## Toetsen voor de wapenwissel: 1 t/m 9 en dan 0 (tiende wapen).
-const WEAPON_KEYS: Array = [KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9, KEY_0]
-var _weapon_cycle_held: bool = false
+## Toetsen voor de vier wapenvakken: 1 = boven, 2 = rechts, 3 = onder, 4 = links.
+const WEAPON_SLOT_KEYS: Array = [KEY_1, KEY_2, KEY_3, KEY_4]
+var _weapon_wheel: Node = null
 ## Afstand tussen twee lopen, in pixels.
 const MUZZLE_SPACING := 14.0
 
@@ -166,7 +166,12 @@ func _ready() -> void:
 		if stats.currency_element3 != run_currency_element3: stats.currency_element3 = run_currency_element3
 
 	# 4. LEIDENDE AS: Wapenstats inladen uit de CSV
+	# Het wapen komt uit het gekozen wapenvak van deze run (RunState).
+	Game.active_weapon_key = RunState.selected_weapon()
 	_load_weapon_stats(Game.active_weapon_key)
+	# Het wapenwiel (zichtbaar bij wisselen).
+	_weapon_wheel = load("res://Systems/weapon_wheel.gd").new()
+	add_child(_weapon_wheel)
 
 	# BINGO: Als we een run hervatten via Continue, roepen we uitgesteld de pixel-forcerder aan!
 	if Game.should_load_run:
@@ -234,7 +239,8 @@ func _physics_process(delta: float) -> void:
 
 	# --- REALTIME SCHILD REGENERATIE (GEKOPPELD AAN INTEGER ENERGIE) ---
 	if can_regen_shield and stats:
-		if stats.current_shield < stats.max_shield and stats.current_energy > 0:
+		# God mode: schild laden kost geen energie en mag ook zonder energie.
+		if stats.current_shield < stats.max_shield and (stats.current_energy > 0 or Game.debug_is_invincible):
 			shield_accumulator += 10 * delta #tijd per punt regen
 			
 			if shield_accumulator >= 1.0:
@@ -248,7 +254,7 @@ func _physics_process(delta: float) -> void:
 					stats.current_shield += final_add
 					
 					# WISSELKOERS FIX: We trekken pas 1 energiepunt af zodra er cumulatief 10 schildpunten zijn gevuld!
-					if stats.current_shield % 10 == 0:
+					if stats.current_shield % 10 == 0 and not Game.debug_is_invincible:
 						# GECORRIGEERD: Harde integer-afname tegen zwevende floating-point spookgetallen!
 						var new_energy = int(stats.current_energy) - 1
 						if new_energy <= 0:
@@ -276,30 +282,7 @@ func _physics_process(delta: float) -> void:
 		var enemies_alive: bool = get_tree().get_nodes_in_group("targets").size() + get_tree().get_nodes_in_group("enemies").size() > 0
 		RoomBounds.apply(self, 30.0, enemies_alive)
 	
-	# A. GECORRIGEERD: Slaat de live-keuze direct op in de Global Hub voor de transities!
-	# Toetsen 1 t/m 9 en 0 kiezen een wapen in de volgorde van de SSOT (data_type weapon_base).
-	# Een nieuw wapen in de sheet krijgt zo vanzelf een toets.
-	var new_target = ""
-	var weapon_ids: Array = Ssot.get_ids("weapon_base")
-	for k in mini(weapon_ids.size(), WEAPON_KEYS.size()):
-		if Input.is_key_pressed(WEAPON_KEYS[k]):
-			new_target = str(weapon_ids[k])
-			break
-	# [ en ] bladeren door ALLE wapens (ook na het tiende).
-	var cycle: int = int(Input.is_key_pressed(KEY_BRACKETRIGHT)) - int(Input.is_key_pressed(KEY_BRACKETLEFT))
-	if cycle != 0 and not _weapon_cycle_held and not weapon_ids.is_empty():
-		var current: int = maxi(0, weapon_ids.find(Game.active_weapon_key))
-		new_target = str(weapon_ids[posmod(current + cycle, weapon_ids.size())])
-	_weapon_cycle_held = cycle != 0
-	
-	# 1. DE WAPENWISSEL AS (toetsen 1 t/m 0)
-	if new_target != "" and Game.active_weapon_key != new_target:
-		if Ssot.has_row(new_target):
-			# Overschrijf de wereldwijde SSoT sleutel direct!
-			Game.active_weapon_key = new_target
-			_load_weapon_stats(Game.active_weapon_key)
-			
-			print("TEST-SWAP: Live gewisseld naar " + Game.active_weapon_key + " | Kogels: " + str(current_weapon_stats["bullet_per_shot"]))
+	# 1. WAPENWISSEL: zie _unhandled_input (scrollen of 1 t/m 4).
 
 	# =========================================================================
 	# 2. GECORRIGEERDE SCHIETMOTOR: Nu met harde herlaad-beveiliging!
@@ -331,6 +314,40 @@ func _physics_process(delta: float) -> void:
 	# =========================================================================
 
 
+# --- WAPENWISSEL ---
+# Scrollen bladert door de vakken met een wapen, 1 t/m 4 kiest een vak. Het wiel is dan even zichtbaar.
+func _unhandled_input(event: InputEvent) -> void:
+	var mouse_event: InputEventMouseButton = event as InputEventMouseButton
+	if mouse_event != null and mouse_event.pressed:
+		if mouse_event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			RunState.cycle_weapon(1)
+			on_weapons_changed()
+			get_viewport().set_input_as_handled()
+		elif mouse_event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			RunState.cycle_weapon(-1)
+			on_weapons_changed()
+			get_viewport().set_input_as_handled()
+		return
+	var key_event: InputEventKey = event as InputEventKey
+	if key_event != null and key_event.pressed and not key_event.echo:
+		var slot: int = WEAPON_SLOT_KEYS.find(key_event.keycode)
+		if slot >= 0:
+			RunState.select_weapon_slot(slot)
+			on_weapons_changed()
+			get_viewport().set_input_as_handled()
+
+
+## Na een wissel, een nieuw wapen of een ruil: laad het gekozen wapen en toon het wiel.
+func on_weapons_changed() -> void:
+	var weapon: String = RunState.selected_weapon()
+	if weapon != Game.active_weapon_key:
+		Game.active_weapon_key = weapon
+		_load_weapon_stats(weapon)
+		print("WAPEN: gewisseld naar ", weapon)
+	if is_instance_valid(_weapon_wheel):
+		_weapon_wheel.show_wheel()
+
+
 # --- WAPENWAARDEN UIT DE SSOT ---
 # Vult current_weapon_stats met de waarden van dit wapen uit de SSOT (via SsotWeapon).
 # Skills en items tellen mee (StatCalc.player_value). De sleutels blijven hetzelfde als
@@ -351,6 +368,7 @@ func _load_weapon_stats(weapon_key: String) -> void:
 		"bullet_per_shot": w.bullets_per_shot,
 		"muzzle_count": w.muzzle_count,
 		"bullet_spread": w.spread_degrees,
+		"damage_type": w.damage_type,
 	}
 
 
@@ -362,7 +380,8 @@ func fire_primary_weapon() -> void:
 	var active_key = str(Game.active_weapon_key).to_lower()
 	var is_special_weapon = "pistol" not in active_key and active_key != ""
 	
-	if is_special_weapon and stats.current_energy <= 0:
+	# God mode negeert de energie helemaal: schieten mag altijd en kost niets.
+	if is_special_weapon and stats.current_energy <= 0 and not Game.debug_is_invincible:
 		print("WAPEN GEBLOKKEERD: Geen energie meer! Schakel terug naar je startpistool.")
 		return
 		
@@ -402,6 +421,9 @@ func fire_primary_weapon() -> void:
 		# Kogelsnelheid uit de SSOT (base_bullet_speed). Vóór add_child, want de kogel rekent in _ready verder.
 		if "speed" in bullet:
 			bullet.speed = float(current_weapon_stats.get("bullet_speed", bullet.speed))
+		# Het damage type gaat mee met de kogel (de testdummy laat het zien).
+		if "damage_type" in bullet:
+			bullet.damage_type = str(current_weapon_stats.get("damage_type", ""))
 		bullet.global_position = global_position + muzzle_offset
 		bullet.global_rotation = global_rotation + final_spread
 		
@@ -414,7 +436,7 @@ func fire_primary_weapon() -> void:
 		get_tree().current_scene.add_child(bullet)
 	
 	# --- ENERGIEAFNAME BIJ SCHIETEN ---
-	if is_special_weapon:
+	if is_special_weapon and not Game.debug_is_invincible:
 		stats.current_energy = max(0, stats.current_energy - 2)
 		print("SPECIAL SHOT: Energie verbruikt! Rest-energie: ", stats.current_energy)
 	

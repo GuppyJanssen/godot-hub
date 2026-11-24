@@ -113,13 +113,18 @@ func _ready() -> void:
 			if save_instance:
 				save_instance.free()
 				
-	# Fabrieken neerzetten: wie er zit komt uit de factie-oorlog, waar ze staan uit de seed.
-	# Eerst dit, dan pas terugzetten: bestaande fabrieken halen hun gegevens zelf op.
-	var factory_parent: Node = get_node_or_null("Body's/spawner")
-	RoomPopulator.populate(factory_parent if factory_parent != null else self, my_layer, my_room)
+	if LevelManager.in_test_room:
+		# Testkamer: schietschijf en testvijanden. Niets terugzetten en niets bewaren
+		# (room_ready blijft false, dus snapshot_room doet niets).
+		TestRoom.build(self)
+	else:
+		# Fabrieken neerzetten: wie er zit komt uit de factie-oorlog, waar ze staan uit de seed.
+		# Eerst dit, dan pas terugzetten: bestaande fabrieken halen hun gegevens zelf op.
+		var factory_parent: Node = get_node_or_null("Body's/spawner")
+		RoomPopulator.populate(factory_parent if factory_parent != null else self, my_layer, my_room)
 
-	# Leg de loot en de vijanden terug zoals ze waren toen je deze kamer verliet.
-	_restore_room()
+		# Leg de loot en de vijanden terug zoals ze waren toen je deze kamer verliet.
+		_restore_room()
 	
 	_check_barriers()
 	# Nu staan de balken goed (open of dicht): laat ze zien.
@@ -158,7 +163,13 @@ func _check_barriers() -> void:
 	var enemies = get_tree().get_nodes_in_group("targets").size() + get_tree().get_nodes_in_group("enemies").size()
 	var enemies_alive: bool = enemies > 0
 	
-	if current_layer == 0:
+	if LevelManager.in_test_room:
+		# Testkamer: boven open (terug naar de zuidpool), de rest dicht.
+		_move_barrier_state(top_b, top_b_start_pos, false, false)
+		_move_barrier_state(bot_b, bot_b_start_pos, true, true)
+		_move_barrier_state(left_b, left_b_start_pos, true, true)
+		_move_barrier_state(right_b, right_b_start_pos, true, true)
+	elif current_layer == 0:
 		_move_barrier_state(bot_b, bot_b_start_pos, true, false)
 		_move_barrier_state(left_b, left_b_start_pos, false, false)
 		_move_barrier_state(right_b, right_b_start_pos, false, false)
@@ -191,15 +202,25 @@ func _move_barrier_state(barrier_node: Node, start_pos: Vector2, keep_closed: bo
 func _check_software_transitions() -> void:
 	if not is_instance_valid(active_player): return
 	
-	var enemies = get_tree().get_nodes_in_group("targets").size() + get_tree().get_nodes_in_group("enemies").size()
-	if enemies > 0: return 
+	# Testkamer: alleen terug omhoog naar de zuidpool. Niets bewaren.
+	if LevelManager.in_test_room:
+		if active_player.global_position.y < 25.0:
+			LevelManager.in_test_room = false
+			LevelManager.set_meta("coming_from", "down")
+			LevelManager.set_meta("player_exit_x", active_player.global_position.x)
+			get_tree().change_scene_to_file("res://World/Levels/game_room.tscn")
+		return
 	
-	# Geen vijanden meer: deze kamer is gehaald. RunState onthoudt dat.
-	RunState.mark_cleared(LevelManager.current_layer, LevelManager.current_room_index)
-	# De factie-oorlog hoort dat de speler deze kamer heeft leeggemaakt.
-	var war: Node = get_node_or_null("/root/FactionWar")
-	if war != null:
-		war.on_room_cleared(LevelManager.current_layer, LevelManager.current_room_index)
+	var enemies = get_tree().get_nodes_in_group("targets").size() + get_tree().get_nodes_in_group("enemies").size()
+	if enemies == 0:
+		# Geen vijanden meer: deze kamer is gehaald. RunState onthoudt dat.
+		RunState.mark_cleared(LevelManager.current_layer, LevelManager.current_room_index)
+		# De factie-oorlog hoort dat de speler deze kamer heeft leeggemaakt.
+		var war: Node = get_node_or_null("/root/FactionWar")
+		if war != null:
+			war.on_room_cleared(LevelManager.current_layer, LevelManager.current_room_index)
+	elif not Game.debug_is_invincible:
+		return  # nog vijanden: je kunt de kamer niet uit (God Mode wel)
 	
 	var current_layer = LevelManager.current_layer
 	var max_layer_index = LevelManager.LAYER_WIDTHS.size() - 1
@@ -218,6 +239,14 @@ func _check_software_transitions() -> void:
 			
 	# ZUID-TRANSITIE (Down)
 	elif active_player.global_position.y > 1055.0:
+		if current_layer == 0 and Game.debug_is_invincible:
+			# Onder de startkamer ligt de testkamer (alleen met God Mode).
+			_save_before_transition()
+			LevelManager.in_test_room = true
+			LevelManager.set_meta("coming_from", "up")
+			LevelManager.set_meta("player_exit_x", active_player.global_position.x)
+			get_tree().change_scene_to_file("res://World/Levels/game_room.tscn")
+			return
 		if current_layer > 0:
 			LevelManager.set_meta("coming_from", "up")
 			LevelManager.set_meta("player_exit_x", active_player.global_position.x)
