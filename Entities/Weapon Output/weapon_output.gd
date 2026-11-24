@@ -143,9 +143,9 @@ func _on_body_entered(body: Node2D) -> void:
 		if _hit_ids.has(body.get_instance_id()):
 			return  # dit doel is al geraakt (pierce/bounce)
 		_hit_ids[body.get_instance_id()] = true
+		# De vliegrichting van de kogel gaat mee, zodat de loot de goede kant op spat.
+		var impact_direction: Vector2 = transform.x.normalized()
 		if body.has_method("take_damage"):
-			# De vliegrichting van de kogel gaat mee, zodat de loot de goede kant op spat.
-			var impact_direction: Vector2 = transform.x.normalized()
 			# Wie het wil weten (de testdummy), hoort eerst welk damage type deze treffer heeft.
 			if body.has_method("on_hit_info"):
 				body.on_hit_info(damage, damage_type)

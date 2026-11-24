@@ -549,4 +549,3 @@ func _recompose(group: Array, center: Vector2, stones: int, chunks: int, singles
 		# Begint klein en groeit rustig tot zijn echte grootte (zie loot_grow_seconds).
 		loot.scale = Vector2(loot._target_scale, loot._target_scale) * 0.55
 		parent.call_deferred("add_child", loot)
-

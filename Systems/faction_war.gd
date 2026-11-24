@@ -136,7 +136,6 @@ func start_new_war(seed_value: int = -1) -> void:
 		for r in rooms.size():
 			if _ring_triangle(r) != t:
 				continue
-			var width: int = rooms[r].size()
 			_fill_ring_at_start(r, t, offset, rng)
 
 	active = true
