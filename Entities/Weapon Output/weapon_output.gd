@@ -1,5 +1,14 @@
 extends Area2D
 # BEDIENING: Kogel/Projectiel (Volledig F1 Dashboard-Bewust!)
+## Alle waarden komen van het wapen (SsotWeapon) en worden vóór add_child gezet door de schutter
+## (Player.gd of EnemyGun). Effecten uit de SSOT:
+##   base_pierce_count      zoveel vijanden extra doorboren voordat de kogel stopt
+##   base_bounce_count      zoveel keer stuiteren: tegen de rand van de kamer of van een vijand af
+##   base_knockback_force   duw op wat geraakt wordt (pixels per seconde erbij)
+##   base_explosion_damage / base_explosion_radius   ontploffen bij een treffer of aan het eind van
+##                          het bereik; raakt alles binnen de straal (spelerkogels: vijanden en
+##                          gebouwen, vijandkogels: de speler)
+## Ontwikkelaarsnotitie: een kogel raakt hetzelfde doel nooit twee keer (_hit_ids), ook niet bij pierce.
 
 @export var speed: float = 700.0
 ## Schade per treffer. Een kommagetal, zodat skills (+1% per level) niet wegvallen door afronden.
@@ -12,8 +21,15 @@ var damage_type: String = ""
 ## Kogel van een vijand (commando): raakt alleen de speler, en de F1-instellingen van de speler
 ## (schade, grootte, snelheid, bereik) gelden er niet voor. Zet dit vóór add_child.
 var from_enemy: bool = false
-## Bereik voor een vijandkogel (het bereik van zijn wapen). Bij spelerkogels komt het van de speler.
+## Bereik van het wapen. De schutter zet dit; -1 = uit de wapenwaarden van de speler lezen (oud).
 var range_override: float = -1.0
+var pierce_left: int = 0
+var bounce_left: int = 0
+var knockback_force: float = 0.0
+var explosion_damage: float = 0.0
+var explosion_radius: float = 0.0
+var _hit_ids: Dictionary = {}
+var _exploded: bool = false
 
 # Bereik: komt uit de CSV via de wapenwaarden van de speler. Is het bereik op, dan verdwijnt de kogel.
 const FALLBACK_RANGE := 600.0
@@ -33,6 +49,8 @@ func _ready() -> void:
 
 	if from_enemy:
 		weapon_range = range_override if range_override > 0.0 else FALLBACK_RANGE
+		var enemy_size: float = maxf(0.05, size_scale)
+		scale = Vector2(enemy_size, enemy_size)
 		# De speler heeft alleen een Area2D (groep "player"), geen botsvorm op zijn lichaam.
 		area_entered.connect(_on_area_entered)
 		return
@@ -47,8 +65,9 @@ func _ready() -> void:
 	# F1-schade: een kommagetal (0,3x moet ook werken; vroeger werd dat afgerond naar 0).
 	if Game.debug_damage_multiplier > 0.0:
 		damage *= Game.debug_damage_multiplier
+		explosion_damage *= Game.debug_damage_multiplier
 	
-	weapon_range = _read_weapon_range()
+	weapon_range = range_override if range_override > 0.0 else _read_weapon_range()
 	if Game.debug_range_multiplier:
 		weapon_range *= Game.debug_range_multiplier
 
@@ -78,9 +97,26 @@ func _physics_process(delta: float) -> void:
 	var move_amount: float = speed * delta
 	global_position += transform.x * move_amount
 	
-	# Bereik-controle: ruim de kogel op als zijn bereik op is.
+	# Stuiteren tegen de rand van de kamer.
+	if bounce_left > 0:
+		var pos: Vector2 = global_position
+		var bounced: bool = false
+		if pos.x < 0.0 or pos.x > RoomBounds.SCREEN_WIDTH:
+			global_rotation = PI - global_rotation
+			pos.x = clampf(pos.x, 0.0, RoomBounds.SCREEN_WIDTH)
+			bounced = true
+		if pos.y < 0.0 or pos.y > RoomBounds.SCREEN_HEIGHT:
+			global_rotation = -global_rotation
+			pos.y = clampf(pos.y, 0.0, RoomBounds.SCREEN_HEIGHT)
+			bounced = true
+		if bounced:
+			global_position = pos
+			bounce_left -= 1
+	
+	# Bereik-controle: ruim de kogel op als zijn bereik op is (een explosieve kogel ontploft dan).
 	traveled_distance += move_amount
 	if traveled_distance >= weapon_range:
+		_explode()
 		queue_free()
 
 
@@ -89,9 +125,14 @@ func _on_area_entered(area: Area2D) -> void:
 	if not from_enemy or not is_instance_valid(area) or not area.is_in_group("player"):
 		return
 	var player: Node = area.get_parent()
-	if is_instance_valid(player) and player.has_method("take_damage"):
+	if not is_instance_valid(player) or _hit_ids.has(player.get_instance_id()):
+		return
+	_hit_ids[player.get_instance_id()] = true
+	if player.has_method("take_damage"):
 		player.take_damage(damage)
-	queue_free()
+	if knockback_force > 0.0 and "velocity" in player:
+		player.velocity += transform.x.normalized() * knockback_force
+	_after_hit(player)
 
 
 func _on_body_entered(body: Node2D) -> void:
@@ -99,6 +140,9 @@ func _on_body_entered(body: Node2D) -> void:
 	if from_enemy:
 		return  # vijandkogels raken geen andere vijanden of gebouwen
 	if body.is_in_group("targets") or body.is_in_group("Enemies") or body.is_in_group("enemies"):
+		if _hit_ids.has(body.get_instance_id()):
+			return  # dit doel is al geraakt (pierce/bounce)
+		_hit_ids[body.get_instance_id()] = true
 		if body.has_method("take_damage"):
 			# De vliegrichting van de kogel gaat mee, zodat de loot de goede kant op spat.
 			var impact_direction: Vector2 = transform.x.normalized()
@@ -106,7 +150,58 @@ func _on_body_entered(body: Node2D) -> void:
 			if body.has_method("on_hit_info"):
 				body.on_hit_info(damage, damage_type)
 			body.take_damage(hit_damage(), true, impact_direction)
+		if knockback_force > 0.0 and "velocity" in body:
+			body.velocity += impact_direction * knockback_force
+		_after_hit(body)
+
+
+# Na een treffer: ontploffen, doorboren, stuiteren of verdwijnen (in die volgorde).
+func _after_hit(target: Node2D) -> void:
+	if explosion_radius > 0.0 and explosion_damage > 0.0:
+		_explode()
 		queue_free()
+	elif pierce_left > 0:
+		pierce_left -= 1
+	elif bounce_left > 0:
+		bounce_left -= 1
+		var normal: Vector2 = (global_position - target.global_position).normalized()
+		if normal == Vector2.ZERO:
+			normal = -transform.x.normalized()
+		global_rotation = transform.x.normalized().bounce(normal).angle()
+	else:
+		queue_free()
+
+
+# Ontploffing: schade aan alles binnen explosion_radius (één keer per kogel).
+func _explode() -> void:
+	if _exploded or explosion_radius <= 0.0 or explosion_damage <= 0.0 or not is_inside_tree():
+		return
+	_exploded = true
+	var center: Vector2 = global_position
+	var flash_script: Script = load("res://Entities/Effects/explosion_flash.gd")
+	if flash_script != null:
+		var flash: Node2D = Node2D.new()
+		flash.set_script(flash_script)
+		flash.set("radius", explosion_radius)
+		get_tree().current_scene.add_child(flash)
+		flash.global_position = center
+	var amount: int = maxi(1, roundi(explosion_damage))
+	if from_enemy:
+		var player: Node2D = Game.active_player
+		if is_instance_valid(player) and player.global_position.distance_to(center) <= explosion_radius:
+			player.take_damage(amount)
+		return
+	var victims: Dictionary = {}
+	for node in get_tree().get_nodes_in_group("targets") + get_tree().get_nodes_in_group("enemies"):
+		if victims.has(node) or not node is Node2D or not node.has_method("take_damage"):
+			continue
+		if node.global_position.distance_to(center) <= explosion_radius:
+			victims[node] = true
+	for victim in victims:
+		var push: Vector2 = (victim.global_position - center).normalized()
+		if victim.has_method("on_hit_info"):
+			victim.on_hit_info(explosion_damage, damage_type)
+		victim.take_damage(amount, true, push)
 
 
 ## De schade als heel getal voor take_damage: afgerond, en minimaal 1 als er schade is.
@@ -139,6 +234,11 @@ func get_run_state() -> Dictionary:
 		"range": weapon_range,
 		"traveled": traveled_distance,
 		"enemy": from_enemy,
+		"pierce": pierce_left,
+		"bounce": bounce_left,
+		"knockback": knockback_force,
+		"explosion_damage": explosion_damage,
+		"explosion_radius": explosion_radius,
 	}
 
 
@@ -154,6 +254,11 @@ func apply_run_state(data: Dictionary) -> void:
 		scale = Vector2(saved_size, saved_size)
 	weapon_range = float(data.get("range", weapon_range))
 	traveled_distance = float(data.get("traveled", traveled_distance))
+	pierce_left = maxi(0, SaveSystem._safe_int(data.get("pierce", 0)))
+	bounce_left = maxi(0, SaveSystem._safe_int(data.get("bounce", 0)))
+	knockback_force = maxf(0.0, SaveSystem._safe_float(data.get("knockback", 0.0)))
+	explosion_damage = maxf(0.0, SaveSystem._safe_float(data.get("explosion_damage", 0.0)))
+	explosion_radius = maxf(0.0, SaveSystem._safe_float(data.get("explosion_radius", 0.0)))
 	if bool(data.get("enemy", false)) and not from_enemy:
 		from_enemy = true
 		if not area_entered.is_connected(_on_area_entered):

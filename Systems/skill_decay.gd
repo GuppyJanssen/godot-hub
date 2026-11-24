@@ -64,6 +64,30 @@ static func apply(levels: Dictionary, seconds: float, extra_multiplier: float = 
 	return result
 
 
+## Na de run (dood, opgeven, nieuwe run): de skills in de save lopen terug met de speeltijd van
+## de run. Op Normal gebeurt dat alleen nu; op Hard liep het tijdens de run al (in Mods) en wordt het
+## hier vastgelegd. Op Easy gebeurt niets. Geeft true terug als er iets veranderd is.
+static func persist_after_run(seconds: float, difficulty: int) -> bool:
+	if seconds <= 0.0 or not (decays_after_run(difficulty) or decays_during_run(difficulty)):
+		return false
+	var save_system: SaveSystem = SaveSystem.new()
+	var meta: MetaProgress = save_system.get_loaded_meta_progress()
+	var levels: Dictionary = {}
+	for skill_id in meta.skills_data:
+		var entry: Variant = meta.skills_data[skill_id]
+		if entry is Dictionary:
+			levels[skill_id] = float(entry.get("level", 0.0))
+	if levels.is_empty():
+		return false
+	var decayed: Dictionary = apply(levels, seconds)
+	for skill_id in decayed:
+		# Kommagetal bewaren (3 decimalen), anders gaat een half level verval verloren.
+		meta.skills_data[skill_id]["level"] = snappedf(decayed[skill_id], 0.001)
+	save_system.save_meta_progress(meta)
+	print("SKILLS: verval na de run toegepast (", int(seconds), " s gespeeld).")
+	return true
+
+
 ## Hoeveel seconden het duurt tot deze skill op 0 staat. Handig voor een tekst in de skill tree.
 static func seconds_until_empty(skill_id: String, level: float) -> float:
 	var per_second: float = levels_per_second(skill_id)

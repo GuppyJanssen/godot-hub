@@ -121,9 +121,10 @@ func get_loaded_meta_progress() -> MetaProgress:
 		if not Ssot.has_row(str(skill_id)):
 			continue
 		var entry: Variant = saved_skills[skill_id]
-		var level: int = _safe_int(entry.get("level", 0) if entry is Dictionary else entry)
+		# Een kommagetal: door verval kan een skill op 37,25 staan.
+		var level: float = _safe_float(entry.get("level", 0) if entry is Dictionary else entry)
 		var clean: Dictionary = entry.duplicate() if entry is Dictionary else {}
-		clean["level"] = clampi(level, 0, Ssot.get_int(str(skill_id), "fill_levels_amount", 100))
+		clean["level"] = clampf(level, 0.0, Ssot.get_number(str(skill_id), "fill_levels_amount", 100.0))
 		meta_res.skills_data[str(skill_id)] = clean
 
 	# JSON geeft getallen terug als float; de seed is een int.

@@ -36,14 +36,27 @@ const WEAPON_TYPE_COLUMN := "weapon_type"
 const MAX_LEVEL_COLUMN := "fill_levels_amount"
 
 
+## De gekochte levels uit de save, bewaard zodat Hard-verval niet elke seconde de schijf leest.
+static var _bought_cache: Dictionary = {}
+
+
 ## Leest de gekochte levels uit de save en de run-punten uit RunState, en zet alles in Mods.
 ## Roep dit aan bij het begin van elke kamer en na een aankoop of run-punt.
 static func refresh_from_save() -> void:
 	var meta: MetaProgress = SaveSystem.new().get_loaded_meta_progress()
-	var bought: Dictionary = {}
+	_bought_cache = {}
 	for skill_id in meta.skills_data:
 		var entry: Variant = meta.skills_data[skill_id]
-		bought[skill_id] = float(entry.get("level", 0)) if entry is Dictionary else 0.0
+		_bought_cache[skill_id] = float(entry.get("level", 0)) if entry is Dictionary else 0.0
+	refresh_decay()
+
+
+## Zet de skills opnieuw in Mods met de levels van nu. Op Hard lopen ze tijdens de run terug
+## (SkillDecay); RunState roept dit daarom elke seconde aan.
+static func refresh_decay() -> void:
+	var bought: Dictionary = _bought_cache
+	if RunState.active and SkillDecay.decays_during_run(RunState.difficulty):
+		bought = SkillDecay.apply(bought, RunState.run_seconds)
 	apply_all(effective_levels(bought, RunState.run_points))
 
 

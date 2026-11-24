@@ -46,6 +46,10 @@ var room_index: int = 0
 var is_destroyed: bool = false
 var restored_timer_left: float = 0.0  # resterende tijd tot de volgende vijand, na het laden
 var last_hit_dir: Vector2 = Vector2.ZERO  # richting van de laatste treffer, voor de loot-splatter
+## Schild uit de SSOT (max_shield ... op de gebouw-rij, bijvoorbeeld unit_hq). Zie EnemyShield.
+var shield: EnemyShield = null
+## Straal van een fabriek (size 1) in pixels, voor de schildring.
+const BUILDING_RADIUS := 62.0
 
 @onready var sprite: Sprite2D = find_child("*Sprite*", true, false) as Sprite2D
 
@@ -63,7 +67,9 @@ func _ready() -> void:
 	spawn_per_wave = maxi(1, roundi(EnemyStats.value(faction, building_type, "spawn_amount", spawn_per_wave)))
 	spawner_current_health = spawner_max_health
 	# Grootte uit de SSOT (base_size). Voor gebouwen telt die vanaf een fabriek: 1 = even groot als een fabriek.
-	_apply_size(EnemyStats.value(faction, building_type, "size", 1.0))
+	var building_size: float = EnemyStats.value(faction, building_type, "size", 1.0)
+	_apply_size(building_size)
+	shield = EnemyShield.create(self, faction, building_type, BUILDING_RADIUS * maxf(0.1, building_size) + 8.0)
 	
 	# Onzichtbaar tot we weten of dit object deze run al kapot is (anders zie je hem even flitsen).
 	visible = false
@@ -153,14 +159,22 @@ func get_run_state() -> Dictionary:
 		"hp": spawner_current_health,
 		"count": enemies_spawned_count,
 		"timer_left": timer_left,
+		"shield": shield.current if shield != null else 0.0,
 	}
 
 
 # Zet de bewaarde gegevens terug.
 func apply_run_state(data: Dictionary) -> void:
-	spawner_current_health = float(data.get("hp", spawner_max_health))
+	spawner_current_health = clampf(SaveSystem._safe_float(data.get("hp", spawner_max_health)), 1.0, spawner_max_health)
+	if shield != null:
+		shield.restore(SaveSystem._safe_float(data.get("shield", shield.max_value)))
 	enemies_spawned_count = int(data.get("count", 0))
 	restored_timer_left = float(data.get("timer_left", 0.0))
+
+
+func _physics_process(delta: float) -> void:
+	if shield != null and not is_destroyed:
+		shield.update(delta)
 
 
 func _on_spawn_timer_timeout() -> void:
@@ -220,8 +234,10 @@ func take_damage(amount: int, flash: bool = true, hit_dir: Vector2 = Vector2.ZER
 	if hit_dir != Vector2.ZERO:
 		last_hit_dir = hit_dir
 	
-	spawner_current_health = max(0, spawner_current_health - amount)
-	print("SPAWNER ", my_id, " GERAAKT! HP over: ", spawner_current_health, "/", spawner_max_health)
+	var through: float = float(amount)
+	if shield != null:
+		through = shield.absorb(through)
+	spawner_current_health = max(0, spawner_current_health - through)
 	
 	# Arcade flits-effect op de fabriek zelf
 	if flash and sprite:

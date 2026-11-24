@@ -53,16 +53,29 @@ var weapon_slots: Array = [STARTER_WEAPON, "", "", ""]
 var weapon_selected: int = 0
 
 
+## Op Hard lopen de skills tijdens de run terug: zo vaak (seconden) worden ze opnieuw uitgerekend.
+const HARD_DECAY_REFRESH := 1.0
+var _decay_timer: float = 0.0
+
+
 func _process(delta: float) -> void:
 	# Staat het spel op pauze, dan loopt _process niet. De tijd telt dus alleen tijdens het spelen.
 	if active:
 		run_seconds += delta
+		if SkillDecay.decays_during_run(difficulty):
+			_decay_timer -= delta
+			if _decay_timer <= 0.0:
+				_decay_timer = HARD_DECAY_REFRESH
+				SkillEffects.refresh_decay()
 
 
 # ---------------------------------------------------------------- run starten en eindigen
 
 ## Begin een schone run. 'seed_value' -1 = een willekeurige seed.
 func start_new_run(new_difficulty: int = 1, seed_value: int = -1) -> void:
+	# Liep er nog een run (New Run terwijl er een run openstond)? Dan eerst het skill-verval daarvan.
+	if active:
+		SkillDecay.persist_after_run(run_seconds, difficulty)
 	# Een oude opgeslagen run hoort niet bij deze nieuwe run.
 	delete_save()
 	active = true
@@ -91,6 +104,8 @@ func start_new_run(new_difficulty: int = 1, seed_value: int = -1) -> void:
 func end_run() -> Dictionary:
 	var final_loot: Dictionary = loot.duplicate()
 	var seconds: float = run_seconds
+	if active:
+		SkillDecay.persist_after_run(seconds, difficulty)
 	active = false
 	delete_save()
 	loot.clear()

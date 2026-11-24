@@ -25,13 +25,13 @@ const DEFAULTS := {
 	"room_heavy_chance": 0.35,
 	"room_grunts_per_factory": 2.0,
 	"room_heavies_per_factory": 1.0,
+	"room_factory_spacing": 260.0,
+	"room_center_free_radius": 220.0,
 }
 
 ## Waar fabrieken mogen staan (een kamer is 1920 x 1080), met afstand tot elkaar en tot het midden.
 const AREA := Rect2(260, 180, 1400, 720)
-const MIN_DISTANCE := 260.0
 const CENTER := Vector2(960, 540)
-const CENTER_FREE_RADIUS := 220.0
 
 
 ## Zet de fabrieken van deze kamer neer, als kinderen van 'parent'.
@@ -107,11 +107,11 @@ static func _free_spot(rng: RandomNumberGenerator, placed: Array[Vector2]) -> Ve
 			roundf(rng.randf_range(AREA.position.x, AREA.end.x)),
 			roundf(rng.randf_range(AREA.position.y, AREA.end.y)))
 		best = p
-		if p.distance_to(CENTER) < CENTER_FREE_RADIUS:
+		if p.distance_to(CENTER) < _setting("room_center_free_radius"):
 			continue
 		var ok: bool = true
 		for other in placed:
-			if p.distance_to(other) < MIN_DISTANCE:
+			if p.distance_to(other) < _setting("room_factory_spacing"):
 				ok = false
 				break
 		if ok:

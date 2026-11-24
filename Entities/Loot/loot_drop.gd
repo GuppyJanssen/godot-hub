@@ -21,17 +21,23 @@ extends Area2D
 ##   loot_merge_speed      hoe hard een stukje naar zijn buur trekt (pixels per seconde²)
 ##   loot_merge_radius     hoe ver een stukje kijkt voor een buur (pixels)
 ##   loot_merge_circle     straal van de cirkel waarin genoeg moet liggen om samen te klonteren
-##                         tot een klompje. Voor een steen geldt een grotere cirkel (STONE_CIRCLE_FACTOR keer).
+##                         tot een klompje. Voor een steen geldt een grotere cirkel (loot_stone_circle_factor keer).
 ##   loot_orbit_strength   hoe hard een stukje om zijn buur heen draait (pixels per seconde²)
 ##   loot_cluster_friction afremming tijdens het samendrijven (pixels per seconde²). Let op: het
 ##                         samendrijven gaat met (loot_merge_speed - loot_cluster_friction) vooruit.
 ##   loot_merge_wait       seconden dat een stukje stil moet liggen voordat het mag samenklonteren
 ##   loot_merge_duration   seconden dat het samensmelten zelf duurt (de "lavalamp": de stukjes glijden
 ##                         langzaam in elkaar en het nieuwe stuk groeit daarna rustig tot zijn grootte)
+##   loot_bounce, loot_settled_speed, loot_grow_seconds, loot_chunk_scale, loot_stone_scale,
+##   loot_stone_circle_factor, loot_max_pieces_per_drop: zie de notities in de sheet.
 ##
 ## Ontwikkelaarsnotities:
-## - Geen physics-lichamen: botsen en trekken worden hier zelf uitgerekend, met een lijst buren die
-##   elke NEIGHBOR_REFRESH seconden wordt bijgewerkt (niet elk frame alle loot langs).
+## - Geen physics-lichamen: botsen en trekken worden hier zelf uitgerekend.
+## - SNELHEID (veel loot tegelijk, bijvoorbeeld een paar HQ's): alle stukjes staan in één gedeeld
+##   rooster (_grid, vakjes van GRID_CELL pixels) dat één keer per physics-frame wordt opgebouwd.
+##   Een stukje kijkt alleen in de vakjes om zich heen, in plaats van elke keer alle loot langs te
+##   gaan (dat was N×N en gaf de framedrops). De instellingen en de magneet van de speler worden
+##   ook één keer per frame uitgerekend en gedeeld (_frame_cache).
 ## - Wordt de speler dichtbij genoeg, dan wint de magneet van de speler het altijd.
 
 var resource_id: String = "olrite"
@@ -49,21 +55,28 @@ const MERGE_DEFAULTS := {
 	"loot_cluster_friction": 45.0,
 	"loot_merge_wait": 2.0,
 	"loot_merge_duration": 2.5,
+	"loot_bounce": 0.35,               # vaart die overblijft bij een botsing (0 = plof, 1 = stuiter)
+	"loot_settled_speed": 25.0,        # onder deze snelheid is de splatter voorbij
+	"loot_grow_seconds": 0.8,          # zo lang groeit een net samengesmolten stuk naar zijn grootte
+	"loot_chunk_scale": 1.7,           # grootte van een klompje
+	"loot_stone_scale": 2.6,           # grootte van een steen
+	"loot_stone_circle_factor": 1.75,  # cirkel voor een steen = zoveel keer loot_merge_circle
 }
 ## De SSOT-rij met de magneet en het oppakken van de speler.
 const PLAYER_ROW := "player_base"
-const GROW_SECONDS := 0.8          # zo lang groeit een net samengesmolten stuk naar zijn echte grootte
 const NEIGHBOR_REFRESH := 0.15     # seconden tussen het opnieuw zoeken van buren
 const MERGE_CHECK_SECONDS := 0.25  # hoe vaak een stukje kijkt of er genoeg in zijn cirkel ligt
-const SETTLED_SPEED := 25.0        # pas gaan zoeken als de splatter bijna uitgedreven is
 const BASE_RADIUS := 6.0           # straal van een los blokje (zonder schaal)
-const CHUNK_SCALE := 1.7           # grootte van een klompje
-const STONE_SCALE := 2.6           # grootte van een steen
-const BOUNCE := 0.35
-## Een steen is veel groter dan een klompje, dus de cirkel voor een steen is zoveel keer groter.
-const STONE_CIRCLE_FACTOR := 1.75               # hoeveel vaart er overblijft bij een botsing (0 = plof, 1 = stuiter)
 const OUTLINE_COLOR := Color(0.0, 0.0, 0.0, 0.9)
 const OUTLINE_WIDTH := 1.3
+## Grootte van een vakje in het gedeelde rooster (pixels). Groter dan de grootste botsing (twee stenen).
+const GRID_CELL := 48.0
+
+## Gedeeld door alle stukjes: het rooster en de waarden van dit frame.
+static var _grid: Dictionary = {}          # Vector2i -> Array met stukjes
+static var _grid_frame: int = -1
+static var _frame_cache: Dictionary = {}   # instellingen en magneet, opnieuw per physics-frame
+static var _cache_frame: int = -1
 
 var _age: float = 0.0
 var _neighbor_timer: float = 0.0
@@ -148,25 +161,25 @@ func _physics_process(delta: float) -> void:
 	if not is_inside_tree() or get_tree() == null:
 		return
 	_age += delta
+	_ensure_grid()
 
 	# De magneet van de speler wint altijd. Afstanden en snelheid komen uit de SSOT-rij
 	# player_base (base_pickup_radius, base_magnet_radius, base_magnet_speed), met de skills erbij.
-	# Vroeger zocht dit naar velden die niet bestonden, dus golden altijd 150 / 550.
 	var player = Game.active_player
 	if is_instance_valid(player):
 		var distance: float = global_position.distance_to(player.global_position)
-		if distance <= StatCalc.player_value(PLAYER_ROW, "pickup_radius", 30.0):
+		if distance <= float(_frame_cache["pickup_radius"]):
 			_execute_pickup(player)
 			return
-		if distance <= StatCalc.player_value(PLAYER_ROW, "magnet_radius", 150.0):
-			var magnet_speed: float = StatCalc.player_value(PLAYER_ROW, "magnet_speed", 550.0)
+		if distance <= float(_frame_cache["magnet_radius"]):
+			var magnet_speed: float = float(_frame_cache["magnet_speed"])
 			velocity = (player.global_position - global_position).normalized() * magnet_speed
 			global_position += velocity * delta
 			return
 
 	# Net samengesmolten: rustig groeien tot de echte grootte.
 	if scale.x < _target_scale:
-		var grown: float = minf(_target_scale, scale.x + _target_scale * delta / GROW_SECONDS)
+		var grown: float = minf(_target_scale, scale.x + _target_scale * delta / maxf(0.05, _setting("loot_grow_seconds")))
 		scale = Vector2(grown, grown)
 
 	if _merging:
@@ -181,7 +194,7 @@ func _physics_process(delta: float) -> void:
 	if not _settled:
 		# Splatter: alleen uitdrijven met de (sterke) splatter-afremming.
 		velocity = velocity.move_toward(Vector2.ZERO, loot_friction * delta)
-		if velocity.length() <= SETTLED_SPEED and _age >= _setting("loot_merge_delay"):
+		if velocity.length() <= _setting("loot_settled_speed") and _age >= _setting("loot_merge_delay"):
 			_settled = true
 	else:
 		_settled_time += delta
@@ -208,10 +221,10 @@ func init_loot(id: String, amt: int) -> void:
 	var shape_kind: String = "square"
 	var sizes: Vector2i = LootResources.chunk_sizes(resource_id)
 	if sizes.y > 0 and amount >= sizes.y:
-		size_scale = STONE_SCALE
+		size_scale = _setting("loot_stone_scale")
 		shape_kind = "star"
 	elif sizes.x > 0 and amount >= sizes.x:
-		size_scale = CHUNK_SCALE
+		size_scale = _setting("loot_chunk_scale")
 		shape_kind = "circle"
 	scale = Vector2(size_scale, size_scale)
 	_target_scale = size_scale
@@ -298,7 +311,56 @@ func _execute_pickup(player_node: Node2D) -> void:
 # --- SAMENDRIJVEN, BOTSEN EN SAMENKLONTEREN ---
 
 static func _setting(setting_name: String) -> float:
+	if _frame_cache.has(setting_name):
+		return _frame_cache[setting_name]
 	return Ssot.get_number("world", setting_name, float(MERGE_DEFAULTS[setting_name]))
+
+
+## Bouwt één keer per physics-frame het rooster en de gedeelde waarden op (de eerste die het vraagt).
+func _ensure_grid() -> void:
+	var frame: int = Engine.get_physics_frames()
+	if _cache_frame != frame:
+		_cache_frame = frame
+		_frame_cache = {
+			"pickup_radius": StatCalc.player_value(PLAYER_ROW, "pickup_radius", 30.0),
+			"magnet_radius": StatCalc.player_value(PLAYER_ROW, "magnet_radius", 150.0),
+			"magnet_speed": StatCalc.player_value(PLAYER_ROW, "magnet_speed", 550.0),
+		}
+		for setting_name in MERGE_DEFAULTS:
+			_frame_cache[setting_name] = Ssot.get_number("world", setting_name, float(MERGE_DEFAULTS[setting_name]))
+	if _grid_frame == frame:
+		return
+	_grid_frame = frame
+	_grid = {}
+	for node in get_tree().get_nodes_in_group("loot"):
+		if not is_instance_valid(node) or node.is_queued_for_deletion() or not node.has_method("can_merge"):
+			continue
+		var cell: Vector2i = _cell_of(node.global_position)
+		if _grid.has(cell):
+			_grid[cell].append(node)
+		else:
+			_grid[cell] = [node]
+
+
+static func _cell_of(point: Vector2) -> Vector2i:
+	return Vector2i(floori(point.x / GRID_CELL), floori(point.y / GRID_CELL))
+
+
+## Alle stukjes (behalve dit) binnen 'reach' pixels, via het rooster.
+func _nearby(reach: float) -> Array:
+	var found: Array = []
+	var center: Vector2i = _cell_of(global_position)
+	var cells: int = ceili(reach / GRID_CELL)
+	var reach_sq: float = reach * reach
+	for x in range(center.x - cells, center.x + cells + 1):
+		for y in range(center.y - cells, center.y + cells + 1):
+			var bucket: Variant = _grid.get(Vector2i(x, y))
+			if bucket == null:
+				continue
+			for node in bucket:
+				if node != self and is_instance_valid(node) and node.global_position.distance_squared_to(global_position) <= reach_sq:
+					found.append(node)
+	return found
 
 
 ## Mag dit stukje al samenklonteren? (loot_merge_wait seconden na het neerkomen.)
@@ -313,13 +375,7 @@ func can_merge() -> bool:
 
 # Alle loot binnen loot_merge_radius. Die lijst gebruiken we voor botsen en voor de dichtste buur.
 func _refresh_neighbors() -> void:
-	_neighbors.clear()
-	var search: float = _setting("loot_merge_radius")
-	for node in get_tree().get_nodes_in_group("loot"):
-		if node == self or not (node is Area2D) or not node.has_method("can_merge"):
-			continue
-		if node.global_position.distance_to(global_position) <= search:
-			_neighbors.append(node)
+	_neighbors = _nearby(_setting("loot_merge_radius"))
 
 
 # Trek naar het dichtstbijzijnde stukje van dezelfde grondstof waar dit stukje nog niet tegenaan ligt,
@@ -347,7 +403,8 @@ func _pull_towards_neighbor(delta: float) -> void:
 # Stukjes kunnen niet door elkaar: duw ze uit elkaar en haal wat vaart weg (een zachte botsing).
 # Elk stukje duwt alleen zichzelf de helft weg; de ander doet in zijn eigen beurt de andere helft.
 func _resolve_collisions() -> void:
-	for other in _neighbors:
+	# Alleen de vakjes er direct omheen: verder weg kan niets dit stukje raken.
+	for other in _nearby(radius + BASE_RADIUS * _setting("loot_stone_scale")):
 		if not is_instance_valid(other) or other.is_queued_for_deletion() or other._merging:
 			continue
 		var offset: Vector2 = global_position - other.global_position
@@ -360,7 +417,7 @@ func _resolve_collisions() -> void:
 		# Alleen de vaart richting de ander wordt (grotendeels) weggenomen: dat voelt als stoten.
 		var into: float = velocity.dot(-normal)
 		if into > 0.0:
-			velocity += normal * into * (1.0 + BOUNCE) * 0.5
+			velocity += normal * into * (1.0 + _setting("loot_bounce")) * 0.5
 
 
 # Ligt er rond dit stukje genoeg van deze grondstof voor een steen (binnen de grote cirkel) of een
@@ -381,7 +438,7 @@ func _try_merge() -> void:
 	candidates.sort_custom(func(a, b): return a.global_position.distance_squared_to(global_position) < b.global_position.distance_squared_to(global_position))
 
 	# Eerst een steen proberen, dan een klompje.
-	for step in [[sizes.y, circle * STONE_CIRCLE_FACTOR], [sizes.x, circle]]:
+	for step in [[sizes.y, circle * _setting("loot_stone_circle_factor")], [sizes.x, circle]]:
 		var target: int = step[0]
 		var reach: float = step[1]
 		if target <= 0:
@@ -489,7 +546,7 @@ func _recompose(group: Array, center: Vector2, stones: int, chunks: int, singles
 		loot._settled = true
 		loot._age = _setting("loot_merge_delay")
 		loot._settled_time = 0.0
-		# Begint klein en groeit rustig tot zijn echte grootte (zie GROW_SECONDS).
+		# Begint klein en groeit rustig tot zijn echte grootte (zie loot_grow_seconds).
 		loot.scale = Vector2(loot._target_scale, loot._target_scale) * 0.55
 		parent.call_deferred("add_child", loot)
-	print("LOOT: ", group.size(), " stukjes ", resource_id, " samengevoegd tot ", stones, " steen, ", chunks, " klompje(s) en ", singles, " los.")
+

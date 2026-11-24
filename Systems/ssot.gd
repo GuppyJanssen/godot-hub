@@ -25,6 +25,12 @@ signal loaded
 var _rows: Dictionary = {}      # id -> Dictionary (kolomnaam -> tekst)
 var _by_type: Dictionary = {}   # soort -> Array met id's, in de volgorde van de sheet
 var _columns: PackedStringArray = PackedStringArray()
+## Al omgerekende getallen: id -> {kolom -> float}. NAN = leeg of geen getal.
+## get_number wordt heel vaak aangeroepen (elk frame, door elk stukje loot); tekst omrekenen kost
+## dan veel tijd. Wordt geleegd bij elke load_csv.
+var _number_cache: Dictionary = {}
+## Telt op bij elke load_csv, zodat andere scripts hun eigen cache kunnen verversen.
+var load_count: int = 0
 
 
 func _ready() -> void:
@@ -35,6 +41,7 @@ func _ready() -> void:
 func load_csv(path: String = CSV_PATH) -> bool:
 	_rows.clear()
 	_by_type.clear()
+	_number_cache.clear()
 	_columns = PackedStringArray()
 
 	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
@@ -76,6 +83,7 @@ func load_csv(path: String = CSV_PATH) -> bool:
 		_rows[id] = row
 
 	print("Ssot: %d rijen en %d kolommen ingelezen." % [_rows.size(), _columns.size()])
+	load_count += 1
 	loaded.emit()
 	return true
 
@@ -114,9 +122,22 @@ func get_text(id: String, column: String, fallback: String = "") -> String:
 ## Getal uit een cel. Geeft 'fallback' als de cel leeg is of geen getal bevat.
 ## Een Nederlandse komma (2,5) wordt ook begrepen.
 func get_number(id: String, column: String, fallback: float = 0.0) -> float:
+	var cached_row: Dictionary = _number_cache.get(id, {})
+	if cached_row.has(column):
+		var cached: float = cached_row[column]
+		return fallback if is_nan(cached) else cached
+	var parsed: float = _parse_number(id, column)
+	if cached_row.is_empty():
+		_number_cache[id] = cached_row
+	cached_row[column] = parsed
+	return fallback if is_nan(parsed) else parsed
+
+
+## Rekent één cel om naar een getal. NAN = leeg of geen getal.
+func _parse_number(id: String, column: String) -> float:
 	var row: Dictionary = get_row(id)
 	if not row.has(column):
-		return fallback
+		return NAN
 	var text: String = row[column]
 	text = text.replace(",", ".")
 	# Staat er een procentteken (10%), dan wordt het 0.1.
@@ -124,7 +145,7 @@ func get_number(id: String, column: String, fallback: float = 0.0) -> float:
 	text = text.trim_suffix("%").strip_edges()
 	if not text.is_valid_float():
 		push_warning("Ssot: '%s' in %s/%s is geen getal." % [row[column], id, column])
-		return fallback
+		return NAN
 	if is_percent:
 		return text.to_float() / 100.0
 	return text.to_float()

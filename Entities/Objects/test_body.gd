@@ -12,6 +12,8 @@ var current_health: int = 50
 ## base_friction van het type (met _modifier van type en factie). Dit zijn de standaarden als die leeg zijn.
 var acceleration: float = 400.0
 var friction: float = 300.0
+## Schild (max_shield, shield_regen_amount, shield_regen_delay in de SSOT). Zie EnemyShield.
+var shield: EnemyShield = null
 
 # Editor-keuze voor welk Excel-type deze vijand is
 @export_range(1, 6) var test_body_type: int = 1
@@ -156,6 +158,8 @@ func _load_stats() -> void:
 		rotation_speed = maxf(0.0, EnemyStats.value(faction, unit_type, "rotation_speed", rotation_speed))
 		acceleration = maxf(0.0, EnemyStats.value(faction, unit_type, "acceleration", acceleration))
 		friction = maxf(0.0, EnemyStats.value(faction, unit_type, "friction", friction))
+		if shield == null:
+			shield = EnemyShield.create(self, faction, unit_type, body_radius + 8.0)
 		print(name, " geboren als factie ", faction, " / ", unit_type, ". HP: ", max_health)
 	else:
 		# Geen factie of type ingevuld: een oude testvijand. De waarden kwamen vroeger uit de
@@ -198,6 +202,19 @@ func _load_behavior() -> void:
 	scan_radius = maxf(0.0, EnemyStats.value(faction, unit_type, "behavior_scan_radius", 0.0))
 	explosion_damage = EnemyStats.value(faction, unit_type, "explosion_damage", explosion_damage)
 	explosion_radius = EnemyStats.value(faction, unit_type, "explosion_radius", explosion_radius)
+	# Gedrag-getallen uit de SSOT (type-rij, met _modifier van type en factie). Leeg = de Inspector-waarde.
+	wander_speed_factor = maxf(0.0, EnemyStats.value(faction, unit_type, "behavior_wander_speed", wander_speed_factor))
+	investigate_speed_factor = maxf(0.0, EnemyStats.value(faction, unit_type, "behavior_investigate_speed", investigate_speed_factor))
+	keep_distance_factor = clampf(EnemyStats.value(faction, unit_type, "behavior_keep_distance", keep_distance_factor), 0.0, 1.0)
+	kamikaze_speed_factor = maxf(0.0, EnemyStats.value(faction, unit_type, "behavior_kamikaze_speed", kamikaze_speed_factor))
+	kamikaze_trigger_distance = maxf(0.0, EnemyStats.value(faction, unit_type, "behavior_kamikaze_trigger", kamikaze_trigger_distance))
+	kamikaze_loot_factor = clampf(EnemyStats.value(faction, unit_type, "behavior_kamikaze_loot", kamikaze_loot_factor), 0.0, 1.0)
+	hit_alarm_delay = maxf(0.0, EnemyStats.value(faction, unit_type, "behavior_alarm_delay", hit_alarm_delay))
+	tumble_speed_min = maxf(0.0, EnemyStats.value(faction, unit_type, "behavior_tumble_min", tumble_speed_min))
+	tumble_speed_max = maxf(tumble_speed_min, EnemyStats.value(faction, unit_type, "behavior_tumble_max", tumble_speed_max))
+	hit_spin_kick = maxf(0.0, EnemyStats.value(faction, unit_type, "behavior_hit_spin", hit_spin_kick))
+	if not faces_player:
+		spin = randf_range(tumble_speed_min, tumble_speed_max) * (1.0 if spin >= 0.0 else -1.0)
 
 
 # Geeft dit type een wapen uit de pool van de factie (SSOT: uses_weapon, weapon_pool).
@@ -258,6 +275,7 @@ func get_run_state() -> Dictionary:
 		"spin": spin,
 		"alerted": alerted,
 		"weapon": weapon_id,
+		"shield": shield.current if shield != null else 0.0,
 	}
 
 
@@ -266,6 +284,9 @@ func apply_run_state(data: Dictionary) -> void:
 	# Eerst factie en type terug, zodat de juiste waarden (max HP, snelheid, kleur) geladen worden.
 	# Het wapen eerst, zodat _load_stats() geen nieuw wapen kiest.
 	var saved_weapon: String = str(data.get("weapon", weapon_id))
+	# Alleen een wapen dat in de SSOT bestaat (een aangepaste save kan van alles bevatten).
+	if saved_weapon != "" and not Ssot.has_row(saved_weapon):
+		saved_weapon = ""
 	if saved_weapon != weapon_id:
 		weapon_id = saved_weapon
 		_load_weapon()
@@ -275,7 +296,9 @@ func apply_run_state(data: Dictionary) -> void:
 		faction = saved_faction
 		unit_type = saved_type
 		_load_stats()
-	current_health = int(data.get("hp", max_health))
+	current_health = clampi(SaveSystem._safe_int(data.get("hp", max_health)), 1, max_health)
+	if shield != null:
+		shield.restore(SaveSystem._safe_float(data.get("shield", shield.max_value)))
 	global_position = Vector2(float(data.get("x", global_position.x)), float(data.get("y", global_position.y)))
 	global_rotation = float(data.get("rot", global_rotation))
 	spin = float(data.get("spin", spin))
@@ -292,6 +315,8 @@ func _process(_delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	if _exploding:
 		return
+	if shield != null:
+		shield.update(delta)
 	
 	# Geen voorkant: gewoon doortollen. In de ruimte remt niets het draaien af.
 	if not faces_player:
@@ -415,8 +440,6 @@ func _look_around(player: Node2D) -> void:
 		_investigate_target = Vector2(
 				clampf(origin.x, WANDER_AREA.position.x, WANDER_AREA.end.x),
 				clampf(origin.y, WANDER_AREA.position.y, WANDER_AREA.end.y))
-		if not _investigating:
-			print(name, " ziet een kogel en gaat kijken waar hij vandaan kwam.")
 		_investigating = true
 		return
 
@@ -522,8 +545,11 @@ func take_damage(amount: int, flash: bool = true, hit_dir: Vector2 = Vector2.ZER
 	if current_health <= 0: 
 		return
 		
-	current_health = max(0, current_health - amount)
-	print(name, " geraakt tijdens het spelen! HP over: ", current_health, "/", max_health)
+	# Het schild vangt eerst op; alleen de rest gaat van de levens af.
+	var through: int = amount
+	if shield != null:
+		through = roundi(shield.absorb(amount))
+	current_health = max(0, current_health - through)
 	
 	# Geraakt worden is een duidelijk teken: een vijand die kan kijken, weet zo dat de speler er is.
 	# Hij slaat pas alarm na hit_alarm_delay seconden, zodat je hem nog stil kunt uitschakelen.

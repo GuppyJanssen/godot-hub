@@ -260,7 +260,9 @@ func _try_buy(skill_id: String) -> void:
 	var old = current_meta.skills_data.get(skill_id)
 	if old is Dictionary:
 		data = old.duplicate()
-	data["level"] = current_level + qty
+	# Het opgeslagen level kan een kommagetal zijn (verval); dat deel blijft behouden.
+	var stored_level: float = float(data.get("level", current_level))
+	data["level"] = minf(stored_level + qty, float(max_level))
 	data["currency"] = cost["id"]
 	data.erase("currency_type")  # oude sleutel (een nummer) uit eerdere saves
 	data["loss_per_minute"] = _loss_per_minute(skill_id)

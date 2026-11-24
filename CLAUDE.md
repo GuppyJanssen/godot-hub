@@ -71,8 +71,9 @@ Het regelt nog de kluis (`meta_data.json`) en een deel van `current_run.json`.
 - **Kogels** verdwijnen als hun bereik op is en geven hun vliegrichting door bij een treffer.
   Het bereik komt uit de SSOT (`base_fire_range`), via `current_weapon_stats["weapon_range"]` van de speler.
 
-Nog niet aangesloten (staan klaar, worden nergens aangeroepen): `stat_calc.gd`, `skill_effects.gd`, `skill_decay.gd`,
-`Player/Weapons/weapon_shooter.gd`, `World/ring_math.gd`, en alles in `Ideeen/`.
+Nog niet aangesloten (staan klaar, worden nergens aangeroepen): `World/ring_math.gd`, en alles in `Ideeen/`.
+Basisopzet van Thomas, nog niet in gebruik: `Quirk/BaseQuirk.gd`, `Entities/Objects/entity.gd` (+ `meteor_entity.gd`,
+`Entity.tscn`), `World/Levels/Level.gd`.
 
 ## Toegevoegd op 17 november 2026
 
@@ -219,3 +220,17 @@ Nog niet aangesloten (staan klaar, worden nergens aangeroepen): `stat_calc.gd`, 
   Loot-gedrag (loot_drop.gd): trekt naar dichtste niet-rakende buur, botst, draait, klontert pas als binnen
   loot_merge_circle genoeg ligt. Instellingen in de SSOT-rij world (loot_merge_*, loot_orbit_strength, loot_cluster_friction).
   Elke kolomkop in de SSOT heeft een notitie met uitleg.
+
+## Toegevoegd op 24 november 2026 (audit)
+
+- **Veiligheid:** saves zijn alleen JSON via `SaveSystem.read_json/write_json` (typecontrole, max grootte, atomisch
+  schrijven). Nooit `.tres`/`.res` uit `user://` laden (kan code uitvoeren). Scene-paden uit een save: alleen
+  `res://` (`game_room._is_safe_scene_path`). Slotnamen: `SaveSystem.is_valid_slot`. F1-menu alleen in debug-builds.
+- **Speler** leest alles uit `player_base` (zie de kop van `Player.gd`). De stand gaat via Game-meta en
+  `RunState.extra["player_status"]`.
+- **Skills** worden toegepast door `SkillEffects.refresh_from_save()` (Player._ready). Verval: `SkillDecay`
+  (Normal na de run, Hard tijdens de run, via RunState).
+- **Snelheid:** `Ssot.get_number` cachet omgerekende getallen. Loot gebruikt een gedeeld rooster
+  (`loot_drop._ensure_grid`) en `loot_max_pieces_per_drop`.
+- **Kogels:** pierce, bounce, knockback en explosies in `weapon_output.gd`; vijandschilden in `EnemyShield`.
+- `base_bullet_spread` = hoek naar elke kant (20 = waaier van 40°), voor speler en vijanden.

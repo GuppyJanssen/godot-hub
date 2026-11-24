@@ -307,6 +307,11 @@ func _load_weapon_stats(weapon_key: String) -> void:
 		"bullet_spread": w.spread_degrees,
 		"damage_type": w.damage_type,
 		"energy_per_shot": w.energy_per_shot(),
+		"pierce_count": w.pierce_count,
+		"bounce_count": w.bounce_count,
+		"knockback_force": w.knockback_force,
+		"explosion_damage": w.explosion_damage,
+		"explosion_radius": w.explosion_radius,
 	}
 	# F1 Weapon Mode: 1 = altijd auto, 2 = altijd semi, 0 = wat het wapen in de SSOT heeft.
 	if Game.debug_weapon_mode == 1:
@@ -351,6 +356,12 @@ func fire_primary_weapon() -> void:
 		bullet.damage_type = str(current_weapon_stats.get("damage_type", ""))
 		bullet.size_scale = float(current_weapon_stats.get("size_multiplier", 1.0))
 		bullet.damage = dmg
+		bullet.range_override = float(current_weapon_stats.get("weapon_range", -1.0))
+		bullet.pierce_left = int(current_weapon_stats.get("pierce_count", 0))
+		bullet.bounce_left = int(current_weapon_stats.get("bounce_count", 0))
+		bullet.knockback_force = float(current_weapon_stats.get("knockback_force", 0.0))
+		bullet.explosion_damage = float(current_weapon_stats.get("explosion_damage", 0.0))
+		bullet.explosion_radius = float(current_weapon_stats.get("explosion_radius", 0.0))
 		bullet.global_position = global_position + muzzle_offset
 		bullet.global_rotation = global_rotation + final_spread
 		get_tree().current_scene.add_child(bullet)

@@ -59,6 +59,11 @@ static func fire(shooter: Node2D, weapon: SsotWeapon, target_pos: Vector2, muzzl
 		bullet.speed = weapon.projectile_speed
 		bullet.damage_type = weapon.damage_type
 		bullet.range_override = weapon.weapon_range
+		bullet.pierce_left = weapon.pierce_count
+		bullet.bounce_left = weapon.bounce_count
+		bullet.knockback_force = weapon.knockback_force
+		bullet.explosion_damage = weapon.explosion_damage
+		bullet.explosion_radius = weapon.explosion_radius
 		var spread: float = deg_to_rad(randf_range(-weapon.spread_degrees, weapon.spread_degrees))
 		bullet.global_rotation = aim + spread
 		bullet.global_position = shooter.global_position + Vector2.from_angle(aim) * muzzle_distance

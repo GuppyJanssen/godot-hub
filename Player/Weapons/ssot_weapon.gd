@@ -13,7 +13,7 @@ extends RefCounted
 ##   base_bullet_speed, base_burst_count (kogels per schot), base_muzzle_count,
 ##   base_bullet_spread (graden), weapon_type ("auto" = full-auto), base_size,
 ##   base_pierce_count, base_bounce_count, base_knockback_force, base_recoil_force,
-##   energy_cost_per_dps, base_damage_type, damage_type_2
+##   energy_cost_per_dps, base_damage_type, damage_type_2, base_explosion_damage, base_explosion_radius
 ## Bij elke base_-kolom mag ook een _modifier-kolom staan.
 
 ## De tijd tussen schoten komt nooit onder deze waarde, hoeveel skills er ook in zitten.
@@ -33,6 +33,8 @@ var pierce_count: int = 0
 var bounce_count: int = 0
 var knockback_force: float = 0.0
 var recoil_force: float = 0.0
+var explosion_damage: float = 0.0
+var explosion_radius: float = 0.0
 var energy_cost_per_dps: float = 0.0
 var damage_type: String = "kinetic"
 var damage_type_2: String = ""
@@ -57,6 +59,8 @@ static func from_ssot(weapon_id: String, for_player: bool = true) -> SsotWeapon:
 	w.bounce_count = roundi(_stat(weapon_id, "bounce_count", 0.0, for_player))
 	w.knockback_force = _stat(weapon_id, "knockback_force", 0.0, for_player)
 	w.recoil_force = _stat(weapon_id, "recoil_force", 0.0, for_player)
+	w.explosion_damage = maxf(0.0, _stat(weapon_id, "explosion_damage", 0.0, for_player))
+	w.explosion_radius = maxf(0.0, _stat(weapon_id, "explosion_radius", 0.0, for_player))
 	w.energy_cost_per_dps = _stat(weapon_id, "energy_cost_per_dps", 0.0, for_player)
 
 	w.size = _stat(weapon_id, "size", 1.0, for_player)
@@ -101,6 +105,8 @@ func bullet_data() -> Dictionary:
 		"pierce_count": pierce_count,
 		"bounce_count": bounce_count,
 		"knockback_force": knockback_force,
+		"explosion_damage": explosion_damage,
+		"explosion_radius": explosion_radius,
 		"damage_type": damage_type,
 		"damage_type_2": damage_type_2,
 	}

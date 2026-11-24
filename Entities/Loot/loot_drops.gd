@@ -35,6 +35,10 @@ const LOOT_SCENE := "res://Entities/Loot/loot_drop.tscn"
 const DEFAULT_MIN := 3.0
 const DEFAULT_MAX := 10.0
 const DEFAULT_CHANCE := 0.5
+## Hoeveel losse stukjes er hooguit per keer neervallen (SSOT-rij world, kolom
+## loot_max_pieces_per_drop). Valt er meer, dan komt de rest meteen als klompjes en stenen neer.
+## De hoeveelheid blijft gelijk; er liggen alleen minder losse stukjes (veel stukjes = framedrops).
+const DEFAULT_MAX_PIECES := 24.0
 
 
 ## Hoeveel blokjes er vallen. Zonder factie of type: de standaard hierboven.
@@ -94,12 +98,41 @@ static func spawn(parent: Node, origin: Vector2, hit_dir: Vector2, count: int, r
 	if loot_scene == null:
 		return
 	var offset: float = float(settings.get("start_offset", LootSplatter.DEFAULT_START_OFFSET))
-	for i in count:
+	for piece_amount in split_into_pieces(count, resource):
 		var loot: Node = loot_scene.instantiate()
-		loot.init_loot(resource, 1)
+		loot.init_loot(resource, piece_amount)
 		loot.global_position = origin + Vector2(randf_range(-offset, offset), randf_range(-offset, offset))
 		loot.launch_splatter(hit_dir, settings)
 		parent.add_child(loot)
+
+
+## Verdeelt 'count' blokjes over stukjes: zoveel mogelijk los, maar nooit meer dan
+## loot_max_pieces_per_drop stukjes. Daarboven worden blokjes eerst klompjes, dan stenen.
+## Geeft een lijst met de hoeveelheid per stukje (samen precies 'count').
+static func split_into_pieces(count: int, resource: String) -> Array:
+	var max_pieces: int = maxi(1, roundi(Ssot.get_number("world", "loot_max_pieces_per_drop", DEFAULT_MAX_PIECES)))
+	var sizes: Vector2i = LootResources.chunk_sizes(resource)
+	var singles: int = count
+	var chunks: int = 0
+	var stones: int = 0
+	# Klompjes: elk klompje vervangt sizes.x losse blokjes door één stukje.
+	if singles > max_pieces and sizes.x > 1:
+		chunks = mini(ceili(float(singles - max_pieces) / (sizes.x - 1)), floori(float(singles) / sizes.x))
+		singles -= chunks * sizes.x
+	# Nog steeds te veel? Klompjes samen tot stenen.
+	if singles + chunks > max_pieces and sizes.y > sizes.x and sizes.x > 0 and sizes.y % sizes.x == 0:
+		var per_stone: int = sizes.y / sizes.x
+		var stones_needed: int = ceili(float(singles + chunks - max_pieces) / maxi(1, per_stone - 1))
+		stones = mini(stones_needed, floori(float(chunks) / per_stone))
+		chunks -= stones * per_stone
+	var pieces: Array = []
+	for i in stones:
+		pieces.append(sizes.y)
+	for i in chunks:
+		pieces.append(sizes.x)
+	for i in singles:
+		pieces.append(1)
+	return pieces
 
 
 ## Factie-loot: met kans faction_loot_chance valt er per grondstof van de factie (hybrides: beide
@@ -122,7 +155,6 @@ static func spawn_faction_loot(parent: Node, origin: Vector2, hit_dir: Vector2, 
 			continue
 		var count: int = randi_range(minimum, maximum)
 		spawn(parent, origin, hit_dir, count, id, settings)
-		print("FACTIE-LOOT: ", count, "x ", id, " van ", faction, " ", unit_type)
 
 
 ## Extra drop van een vijandtype (bijvoorbeeld Keepium van het HQ). Zie de uitleg bovenaan.
@@ -142,4 +174,3 @@ static func spawn_bonus_loot(parent: Node, origin: Vector2, hit_dir: Vector2, fa
 	var maximum: int = maxi(minimum, roundi(EnemyStats.value(faction, unit_type, "bonus_loot_max", float(minimum))))
 	var count: int = randi_range(minimum, maximum)
 	spawn(parent, origin, hit_dir, count, id, settings)
-	print("EXTRA DROP: ", count, "x ", id, " van ", faction, " ", unit_type)
