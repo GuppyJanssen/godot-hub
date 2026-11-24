@@ -377,6 +377,10 @@ func fire_primary_weapon() -> void:
 		elif sub_stats.has("base_fire_rate"):
 			fire_rate = float(sub_stats["base_fire_rate"])
 			
+	# F1 Fire Rate: 2x = twee keer zo snel schieten (de wachttijd wordt gedeeld).
+	if Game.debug_fire_rate_multiplier > 0.0:
+		fire_rate /= Game.debug_fire_rate_multiplier
+	fire_rate = maxf(fire_rate, 0.02)
 	print("PLAYER GUN: Vuren geaccepteerd! Wachttijd tot volgend schot: ", fire_rate, " seconden.")
 	
 	# Activeer de herlaad-pauze conform de database

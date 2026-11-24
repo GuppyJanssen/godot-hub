@@ -104,6 +104,7 @@ func _update_dashboard() -> void:
 	_add_dashboard_row("Bullet Speed", "Multiplier", "Mult: [" + str(Game.debug_bullet_speed_multiplier) + "x]", _cycle_bullet_speed)
 	_add_dashboard_row("Bullet Size", "Multiplier", "Mult: [" + str(Game.debug_bullet_size_multiplier) + "x]", _cycle_bullet_size)
 	_add_dashboard_row("Weapon Range", "Multiplier", "Mult: [" + str(Game.debug_range_multiplier) + "x]", _cycle_range)
+	_add_dashboard_row("Fire Rate", "Schoten per sec", "Mult: [" + str(Game.debug_fire_rate_multiplier) + "x]", _cycle_fire_rate)
 	_add_dashboard_row("Muzzles Spawn", "Live Aantal", "Aantal: [" + ("SSOT" if Game.debug_muzzle_count <= 0 else str(Game.debug_muzzle_count)) + "]", _cycle_muzzles)
 
 	# Wapens: elk wapen uit de SSOT als knop. Het wapen komt naast de speler op de grond te liggen,
@@ -237,6 +238,7 @@ func _cycle_friction() -> void: _cycle_multiplier("debug_friction_multiplier")
 func _cycle_bullet_speed() -> void: _cycle_multiplier("debug_bullet_speed_multiplier")
 func _cycle_bullet_size() -> void: _cycle_multiplier("debug_bullet_size_multiplier")
 func _cycle_range() -> void: _cycle_multiplier("debug_range_multiplier")
+func _cycle_fire_rate() -> void: _cycle_multiplier("debug_fire_rate_multiplier")
 
 func _cycle_multiplier(prop_name: String) -> void:
 	var cur = float(Game.get(prop_name))

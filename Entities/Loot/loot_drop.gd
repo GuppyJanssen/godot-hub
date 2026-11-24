@@ -23,7 +23,9 @@ extends Area2D
 ##   loot_merge_circle     straal van de cirkel waarin genoeg moet liggen om samen te klonteren
 ##                         tot een klompje. Voor een steen geldt een grotere cirkel (STONE_CIRCLE_FACTOR keer).
 ##   loot_orbit_strength   hoe hard een stukje om zijn buur heen draait (pixels per seconde²)
-##   loot_cluster_friction afremming tijdens het samendrijven (pixels per seconde²)
+##   loot_cluster_friction afremming tijdens het samendrijven (pixels per seconde²). Let op: het
+##                         samendrijven gaat met (loot_merge_speed - loot_cluster_friction) vooruit.
+##   loot_merge_wait       seconden dat een stukje stil moet liggen voordat het mag samenklonteren
 ##
 ## Ontwikkelaarsnotities:
 ## - Geen physics-lichamen: botsen en trekken worden hier zelf uitgerekend, met een lijst buren die
@@ -37,12 +39,13 @@ var velocity: Vector2 = Vector2.ZERO
 var loot_friction: float = 150.0
 
 const MERGE_DEFAULTS := {
-	"loot_merge_delay": 0.4,
-	"loot_merge_speed": 60.0,
+	"loot_merge_delay": 1.2,
+	"loot_merge_speed": 50.0,
 	"loot_merge_radius": 160.0,
 	"loot_merge_circle": 40.0,
-	"loot_orbit_strength": 18.0,
+	"loot_orbit_strength": 6.0,
 	"loot_cluster_friction": 45.0,
+	"loot_merge_wait": 2.0,
 }
 const NEIGHBOR_REFRESH := 0.15     # seconden tussen het opnieuw zoeken van buren
 const MERGE_CHECK_SECONDS := 0.25  # hoe vaak een stukje kijkt of er genoeg in zijn cirkel ligt
@@ -63,6 +66,7 @@ var _neighbors: Array = []          # loot in de buurt (alle grondstoffen, voor 
 var _orbit_sign: float = 1.0        # draairichting om de buur: +1 of -1
 var _settled: bool = false          # splatter voorbij: nu het samendrijven
 var radius: float = BASE_RADIUS     # straal na schalen, voor botsen
+var _settled_time: float = 0.0     # hoe lang het stukje al aan het samendrijven is
 var _consumed: bool = false         # al opgegaan in een klompje of steen (wordt zo verwijderd)
 
 @onready var color_rect: ColorRect = $ColorRect
@@ -156,6 +160,7 @@ func _physics_process(delta: float) -> void:
 		if velocity.length() <= SETTLED_SPEED and _age >= _setting("loot_merge_delay"):
 			_settled = true
 	else:
+		_settled_time += delta
 		_pull_towards_neighbor(delta)
 		velocity = velocity.move_toward(Vector2.ZERO, _setting("loot_cluster_friction") * delta)
 
@@ -271,6 +276,11 @@ static func _setting(setting_name: String) -> float:
 	return Ssot.get_number("world", setting_name, float(MERGE_DEFAULTS[setting_name]))
 
 
+## Mag dit stukje al samenklonteren? (loot_merge_wait seconden na het neerkomen.)
+func ready_to_merge() -> bool:
+	return can_merge() and _settled_time >= _setting("loot_merge_wait")
+
+
 ## Doet dit stukje mee met samendrijven en samenklonteren?
 func can_merge() -> bool:
 	return _settled and not _consumed and is_inside_tree() and not is_queued_for_deletion()
@@ -332,7 +342,7 @@ func _resolve_collisions() -> void:
 # klompje (binnen loot_merge_circle)? Dan worden de dichtstbijzijnde stukjes samengevoegd, tot er
 # genoeg is. Elk stukje mag dit doen; stukjes die al opgaan in een samenvoeging worden overgeslagen.
 func _try_merge() -> void:
-	if not can_merge():
+	if not ready_to_merge():
 		return
 	var sizes: Vector2i = LootResources.chunk_sizes(resource_id)
 	if sizes.x <= 0 and sizes.y <= 0:
@@ -341,7 +351,7 @@ func _try_merge() -> void:
 	# Kandidaten: dit stukje en dezelfde grondstof in de buurt, dichtstbij eerst.
 	var candidates: Array = [self]
 	for other in _neighbors:
-		if is_instance_valid(other) and other.can_merge() and other.resource_id == resource_id:
+		if is_instance_valid(other) and other.ready_to_merge() and other.resource_id == resource_id:
 			candidates.append(other)
 	candidates.sort_custom(func(a, b): return a.global_position.distance_squared_to(global_position) < b.global_position.distance_squared_to(global_position))
 
@@ -404,5 +414,6 @@ func _recompose(group: Array, center: Vector2, stones: int, chunks: int, singles
 		loot.global_position = center + Vector2(randf_range(-spread, spread), randf_range(-spread, spread))
 		loot._settled = true
 		loot._age = _setting("loot_merge_delay")
+		loot._settled_time = _setting("loot_merge_wait")
 		parent.call_deferred("add_child", loot)
 	print("LOOT: ", group.size(), " stukjes ", resource_id, " samengevoegd tot ", stones, " steen, ", chunks, " klompje(s) en ", singles, " los.")
