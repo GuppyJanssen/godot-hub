@@ -19,6 +19,9 @@ class_name EnemySpawner
 ## Welk type vijand deze fabriek MAAKT (light = grunts, heavy = zware). De fabriek zelf is altijd
 ## van het type "factory": zijn levens komen uit de SSOT-rij unit_factory (plus de factie-modifier).
 @export var spawn_unit_type: String = "light"
+## Welk gebouw dit is: "factory", of een ander gebouw-type uit de SSOT (tower, hq ...).
+## Levens, grootte en loot komen uit de rij unit_<building_type>. Alleen een fabriek maakt vijanden.
+@export var building_type: String = "factory"
 @export var sprite_scale: float = 1.0
 ## Testfabriek (testkamer): maakt geen vijanden en wordt niet onthouden (dropt wel loot).
 @export var passive: bool = false
@@ -52,8 +55,10 @@ func _ready() -> void:
 		add_to_group("saveable")  # deze fabriek wil onthouden worden (zie game_room.gd)
 	# Levens van de fabriek uit de SSOT (rij unit_factory, plus de factie-modifier).
 	# Staat dat er niet, dan telt Spawner Max Health uit de Inspector.
-	spawner_max_health = EnemyStats.value(faction, "factory", "max_health", spawner_max_health)
+	spawner_max_health = EnemyStats.value(faction, building_type, "max_health", spawner_max_health)
 	spawner_current_health = spawner_max_health
+	# Grootte uit de SSOT (base_size). Voor gebouwen telt die vanaf een fabriek: 1 = even groot als een fabriek.
+	_apply_size(EnemyStats.value(faction, building_type, "size", 1.0))
 	
 	# Onzichtbaar tot we weten of dit object deze run al kapot is (anders zie je hem even flitsen).
 	visible = false
@@ -241,11 +246,22 @@ func _deferred_destruction() -> void:
 		spawn_timer.stop()
 	
 	# Loot uit de SSOT (rij unit_factory): soort, aantal en splatter. Standaard Metal.
-	var count: int = LootDrops.roll_count(faction, "factory")
-	var currency: int = LootDrops.currency_index(faction, "factory", 2)
+	var count: int = LootDrops.roll_count(faction, building_type)
+	var currency: int = LootDrops.currency_index(faction, building_type, 2)
 	if is_instance_valid(active_scene):
-		LootDrops.spawn(active_scene, global_position, last_hit_dir, count, currency, LootDrops.splatter_settings(faction, "factory"))
+		LootDrops.spawn(active_scene, global_position, last_hit_dir, count, currency, LootDrops.splatter_settings(faction, building_type))
 		print("SPAWNER: ", my_id, " laat ", count, " blokjes vallen.")
 		
 	# Wis de node nu veilig aan de start van het volgende frame
 	queue_free()
+
+
+# Maakt het gebouw groter of kleiner. We schalen de onderdelen (sprite, botsvorm) en niet het
+# gebouw zelf, want Godot rekent niet goed met een geschaald physics-lichaam (net als test_body.gd).
+func _apply_size(size: float) -> void:
+	if size <= 0.0 or is_equal_approx(size, 1.0) or has_meta("size_applied"):
+		return
+	set_meta("size_applied", true)
+	for child in get_children():
+		if child is Node2D:
+			child.scale *= size

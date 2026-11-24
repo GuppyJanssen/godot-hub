@@ -43,6 +43,10 @@ func _ready() -> void:
 		body_entered.connect(_on_body_entered)
 	if not body_exited.is_connected(_on_body_exited):
 		body_exited.connect(_on_body_exited)
+	# De speler heeft geen eigen botsvorm op zijn CharacterBody2D, alleen een Area2D (groep "player").
+	# Daarom luisteren we ook naar areas; die geven we door als de speler zelf.
+	area_entered.connect(_on_area_entered)
+	area_exited.connect(_on_area_exited)
 	_refresh_labels()
 
 
@@ -68,6 +72,16 @@ func _on_body_entered(body: Node2D) -> void:
 	if _delay <= 0.0:
 		_try_pickup(false)
 	_refresh_labels()
+
+
+func _on_area_entered(area: Area2D) -> void:
+	if area.is_in_group("player"):
+		_on_body_entered(area.get_parent())
+
+
+func _on_area_exited(area: Area2D) -> void:
+	if area.is_in_group("player"):
+		_on_body_exited(area.get_parent())
 
 
 func _on_body_exited(body: Node2D) -> void:

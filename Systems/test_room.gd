@@ -6,8 +6,9 @@ class_name TestRoom
 ## - Testobjecten van één factie: één van elk type uit de SSOT (de rijen unit_<type> met
 ##   data_type unit_type: light, heavy, factory, en vanzelf ook nieuwe zoals unit_tower of unit_hq).
 ##   Ze vallen niet aan, komen na 1 seconde terug en droppen wel loot.
-##   Een fabriek gebruikt de fabriek-scene; elk ander type (voorlopig) de gewone vijand-scene,
-##   met de waarden uit zijn SSOT-rij, tot het een eigen scene heeft.
+##   Wat beweegt (light, medium, heavy) staat op de bovenste rij en gebruikt de vijand-scene.
+##   Gebouwen (base_speed 0: factory, tower, hq) staan op een eigen rij met meer ruimte en
+##   gebruiken de gebouw-scene; hun base_size telt vanaf een fabriek.
 ## - Een wisselvlak: vlieg eroverheen om naar de volgende factie te gaan.
 ## Niets in deze kamer wordt bewaard.
 
@@ -17,6 +18,11 @@ const FACTIONS: Array = ["a", "b", "c", "ab", "bc", "ca", "d", "e", "f", "g", "h
 const FALLBACK_UNIT_TYPES: Array = ["light", "heavy", "factory"]
 ## Testobjecten staan in rijen van maximaal zoveel naast elkaar.
 const PER_ROW := 5
+const UNIT_ROW_Y := 620.0
+const UNIT_SPACING := 320.0
+## Gebouwen kunnen groot zijn (een HQ is zo'n 3 fabrieken breed), dus meer ruimte.
+const BUILDING_ROW_Y := 860.0
+const BUILDING_SPACING := 460.0
 const PAD_POSITION := Vector2(1640, 330)
 const PAD_SIZE := Vector2(200, 90)
 
@@ -43,20 +49,32 @@ func _ready() -> void:
 	dummy.position = Vector2(960, 330)
 	add_child(dummy)
 
-	var unit_types: Array = _unit_types()
-	for k in unit_types.size():
-		var respawner: TestEnemyRespawner = TestEnemyRespawner.new()
-		respawner.faction = _factions[_index]
-		respawner.unit_type = str(unit_types[k])
-		var row: int = floori(float(k) / PER_ROW)
-		var in_row: int = mini(PER_ROW, unit_types.size() - row * PER_ROW)
-		var col: int = k - row * PER_ROW
-		respawner.position = Vector2(960.0 + (col - (in_row - 1) / 2.0) * 320.0, 640.0 + row * 220.0)
-		add_child(respawner)
-		_respawners.append(respawner)
+	var movers: Array = []
+	var buildings: Array = []
+	for unit_type in _unit_types():
+		if TestEnemyRespawner.is_building_type(str(unit_type)):
+			buildings.append(str(unit_type))
+		else:
+			movers.append(str(unit_type))
+	_place_row(movers, UNIT_ROW_Y, UNIT_SPACING, 220.0)
+	_place_row(buildings, BUILDING_ROW_Y, BUILDING_SPACING, 420.0)
 
 	_build_pad()
 	_update_pad_label()
+
+
+# Zet testobjecten in rijen van PER_ROW naast elkaar, gecentreerd in de kamer.
+func _place_row(types: Array, start_y: float, spacing: float, row_gap: float) -> void:
+	for k in types.size():
+		var respawner: TestEnemyRespawner = TestEnemyRespawner.new()
+		respawner.faction = _factions[_index]
+		respawner.unit_type = str(types[k])
+		var row: int = floori(float(k) / PER_ROW)
+		var in_row: int = mini(PER_ROW, types.size() - row * PER_ROW)
+		var col: int = k - row * PER_ROW
+		respawner.position = Vector2(960.0 + (col - (in_row - 1) / 2.0) * spacing, start_y + row * row_gap)
+		add_child(respawner)
+		_respawners.append(respawner)
 
 
 # Alle vijandtypes uit de SSOT: de rijen met data_type unit_type, zonder "unit_" ervoor.
@@ -92,7 +110,14 @@ func _build_pad() -> void:
 	_pad_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	pad.add_child(_pad_label)
 	pad.body_entered.connect(_on_pad_entered)
+	# De speler botst via zijn Area2D (groep "player"), niet via zijn CharacterBody2D.
+	pad.area_entered.connect(_on_pad_area_entered)
 	add_child(pad)
+
+
+func _on_pad_area_entered(area: Area2D) -> void:
+	if area.is_in_group("player"):
+		_on_pad_entered(area.get_parent())
 
 
 func _on_pad_entered(body: Node2D) -> void:

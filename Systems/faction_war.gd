@@ -10,6 +10,9 @@ extends Node
 ##
 ## Regels:
 ## - A, B en C (en later D-F, G-I) beginnen op door de seed gekozen plekken, 120° uit elkaar.
+##   Bij de start is de wereld al grotendeels gevuld: elke kamer hoort bij de dichtstbijzijnde
+##   startplek, met minder sterkte naar de grens toe (daar ligt het front). Een klein deel blijft
+##   leeg (start_empty_chance); in de onderste factie-ring meer (start_empty_chance_lowest_ring).
 ## - Een factie duwt elke tik een beetje naar de kamers links en rechts, en een klein beetje
 ##   omhoog naar de volgende ring. Nooit omlaag. De polen (eerste en laatste ring) doen niet mee.
 ## - Een lege kamer wordt ingenomen als een factie er lang genoeg tegenaan duwt.
@@ -62,6 +65,9 @@ const DEFAULTS := {
 	"tier_power": 3.0,                       # gevechtskracht per hogere driehoek (×3, ×9)
 	"reoccupy_delay": 120.0,                 # seconden dat een door de speler geleegde kamer leeg blijft
 	"kill_damage": 4.0,                      # sterkte die een factie verliest per gedode vijand
+	"start_empty_chance": 0.03,              # kans dat een kamer bij de start leeg is (0.03 = 3%)
+	"start_empty_chance_lowest_ring": 0.25,  # idem, in de onderste ring met facties (ring 1)
+	"start_edge_strength": 20.0,             # sterkte van een startkamer aan de grens met een andere factie
 }
 
 var active: bool = false
@@ -131,15 +137,53 @@ func start_new_war(seed_value: int = -1) -> void:
 			if _ring_triangle(r) != t:
 				continue
 			var width: int = rooms[r].size()
-			for k in 3:
-				var angle: float = fmod(offset + k * 120.0, 360.0)
-				var index: int = int(floor(angle / 360.0 * width)) % width
-				var room: Dictionary = rooms[r][index]
-				room["owner"] = TRIANGLES[t][k]
-				room["strength"] = get_setting("start_strength")
+			_fill_ring_at_start(r, t, offset, rng)
 
 	active = true
 	print("FACTIEOORLOG: nieuwe oorlog gestart (seed ", war_seed, ").")
+
+
+## Vult één ring bij de start. Elke kamer hoort bij de factie waarvan de startplek het dichtst
+## bij ligt (de drie startplekken staan 120° uit elkaar, vanaf 'offset'). Midden in een gebied is
+## een kamer sterk (start_strength), aan de grens zwak (start_edge_strength): daar begint het front.
+## De startplekken zelf zijn nooit leeg; andere kamers soms (kans uit de SSOT).
+func _fill_ring_at_start(r: int, t: int, offset: float, rng: RandomNumberGenerator) -> void:
+	var width: int = rooms[r].size()
+	var empty_chance: float = get_setting("start_empty_chance")
+	if r == _lowest_faction_ring():
+		empty_chance = get_setting("start_empty_chance_lowest_ring")
+	var start_indices: Array = []
+	for k in 3:
+		var start_angle: float = fmod(offset + k * 120.0, 360.0)
+		start_indices.append(int(floor(start_angle / 360.0 * width)) % width)
+	for i in width:
+		var room_angle: float = (float(i) + 0.5) / float(width) * 360.0
+		var nearest: int = 0
+		var nearest_distance: float = 999.0
+		for k in 3:
+			var start_angle: float = fmod(offset + k * 120.0, 360.0)
+			var distance: float = absf(fposmod(room_angle - start_angle + 180.0, 360.0) - 180.0)
+			if distance < nearest_distance:
+				nearest_distance = distance
+				nearest = k
+		var is_start: bool = start_indices.has(i)
+		# De rng wordt altijd gebruikt, zodat dezelfde seed altijd dezelfde wereld geeft.
+		var roll: float = rng.randf()
+		if not is_start and roll < empty_chance:
+			continue
+		var room: Dictionary = rooms[r][i]
+		room["owner"] = TRIANGLES[t][nearest]
+		# 0 graden van de startplek = volle startsterkte, 60 graden (de grens) = randsterkte.
+		var edge: float = clampf(nearest_distance / 60.0, 0.0, 1.0)
+		room["strength"] = lerpf(get_setting("start_strength"), get_setting("start_edge_strength"), edge)
+
+
+## De onderste ring waar facties wonen (ring 1 bij de huidige indeling).
+func _lowest_faction_ring() -> int:
+	for r in RING_TRIANGLE.size():
+		if int(RING_TRIANGLE[r]) >= 0:
+			return r
+	return -1
 
 
 ## Stopt de oorlog en wist alles (einde van de run).

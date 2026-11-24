@@ -199,3 +199,13 @@ Nog niet aangesloten (staan klaar, worden nergens aangeroepen): `stat_calc.gd`, 
   (erover vliegen) gaat naar de volgende factie (a, b, c, ab, bc, ca, later d-i). Niets in de testkamer wordt bewaard. Terug: omhoog vliegen. Kogels geven hun `damage_type` door via `on_hit_info()`.
 - **Loot-vormen:** los blokje = vierkantje, klompje (`loot_chunk_small`) = cirkel ×1.7, steen (`loot_chunk_large`) =
   5-puntige ster ×2.6. Samenklonteren telt de hoeveelheid, dus klompjes + losse blokjes kunnen samen een steen worden.
+
+- **24 nov (2):** de speler heeft GEEN botsvorm op zijn CharacterBody2D, alleen een Area2D (groep "player").
+  Areas die de speler moeten zien (wapen-pickups, het factie-vlak in de testkamer) luisteren dus naar area_entered.
+  Gebouwen = unit_types met base_speed 0 (factory, tower, hq): die gebruiken de fabriek-scene (basic_spawner.gd,
+  building_type) en hun base_size telt vanaf een fabriek (1 = fabriekgrootte). Bewegende types tellen vanaf de grunt.
+  Factie-oorlog: de wereld is bij de start al grotendeels gevuld (zie _fill_ring_at_start, instellingen
+  start_empty_chance, start_empty_chance_lowest_ring en start_edge_strength in de SSOT-rij world).
+  SSOT: grondstoffenrijen (data_type loot) met resource_kind en rarity_tier; element_1..3 heten in-game Biomass,
+  Circuitry, Crystal (entry_id blijft tot de grondstoffenlijst in de code zit). Nieuwe rijen cryo, arc_coil, thermion,
+  isotope, neutronium_core, void_shard worden nog niet door de code gebruikt.
