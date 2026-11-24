@@ -10,6 +10,15 @@ class_name LootDrops
 ##   loot_drop_type    welke grondstof: een entry_id van een rij met data_type loot (olrite, metal, biomass ...)
 ##   base_loot_splatter en de andere splatter-kolommen: zie loot_splatter.gd
 ##
+## FACTIE-LOOT (bovenop de gewone loot hierboven):
+##   faction_loot_type    op de FACTIE-rij: welke grondstof deze factie laat vallen (biomass ...).
+##                        Hybrides: twee id's met een / ertussen (biomass/circuitry) = loot van beide ouders.
+##   faction_loot_chance  op de TYPE-rij (unit_light ...): kans dat er factie-loot valt, 0 t/m 1.
+##   faction_loot_min     op de TYPE-rij: minimum aantal blokjes als er factie-loot valt.
+##   faction_loot_max     op de TYPE-rij: maximum aantal blokjes.
+##   Een eigen vijand-rij (enemy_organic_light) of een _modifier op de factie-rij werkt ook, net als bij
+##   de gewone loot. Zo valt er bij een grunt weinig en bij een HQ altijd factie-loot.
+##
 ## Gebruik:
 ##   var aantal: int = LootDrops.roll_count("a", "light")
 ##   LootDrops.spawn(get_tree().current_scene, global_position, richting, aantal,
@@ -86,3 +95,26 @@ static func spawn(parent: Node, origin: Vector2, hit_dir: Vector2, count: int, r
 		loot.global_position = origin + Vector2(randf_range(-offset, offset), randf_range(-offset, offset))
 		loot.launch_splatter(hit_dir, settings)
 		parent.add_child(loot)
+
+
+## Factie-loot: met kans faction_loot_chance valt er per grondstof van de factie (hybrides: beide
+## ouders) tussen faction_loot_min en faction_loot_max blokjes. Zie de uitleg bovenaan.
+static func spawn_faction_loot(parent: Node, origin: Vector2, hit_dir: Vector2, faction: String, unit_type: String, settings: Dictionary) -> void:
+	if faction == "" or unit_type == "":
+		return
+	var resources_text: String = Ssot.get_text(EnemyStats.faction_row(faction), "faction_loot_type", "")
+	if resources_text.strip_edges() == "":
+		return
+	var chance: float = clampf(EnemyStats.value(faction, unit_type, "faction_loot_chance", 0.0), 0.0, 1.0)
+	var minimum: int = maxi(0, roundi(EnemyStats.value(faction, unit_type, "faction_loot_min", 1.0)))
+	var maximum: int = maxi(minimum, roundi(EnemyStats.value(faction, unit_type, "faction_loot_max", float(minimum))))
+	for part in resources_text.split("/"):
+		var id: String = LootResources.normalize(part)
+		if id == "" or not LootResources.exists(id):
+			push_warning("LootDrops: onbekende faction_loot_type '%s' bij factie %s." % [part, faction])
+			continue
+		if randf() >= chance:
+			continue
+		var count: int = randi_range(minimum, maximum)
+		spawn(parent, origin, hit_dir, count, id, settings)
+		print("FACTIE-LOOT: ", count, "x ", id, " van ", faction, " ", unit_type)

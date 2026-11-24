@@ -19,6 +19,7 @@ var debug_friction_multiplier: float = 1.0
 var debug_bullet_speed_multiplier: float = 1.0
 var debug_bullet_size_multiplier: float = 1.0
 var debug_range_multiplier: float = 1.0
+var debug_weapon_mode: int = 0  # 0 = SSOT (het wapen bepaalt het), 1 = altijd auto, 2 = altijd semi
 var debug_muzzle_count: int = 0  # 0 = het aantal uit de SSOT (base_muzzle_count)
 
 

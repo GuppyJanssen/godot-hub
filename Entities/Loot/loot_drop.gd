@@ -21,6 +21,7 @@ extends Area2D
 ##   loot_merge_speed      hoe hard een stukje naar zijn buur trekt (pixels per seconde²)
 ##   loot_merge_radius     hoe ver een stukje kijkt voor een buur (pixels)
 ##   loot_merge_circle     straal van de cirkel waarin genoeg moet liggen om samen te klonteren
+##                         tot een klompje. Voor een steen geldt een grotere cirkel (STONE_CIRCLE_FACTOR keer).
 ##   loot_orbit_strength   hoe hard een stukje om zijn buur heen draait (pixels per seconde²)
 ##   loot_cluster_friction afremming tijdens het samendrijven (pixels per seconde²)
 ##
@@ -49,7 +50,9 @@ const SETTLED_SPEED := 25.0        # pas gaan zoeken als de splatter bijna uitge
 const BASE_RADIUS := 6.0           # straal van een los blokje (zonder schaal)
 const CHUNK_SCALE := 1.7           # grootte van een klompje
 const STONE_SCALE := 2.6           # grootte van een steen
-const BOUNCE := 0.35               # hoeveel vaart er overblijft bij een botsing (0 = plof, 1 = stuiter)
+const BOUNCE := 0.35
+## Een steen is veel groter dan een klompje, dus de cirkel voor een steen is zoveel keer groter.
+const STONE_CIRCLE_FACTOR := 1.75               # hoeveel vaart er overblijft bij een botsing (0 = plof, 1 = stuiter)
 const OUTLINE_COLOR := Color(0.0, 0.0, 0.0, 0.9)
 const OUTLINE_WIDTH := 1.3
 
@@ -60,6 +63,7 @@ var _neighbors: Array = []          # loot in de buurt (alle grondstoffen, voor 
 var _orbit_sign: float = 1.0        # draairichting om de buur: +1 of -1
 var _settled: bool = false          # splatter voorbij: nu het samendrijven
 var radius: float = BASE_RADIUS     # straal na schalen, voor botsen
+var _consumed: bool = false         # al opgegaan in een klompje of steen (wordt zo verwijderd)
 
 @onready var color_rect: ColorRect = $ColorRect
 
@@ -269,7 +273,7 @@ static func _setting(setting_name: String) -> float:
 
 ## Doet dit stukje mee met samendrijven en samenklonteren?
 func can_merge() -> bool:
-	return _settled and is_inside_tree() and not is_queued_for_deletion()
+	return _settled and not _consumed and is_inside_tree() and not is_queued_for_deletion()
 
 
 # Alle loot binnen loot_merge_radius. Die lijst gebruiken we voor botsen en voor de dichtste buur.
@@ -324,39 +328,55 @@ func _resolve_collisions() -> void:
 			velocity += normal * into * (1.0 + BOUNCE) * 0.5
 
 
-# Ligt er binnen loot_merge_circle genoeg van deze grondstof voor een klompje of een steen?
-# Dan worden die stukjes samengevoegd. Het stukje met het laagste nummer in de cirkel doet het werk,
-# zodat het maar één keer gebeurt.
+# Ligt er rond dit stukje genoeg van deze grondstof voor een steen (binnen de grote cirkel) of een
+# klompje (binnen loot_merge_circle)? Dan worden de dichtstbijzijnde stukjes samengevoegd, tot er
+# genoeg is. Elk stukje mag dit doen; stukjes die al opgaan in een samenvoeging worden overgeslagen.
 func _try_merge() -> void:
+	if not can_merge():
+		return
 	var sizes: Vector2i = LootResources.chunk_sizes(resource_id)
 	if sizes.x <= 0 and sizes.y <= 0:
 		return
 	var circle: float = _setting("loot_merge_circle")
-	var group: Array = [self]
-	var total: int = amount
+	# Kandidaten: dit stukje en dezelfde grondstof in de buurt, dichtstbij eerst.
+	var candidates: Array = [self]
 	for other in _neighbors:
-		if not is_instance_valid(other) or not other.can_merge() or other.resource_id != resource_id:
-			continue
-		if other.global_position.distance_to(global_position) > circle:
-			continue
-		if other.get_instance_id() < get_instance_id():
-			return  # een ander stukje in deze cirkel is de baas
-		group.append(other)
-		total += other.amount
+		if is_instance_valid(other) and other.can_merge() and other.resource_id == resource_id:
+			candidates.append(other)
+	candidates.sort_custom(func(a, b): return a.global_position.distance_squared_to(global_position) < b.global_position.distance_squared_to(global_position))
 
-	var stones: int = floori(float(total) / sizes.y) if sizes.y > 0 else 0
-	var rest: int = total - stones * sizes.y
-	var chunks: int = floori(float(rest) / sizes.x) if sizes.x > 0 else 0
-	var singles: int = rest - chunks * sizes.x
-	# Alleen samenvoegen als er echt minder stukken uitkomen (anders liggen ze al zo goed als het kan).
-	if stones + chunks == 0 or stones + chunks + singles >= group.size():
+	# Eerst een steen proberen, dan een klompje.
+	for step in [[sizes.y, circle * STONE_CIRCLE_FACTOR], [sizes.x, circle]]:
+		var target: int = step[0]
+		var reach: float = step[1]
+		if target <= 0:
+			continue
+		var group: Array = []
+		var total: int = 0
+		for piece in candidates:
+			if piece.global_position.distance_to(global_position) > reach:
+				break
+			# Een stuk dat al zo groot is als het doel doet niet mee (anders "voegt" een steen zichzelf samen).
+			if piece.amount >= target:
+				continue
+			group.append(piece)
+			total += piece.amount
+			if total >= target:
+				break
+		if total < target or group.size() < 2:
+			continue
+		var stones: int = floori(float(total) / sizes.y) if sizes.y > 0 else 0
+		var rest: int = total - stones * sizes.y
+		var chunks: int = floori(float(rest) / sizes.x) if sizes.x > 0 else 0
+		var singles: int = rest - chunks * sizes.x
+		if stones + chunks + singles >= group.size():
+			continue
+		var center: Vector2 = Vector2.ZERO
+		for piece in group:
+			center += piece.global_position
+		center /= group.size()
+		_recompose(group, center, stones, chunks, singles, sizes)
 		return
-
-	var center: Vector2 = Vector2.ZERO
-	for piece in group:
-		center += piece.global_position
-	center /= group.size()
-	_recompose(group, center, stones, chunks, singles, sizes)
 
 
 # Vervangt de groep door stenen, klompjes en losse blokjes op dezelfde plek.
@@ -373,6 +393,7 @@ func _recompose(group: Array, center: Vector2, stones: int, chunks: int, singles
 	for i in singles:
 		pieces.append(1)
 	for piece in group:
+		piece._consumed = true
 		piece.queue_free()
 	for piece_amount in pieces:
 		var loot: Node = scene.instantiate()

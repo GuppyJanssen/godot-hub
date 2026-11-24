@@ -510,6 +510,9 @@ func _drop_specific_loot(hit_dir: Vector2) -> void:
 	# Oude testvijanden zonder factie houden hun grondstof uit test_body_type.
 	var resource: String = LootDrops.resource_id(faction, unit_type, LootResources.normalize(test_body_type))
 	LootDrops.spawn(get_tree().current_scene, global_position, hit_dir, total_drops, resource, LootDrops.splatter_settings(faction, unit_type))
+	# Factie-loot (biomass, circuitry ...) bovenop de gewone loot. Een opgeblazen kamikaze geeft geen factie-loot.
+	if _loot_factor >= 1.0:
+		LootDrops.spawn_faction_loot(get_tree().current_scene, global_position, hit_dir, faction, unit_type, LootDrops.splatter_settings(faction, unit_type))
 	print("VIJAND DROP: '", name, "' laat ", total_drops, " blokjes vallen.")
 
 

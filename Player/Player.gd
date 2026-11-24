@@ -21,6 +21,9 @@ var current_weapon_stats: Dictionary = {}
 ## Toetsen voor de vier wapenvakken: 1 = boven, 2 = rechts, 3 = onder, 4 = links.
 const WEAPON_SLOT_KEYS: Array = [KEY_1, KEY_2, KEY_3, KEY_4]
 var _weapon_wheel: Node = null
+## Schade en damage type bij tegen een vijand of gebouw aan vliegen (rammen).
+const RAM_DAMAGE := 10
+const RAM_DAMAGE_TYPE := "kinetic"
 ## Afstand tussen twee lopen, in pixels.
 const MUZZLE_SPACING := 14.0
 
@@ -246,6 +249,11 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 ## Na een wissel, een nieuw wapen of een ruil: laad het gekozen wapen en toon het wiel.
+## Laadt de stats van het huidige wapen opnieuw (bijvoorbeeld na een F1-instelling).
+func reload_weapon_stats() -> void:
+	_load_weapon_stats(Game.active_weapon_key)
+
+
 func on_weapons_changed() -> void:
 	var weapon: String = RunState.selected_weapon()
 	if weapon != Game.active_weapon_key:
@@ -278,6 +286,12 @@ func _load_weapon_stats(weapon_key: String) -> void:
 		"bullet_spread": w.spread_degrees,
 		"damage_type": w.damage_type,
 	}
+	# F1 Weapon Mode: 1 = altijd auto, 2 = altijd semi, 0 = wat het wapen in de SSOT heeft.
+	# Staat in Game, zodat het blijft na een kamerwissel of wapenwissel.
+	if Game.debug_weapon_mode == 1:
+		current_weapon_stats["is_full_auto"] = 1.0
+	elif Game.debug_weapon_mode == 2:
+		current_weapon_stats["is_full_auto"] = 0.0
 
 
 # --- SCHIETMOTOR: 100% Uitgelijnd op de SSoT CSV Kolommen ---
@@ -386,7 +400,10 @@ func _on_player_hitbox_body_entered(body: Node2D) -> void:
 		# --- 2. SCHADE AAN DE VIJAND / FABRIEK (Wederkerig!) ---
 		if body.has_method("take_damage"):
 			var hit_direction = (body.global_position - global_position).normalized()
-			body.take_damage(10, true, hit_direction)
+			# Rammen is fysieke schade (kinetic), net als gewone kogels.
+			if body.has_method("on_hit_info"):
+				body.on_hit_info(RAM_DAMAGE, RAM_DAMAGE_TYPE)
+			body.take_damage(RAM_DAMAGE, true, hit_direction)
 			
 		# --- 3. ARCADE JUICE KNOCKBACK ---
 		var knockback_dir = (global_position - body.global_position).normalized()

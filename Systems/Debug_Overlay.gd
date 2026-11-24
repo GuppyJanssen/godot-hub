@@ -87,17 +87,14 @@ func _update_dashboard() -> void:
 	vbox.add_child(seed_label)
 	_refresh_seed_label()
 	
-	var current_auto_raw = 0.0
-	# GECORRIGEERD: We pakken direct de wereldwijde actieve speler!
-	if is_instance_valid(Game) and Game.active_player:
-		current_auto_raw = float(Game.active_player.current_weapon_stats.get("is_full_auto", 0.0))
+	var weapon_mode_names: Array = ["SSOT", "AUTO", "SEMI"]
 
 	_add_dashboard_row("God Mode", "Geen schade/energie", "Toggle: " + ("AAN" if Game.debug_is_invincible else "UIT"), _toggle_invincible)
 	_add_dashboard_row("Refill", "HP, schild, energie", "Alles vol", _refill_player)
 	_add_dashboard_row("Oorlogskaart", "Factie-oorlog", "Kaart: " + ("AAN" if _war_map_visible() else "UIT"), _toggle_war_map)
 	_add_dashboard_row("Oorlog tempo", "Tijd versnellen", "Snelheid: [" + str(FactionWar.debug_time_scale) + "x]", _cycle_war_speed)
 	_add_dashboard_row("One Punch", "Status: Live", "Toggle: " + ("AAN" if Game.debug_damage_multiplier > 1.0 else "UIT"), _toggle_damage)
-	_add_dashboard_row("Weapon Mode", "Stand", "Toggle: [" + ("AUTO" if current_auto_raw > 0.5 else "SEMI") + "]", _toggle_weapon_mode)
+	_add_dashboard_row("Weapon Mode", "Stand", "Modus: [" + weapon_mode_names[clampi(Game.debug_weapon_mode, 0, 2)] + "]", _toggle_weapon_mode)
 	_add_dashboard_row("Mirror Spawn", "Transitielogica", "Modus: [" + ("MIRROR" if Game.debug_use_mirror_spawn else "CENTER") + "]", _toggle_mirror_spawn)
 	
 	_add_dashboard_row("Max Speed", "Multiplier", "Mult: [" + str(Game.debug_max_speed_multiplier) + "x]", _cycle_max_speed)
@@ -227,11 +224,11 @@ func _toggle_damage() -> void:
 	Game.debug_damage_multiplier = 9999.0 if Game.debug_damage_multiplier == 1.0 else 1.0
 	_update_dashboard()
 
+# Wisselt SSOT -> AUTO -> SEMI. Staat in Game, dus blijft na een kamerwissel.
 func _toggle_weapon_mode() -> void:
-	# GECORRIGEERD: Klapt de modus direct om in de wereldwijd geregistreerde speler!
-	if is_instance_valid(Game) and Game.active_player:
-		var current_raw = float(Game.active_player.current_weapon_stats.get("is_full_auto", 0.0))
-		Game.active_player.current_weapon_stats["is_full_auto"] = 1.0 if current_raw < 0.5 else 0.0
+	Game.debug_weapon_mode = (Game.debug_weapon_mode + 1) % 3
+	if is_instance_valid(Game.active_player) and Game.active_player.has_method("reload_weapon_stats"):
+		Game.active_player.reload_weapon_stats()
 	_update_dashboard()
 
 func _cycle_max_speed() -> void: _cycle_multiplier("debug_max_speed_multiplier")
