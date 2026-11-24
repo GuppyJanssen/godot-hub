@@ -39,6 +39,8 @@ const DEFAULT_CHANCE := 0.5
 ## loot_max_pieces_per_drop). Valt er meer, dan komt de rest meteen als klompjes en stenen neer.
 ## De hoeveelheid blijft gelijk; er liggen alleen minder losse stukjes (veel stukjes = framedrops).
 const DEFAULT_MAX_PIECES := 24.0
+## Hoeveel stukjes loot er hooguit tegelijk liggen (SSOT world, loot_room_budget). 0 = geen grens.
+const DEFAULT_ROOM_BUDGET := 150.0
 
 
 ## Hoeveel blokjes er vallen. Zonder factie of type: de standaard hierboven.
@@ -112,6 +114,14 @@ static func spawn(parent: Node, origin: Vector2, hit_dir: Vector2, count: int, r
 static func split_into_pieces(count: int, resource: String) -> Array:
 	var max_pieces: int = maxi(1, roundi(Ssot.get_number("world", "loot_max_pieces_per_drop", DEFAULT_MAX_PIECES)))
 	var sizes: Vector2i = LootResources.chunk_sizes(resource)
+	# Ligt er al veel loot (loot_room_budget), dan valt de hele drop als één stuk neer. Zo blijft het
+	# aantal stukjes (en dus de rekentijd) begrensd, hoe vaak je ook een HQ sloopt.
+	var budget: int = roundi(Ssot.get_number("world", "loot_room_budget", DEFAULT_ROOM_BUDGET))
+	var room_left: int = budget - LootDrop.live_count
+	if budget > 0 and room_left < count:
+		if room_left <= 0 or sizes == Vector2i.ZERO:
+			return [count]
+		max_pieces = mini(max_pieces, room_left)
 	var singles: int = count
 	var chunks: int = 0
 	var stones: int = 0
@@ -132,6 +142,9 @@ static func split_into_pieces(count: int, resource: String) -> Array:
 		pieces.append(sizes.x)
 	for i in singles:
 		pieces.append(1)
+	# Past het nog steeds niet (geen klompjes voor deze grondstof)? Dan één stuk met alles erin.
+	if pieces.size() > max_pieces:
+		return [count]
 	return pieces
 
 

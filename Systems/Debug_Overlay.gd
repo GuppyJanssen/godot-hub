@@ -45,6 +45,8 @@ func _refresh_seed_label() -> void:
 	seed_label.text = "Seed: %d  |  Ring %d, kamer %d\nBezet door: %s  |  Oorlog nu: %s" % [
 		RunState.run_seed, ring, room,
 		_faction_label(pop_owner), _faction_label(war_owner)]
+	# Prestaties: beelden per seconde en hoeveel stukjes loot er liggen (zie loot_room_budget).
+	seed_label.text += "\nFPS: %d  |  Loot-stukjes: %d" % [Engine.get_frames_per_second(), LootDrop.live_count]
 
 
 # "a" -> "a (Organic)", "" -> "leeg".

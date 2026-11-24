@@ -1,4 +1,5 @@
 extends Area2D
+class_name LootDrop
 ## Eén stukje loot op de grond: een los blokje (vierkant), een klompje (cirkel) of een steen (ster).
 ##
 ## WELKE GRONDSTOF: resource_id is een id uit de SSOT (rij met data_type loot: olrite, metal ...).
@@ -38,6 +39,13 @@ extends Area2D
 ##   Een stukje kijkt alleen in de vakjes om zich heen, in plaats van elke keer alle loot langs te
 ##   gaan (dat was N×N en gaf de framedrops). De instellingen en de magneet van de speler worden
 ##   ook één keer per frame uitgerekend en gedeeld (_frame_cache).
+## - SLAPEN: een stukje dat stil ligt (of loot_sleep_after seconden niets bereikt) gaat slapen. Het
+##   beweegt dan niet meer en kijkt maar een paar keer per seconde rond (SLEEP_CHECK): komt er een
+##   nieuw stukje bij, dan wordt het wakker. Bewegende Area2D's zijn duur (de physics-server moet ze
+##   elke keer bijwerken), slapende niet.
+## - Geen physics-botsing met de speler: monitoring en monitorable staan uit. Oppakken gaat via de
+##   afstand (base_pickup_radius). Dat scheelt per stukje een botsvorm die elk frame wordt nagekeken.
+## - live_count telt alle stukjes; LootDrops gebruikt dat voor loot_room_budget.
 ## - Wordt de speler dichtbij genoeg, dan wint de magneet van de speler het altijd.
 
 var resource_id: String = "olrite"
@@ -61,6 +69,7 @@ const MERGE_DEFAULTS := {
 	"loot_chunk_scale": 1.7,           # grootte van een klompje
 	"loot_stone_scale": 2.6,           # grootte van een steen
 	"loot_stone_circle_factor": 1.75,  # cirkel voor een steen = zoveel keer loot_merge_circle
+	"loot_sleep_after": 4.0,           # na zoveel seconden samendrijven zonder resultaat: slapen
 }
 ## De SSOT-rij met de magneet en het oppakken van de speler.
 const PLAYER_ROW := "player_base"
@@ -71,6 +80,12 @@ const OUTLINE_COLOR := Color(0.0, 0.0, 0.0, 0.9)
 const OUTLINE_WIDTH := 1.3
 ## Grootte van een vakje in het gedeelde rooster (pixels). Groter dan de grootste botsing (twee stenen).
 const GRID_CELL := 48.0
+## Slapende stukjes kijken zo vaak rond (seconden). Onder SLEEP_SPEED (pixels/s) ligt een stukje stil.
+const SLEEP_CHECK := 0.3
+const SLEEP_SPEED := 4.0
+
+## Hoeveel stukjes loot er nu bestaan (alle kamers samen; bij een kamerwissel gaat het weer omlaag).
+static var live_count: int = 0
 
 ## Gedeeld door alle stukjes: het rooster en de waarden van dit frame.
 static var _grid: Dictionary = {}          # Vector2i -> Array met stukjes
@@ -94,12 +109,29 @@ var _merge_center: Vector2 = Vector2.ZERO
 var _merge_t: float = 0.0
 var _merge_leader: Node = null
 var _merge_group: Array = []       # alleen bij de leider: wie er meesmelten
+var _asleep: bool = false
+var _sleep_check_timer: float = 0.0
+var _sleep_neighbor_count: int = 0
+var _awake_time: float = 0.0       # seconden samendrijven sinds het neerkomen of wakker worden
+var _quiet_time: float = 0.0       # seconden dat het stukje al (bijna) stil ligt
 var _target_scale: float = 1.0     # de echte grootte; een nieuw stuk groeit hier naartoe         # al opgegaan in een klompje of steen (wordt zo verwijderd)
 
 @onready var color_rect: ColorRect = $ColorRect
 
 
+func _enter_tree() -> void:
+	live_count += 1
+
+
+func _exit_tree() -> void:
+	live_count = maxi(0, live_count - 1)
+
+
 func _ready() -> void:
+	# Geen botsing met de physics-server nodig: oppakken gaat via de afstand (zie de notities).
+	# Uitgesteld, want een stukje kan midden in een physics-stap ontstaan.
+	set_deferred("monitoring", false)
+	set_deferred("monitorable", false)
 	add_to_group("loot")
 	add_to_group("saveable")  # dit stukje wil onthouden worden (zie game_room.gd)
 	_orbit_sign = 1.0 if randf() < 0.5 else -1.0
@@ -186,6 +218,18 @@ func _physics_process(delta: float) -> void:
 		_update_melt(delta)
 		return
 
+	if _asleep:
+		_sleep_check_timer -= delta
+		if _sleep_check_timer > 0.0:
+			return
+		_sleep_check_timer = SLEEP_CHECK
+		_refresh_neighbors()
+		if _neighbors.size() != _sleep_neighbor_count:
+			_wake()
+		else:
+			_try_merge()
+			return
+
 	_neighbor_timer -= delta
 	if _neighbor_timer <= 0.0:
 		_neighbor_timer = NEIGHBOR_REFRESH
@@ -209,6 +253,24 @@ func _physics_process(delta: float) -> void:
 		if _merge_timer <= 0.0:
 			_merge_timer = MERGE_CHECK_SECONDS
 			_try_merge()
+		# Stil, of al lang bezig zonder resultaat: slapen.
+		_awake_time += delta
+		_quiet_time = _quiet_time + delta if velocity.length() < SLEEP_SPEED else 0.0
+		if not _merging and (_quiet_time >= 0.5 or _awake_time >= _setting("loot_sleep_after")):
+			_go_to_sleep()
+
+
+func _go_to_sleep() -> void:
+	_asleep = true
+	velocity = Vector2.ZERO
+	_sleep_neighbor_count = _neighbors.size()
+	_sleep_check_timer = randf() * SLEEP_CHECK  # gespreid over de frames
+
+
+func _wake() -> void:
+	_asleep = false
+	_awake_time = 0.0
+	_quiet_time = 0.0
 
 
 # --- VORM EN KLEUR ---
@@ -496,6 +558,7 @@ func _update_melt(delta: float) -> void:
 		# De leider is weg (bijvoorbeeld opgepakt): gewoon weer los verder.
 		_merging = false
 		_merge_leader = null
+		_wake()
 
 
 # Klaar met smelten: tel wat er nog is (iets kan onderweg opgepakt zijn) en maak het nieuwe stuk.
@@ -516,6 +579,7 @@ func _finish_melt() -> void:
 		for piece in group:
 			piece._merging = false
 			piece._merge_leader = null
+			piece._wake()
 		return
 	_recompose(group, _merge_center, stones, chunks, singles, sizes)
 
