@@ -18,6 +18,10 @@ func get_loaded_meta_progress() -> Resource:
 				var key = "currency_" + str(i)
 				if save_dict.has(key): meta_res.set(key, save_dict[key])
 			if save_dict.has("skills_data"): meta_res.skills_data = save_dict["skills_data"]
+			# JSON geeft getallen terug als float; de seed is een int.
+			if save_dict.has("tree_seed"): meta_res.tree_seed = int(save_dict["tree_seed"])
+			if save_dict.has("discovered_skills") and save_dict["discovered_skills"] is Array:
+				meta_res.discovered_skills = save_dict["discovered_skills"]
 		file.close()
 	return meta_res
 
@@ -31,7 +35,9 @@ func save_meta_progress(meta_resource: Resource) -> void:
 		"currency_1": meta_resource.currency_1, "currency_2": meta_resource.currency_2,
 		"currency_3": meta_resource.currency_3, "currency_4": meta_resource.currency_4,
 		"currency_5": meta_resource.currency_5, "currency_6": meta_resource.currency_6,
-		"skills_data": meta_resource.skills_data
+		"skills_data": meta_resource.skills_data,
+		"tree_seed": meta_resource.tree_seed,
+		"discovered_skills": meta_resource.discovered_skills
 	}
 	var file = FileAccess.open(slot_dir + "meta_data.json", FileAccess.WRITE)
 	if file:

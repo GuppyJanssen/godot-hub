@@ -86,11 +86,17 @@ Nog niet aangesloten (staan klaar, worden nergens aangeroepen): `stat_calc.gd`, 
 - **Sheet opgeschoond (17 nov):** SSoT is ingedeeld in blokken met kopregels (SPELER, PLANETEN, ITEMS, WAPENS, LOOT,
   SKILLS, WERELD, VIJAND-TYPES, FACTIES, VIJAND-OVERRIDES). Kopregels hebben geen entry_id en worden door Ssot overgeslagen.
   Brainstorm-rijen staan in een eigen tabblad (niet in de CSV). Reservekopie: tabblad "SSoT backup 17-11".
-  Skills: 25 rijen, ids gelijk aan de skill_id in SkillTree.tscn (skill_speed, skill_damage, skill_fire_rate, ...).
+  Skills: 25 rijen (skill_speed, skill_damage, skill_fire_rate, ...); de skill tree bouwt zich op uit alle upgrade_skill-rijen.
   Effect PER LEVEL: base_<stat> = vaste bonus, <stat>_modifier = procent (0.01 = +1% per level, +100% op 100).
-  data_type `upgrade_skill` (SkillEffects.SKILL_TYPE). Kosten in fill_costs_per_point als "olrite:5" (SkillSlot leest dit).
+  data_type `upgrade_skill` (SkillEffects.SKILL_TYPE). Kosten in fill_costs_per_point als "olrite:5" (skill_tree.gd leest dit).
   Teksten in de sheet mogen niet met + of - beginnen (Sheets maakt er een formule van).
   Let op: `decay_modifier` is wél een vermenigvuldiger (1 = neutraal), zie skill_decay.gd.
+- **Skill tree (24 nov):** wordt in code opgebouwd (skill_tree.gd + SkillTreeLayout + SkillTreeNode), geen vaste knoppen
+  meer in SkillTree.tscn. Takken kruisen nooit (rechte lijnen; klemt een tak, dan wordt de boom met een afgeleide seed opnieuw gelegd). Stamboom = SSOT `parent_skill_id` (leeg = vaste automatische keuze op skill-id, gelijk in elke save;
+  "root" = het midden, anders de eerste skill). Plek van de takken = `tree_seed` in meta_data.json (per save, bij eerste keer
+  openen gekozen). Nooit gekochte skills = zwart vakje met "?"; gekocht = `discovered_skills` in de save. Te koop als de parent
+  punten heeft. Randkleur = SSOT `skill_kind` (wapen/schip/beweging/loot/tree/overig), tijdelijk FALLBACK_KIND in skill_tree.gd.
+  Verborgen: `skill_menu_visible` = 0. Max level: `fill_levels_amount`.
 - **Vijand-overrides** (sheet rij 21-38, data_type `enemy_override`): `enemy_<factienaam>_<type>`, bijvoorbeeld
   `enemy_organic_light`. De factienaam komt uit de ingame_name van de factie-rij (A = Organic, B = Mech, C = Energy,
   AB = Cyborg); zonder naam werkt de letter (`enemy_bc_light`). Lege cel = type + factie. Light heet in-game "grunt",

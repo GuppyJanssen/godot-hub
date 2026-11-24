@@ -1,24 +1,66 @@
 extends Control
-# BEDIENING: SSoT Skill Tree Manager (Volledig hersteld conform jullie Git-architectuur)
+## Skill tree – een vertakkende boom die vanuit het midden alle kanten op groeit.
+##
+## Hoe het werkt:
+## - De stamboom (wie is de parent) is in elke save gelijk; de plek van de takken verschilt per save.
+##   Zie SkillTreeLayout. De seed daarvoor (tree_seed) wordt bij de eerste keer openen in de save gezet.
+## - Een skill die je nog nooit hebt gekocht is een zwart vakje met "?". Je kunt er wel punten in
+##   zetten als zijn parent punten heeft; dan zie je wat het is (hij komt in discovered_skills).
+## - De rand van een cirkel heeft de kleur van de soort skill (kolom skill_kind in de SSOT).
+## - Linkermuisknop: kopen. Rechtermuisknop slepen: kaart verschuiven. Muiswiel: zoomen. Esc: terug.
+##
+## Ontwikkelaarsnotities:
+## - skills_data in de save houdt de vorm {"level", "currency_type", "loss_per_minute"} (zoals eerst),
+##   zodat verval en het pauzemenu gewoon blijven werken.
+## - Zolang skill_kind nog niet in de sheet staat, gebruikt de code FALLBACK_KIND hieronder.
+
+const TREE_CENTER := Vector2(960, 540)
+const KIND_COLUMN := "skill_kind"
+const MAX_LEVEL_COLUMN := "fill_levels_amount"
+const DEFAULT_MAX_LEVEL := 100
+
+## Kleur per soort skill (de rand van de cirkel).
+const KIND_COLORS := {
+	"wapen": Color(0.91, 0.33, 0.23),
+	"schip": Color(0.23, 0.61, 0.91),
+	"beweging": Color(0.31, 0.82, 0.42),
+	"loot": Color(0.91, 0.76, 0.23),
+	"tree": Color(0.66, 0.42, 0.91),
+	"overig": Color(0.6, 0.6, 0.6),
+}
+## Tijdelijk: soort per skill zolang de kolom skill_kind in de sheet nog leeg is.
+const FALLBACK_KIND := {
+	"skill_fire_rate": "wapen", "skill_damage": "wapen", "skill_shot_speed": "wapen",
+	"skill_range": "wapen", "skill_idk": "wapen", "skill_burst": "wapen", "skill_pierce": "wapen",
+	"skill_bounce": "wapen", "skill_precision": "wapen", "skill_knockback": "wapen",
+	"skill_explosion": "wapen",
+	"skill_shield": "schip", "skill_shield_regen": "schip", "skill_max_health": "schip",
+	"skill_health_regen": "schip", "skill_energy": "schip",
+	"skill_speed": "beweging", "skill_handling": "beweging",
+	"skill_loot_magnet": "loot", "skill_pickup": "loot",
+	"skill_jump": "tree", "skill_vision": "tree", "skill_back_vision": "tree",
+}
+## Valuta in de volgorde van MetaProgress (0 = currency_1 = olrite).
+const CURRENCIES := ["olrite", "metal", "keepium", "element_1", "element_2", "element_3"]
 
 var current_meta: MetaProgress = null
-
-# Bepaalt hoeveel levels er per klik worden gekocht (1 of 10)
+## Hoeveel levels er per klik worden gekocht.
 var buy_amount: int = 1
 
-# --- CAMERA & CONTAINERS ---
+var _parents: Dictionary = {}
+var _nodes: Dictionary = {}        # skill_id -> SkillTreeNode
+var _lines: Dictionary = {}        # skill_id -> Line2D (van parent naar deze skill)
+var _canvas: Node2D = null
+var _hovered_id: String = ""
+
 @onready var tree_camera: Camera2D = $TreeCamera
-@onready var skill_slots_container: Node = $Skill_Slots
-@onready var skill_lines_container: Node = $Skill_Lines
 @onready var back_button: Button = find_child("back_to_main_menu", true, false) as Button
-#skill pop up info
 @onready var skill_popup: PanelContainer = find_child("SkillPopup", true, false) as PanelContainer
 @onready var popup_title: Label = find_child("PopupTitle", true, false) as Label
 @onready var popup_description: Label = find_child("PopupDescription", true, false) as Label
 
-
-# --- CAMERA ZOOM & PAN INSTELLINGEN ---
-var min_zoom: float = 0.5
+# --- CAMERA ---
+var min_zoom: float = 0.35
 var max_zoom: float = 2.0
 var zoom_speed: float = 0.1
 var is_dragging: bool = false
@@ -26,339 +68,296 @@ var is_dragging: bool = false
 
 func _ready() -> void:
 	get_viewport().gui_release_focus()
-	
-	# Laad de meta-progressie in via het SaveSystem
-	var save_system = load("res://Systems/SaveSystem.gd").new()
-	if save_system and save_system.has_method("get_loaded_meta_progress"):
-		current_meta = save_system.get_loaded_meta_progress()
-		
-	if not current_meta:
-		current_meta = MetaProgress.new()
-	
-	setup_slot_anchors()
-	
-	# Centreer de camera netjes in het midden bij opstarten
+	current_meta = _load_meta()
+	_ensure_tree_seed()
+	_mark_bought_as_discovered()
+
 	if is_instance_valid(tree_camera):
-		tree_camera.global_position = Vector2(960, 540)
-	
-	# Handmatige signaalkoppeling voor de terugknop
-	if is_instance_valid(back_button):
-		if not back_button.pressed.is_connected(_on_back_to_main_menu_pressed):
-			back_button.pressed.connect(_on_back_to_main_menu_pressed)
-	
-	# Dynamische signaalkoppeling voor de klik-knoppen van álle slots in de map
-	# Dynamische signaalkoppeling voor de klik- EN hover-knoppen van álle slots
-	if is_instance_valid(skill_slots_container):
-		for slot in skill_slots_container.get_children():
-			var button = slot.find_child("*Button*", true, false) as Button
-			var bar = slot.find_child("*Bar*", true, false)
-			if bar: bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			
-			if button:
-				var s_id = slot.skill_id if "skill_id" in slot else slot.name
-				
-				# Bestaande klik-koppeling
-				if not button.pressed.is_connected(_on_any_skill_button_pressed):
-					button.pressed.connect(_on_any_skill_button_pressed.bind(s_id))
-				
-				# NIEUW: Koppel mouse_entered en mouse_exited voor het popup-scherm!
-				if not button.mouse_entered.is_connected(_on_skill_button_hover_entered):
-					button.mouse_entered.connect(_on_skill_button_hover_entered.bind(s_id))
-				if not button.mouse_exited.is_connected(_on_skill_button_hover_exited):
-					button.mouse_exited.connect(_on_skill_button_hover_exited)
-				
-	await get_tree().process_frame
+		tree_camera.global_position = TREE_CENTER
+	if is_instance_valid(back_button) and not back_button.pressed.is_connected(_on_back_to_main_menu_pressed):
+		back_button.pressed.connect(_on_back_to_main_menu_pressed)
+
+	_build_tree()
 	update_skill_tree_visuals()
 
+
+# =========================================================================
+# --- OPBOUWEN ---
+# =========================================================================
+func _build_tree() -> void:
+	_canvas = Node2D.new()
+	_canvas.name = "TreeCanvas"
+	add_child(_canvas)
+	_canvas.global_position = TREE_CENTER
+
+	var ids: Array = SkillTreeLayout.skill_ids()
+	if ids.is_empty():
+		push_warning("SKILL TREE: geen skills (data_type upgrade_skill) in de SSOT gevonden.")
+		return
+	_parents = SkillTreeLayout.build_parents(ids)
+	var positions: Dictionary = SkillTreeLayout.build_positions(_parents, current_meta.tree_seed)
+
+	# Eerst de lijnen, zodat ze achter de cirkels liggen.
+	var lines_layer := Node2D.new()
+	lines_layer.name = "Lines"
+	_canvas.add_child(lines_layer)
+	for skill_id in _parents:
+		var parent_id: String = _parents[skill_id]
+		if parent_id == "" or not positions.has(skill_id) or not positions.has(parent_id):
+			continue
+		var line := Line2D.new()
+		line.width = 3.0
+		line.antialiased = true
+		line.points = _line_points(positions[parent_id], positions[skill_id])
+		lines_layer.add_child(line)
+		_lines[skill_id] = line
+
+	for skill_id in ids:
+		if not positions.has(skill_id):
+			continue
+		var node := SkillTreeNode.new()
+		node.name = skill_id
+		node.position = positions[skill_id]
+		node.setup(skill_id, Ssot.get_text(skill_id, "ingame_name", skill_id), _kind_color(skill_id))
+		_canvas.add_child(node)
+		_nodes[skill_id] = node
+
+
+## Rechte lijn van parent naar kind. Recht, zodat de controle op kruisen in SkillTreeLayout klopt.
+func _line_points(from: Vector2, to: Vector2) -> PackedVector2Array:
+	return PackedVector2Array([from, to])
+
+
+func _kind_color(skill_id: String) -> Color:
+	var kind: String = Ssot.get_text(skill_id, KIND_COLUMN, "").strip_edges().to_lower()
+	if kind == "":
+		kind = FALLBACK_KIND.get(skill_id, "overig")
+	return KIND_COLORS.get(kind, KIND_COLORS["overig"])
+
+
+# =========================================================================
+# --- ZICHTBAARHEID EN STAAT ---
+# =========================================================================
+func update_skill_tree_visuals() -> void:
+	if not current_meta:
+		return
+	var vision_range: int = 1
+	if _level_of("skill_vision") > 0:
+		vision_range += maxi(Ssot.get_int("skill_vision", "tree_view_distance", 1), 0)
+
+	for skill_id in _nodes:
+		var node: SkillTreeNode = _nodes[skill_id]
+		var parent_id: String = _parents.get(skill_id, "")
+		var is_root: bool = parent_id == ""
+		var discovered: bool = is_root or _is_discovered(skill_id)
+		var visible_now: bool = discovered or _ancestor_discovered_within(skill_id, vision_range)
+		var buyable: bool = is_root or _level_of(parent_id) > 0
+		node.visible = visible_now
+		node.set_state(_level_of(skill_id), _max_level(skill_id), discovered, buyable)
+
+		if _lines.has(skill_id):
+			var line: Line2D = _lines[skill_id]
+			var parent_visible: bool = _nodes.has(parent_id) and _nodes[parent_id].visible
+			line.visible = visible_now and parent_visible
+			line.default_color = node.kind_color.darkened(0.2) if discovered else Color(0.35, 0.35, 0.38, 0.8)
+
+
+## Is een voorouder binnen 'steps' stappen ooit gekocht? Dan zie je deze skill als zwart vakje.
+func _ancestor_discovered_within(skill_id: String, steps: int) -> bool:
+	var current: String = _parents.get(skill_id, "")
+	var step: int = 1
+	while current != "" and step <= steps:
+		if _parents.get(current, "") == "" or _is_discovered(current):
+			return true
+		current = _parents.get(current, "")
+		step += 1
+	return false
+
+
+func _is_discovered(skill_id: String) -> bool:
+	return current_meta.discovered_skills.has(skill_id)
+
+
+func _level_of(skill_id: String) -> int:
+	if skill_id == "" or not current_meta.skills_data.has(skill_id):
+		return 0
+	var data = current_meta.skills_data[skill_id]
+	return int(data["level"]) if data is Dictionary else int(data)
+
+
+func _max_level(skill_id: String) -> int:
+	return Ssot.get_int(skill_id, MAX_LEVEL_COLUMN, DEFAULT_MAX_LEVEL)
+
+
+# =========================================================================
+# --- INVOER: KOPEN, HOVER, CAMERA ---
+# =========================================================================
 func _process(_delta: float) -> void:
-	# REALTIME POPUP MUIS-TRACKING
+	var under: String = _skill_under_mouse()
+	if under != _hovered_id:
+		if _nodes.has(_hovered_id):
+			_nodes[_hovered_id].set_hovered(false)
+		_hovered_id = under
+		if _nodes.has(_hovered_id):
+			_nodes[_hovered_id].set_hovered(true)
+		_update_popup()
 	if is_instance_valid(skill_popup) and skill_popup.visible:
-		var mouse_pos = get_global_mouse_position()
-		
-		# We zetten hem op een vaste, comfortabele afstand rechtsonder de cursor (X: 25, Y: 25)
-		# Doordat het vak nu maximaal 200 breed is en wrapt, valt er niks meer buiten beeld!
-		skill_popup.global_position = mouse_pos + Vector2(25, 25)
+		# De popup zit in een CanvasLayer, dus schermcoördinaten (niet die van de camera).
+		skill_popup.position = get_viewport().get_mouse_position() + Vector2(25, 25)
 
 
-func setup_slot_anchors() -> void:
-	pass
+func _skill_under_mouse() -> String:
+	var mouse: Vector2 = get_global_mouse_position()
+	for skill_id in _nodes:
+		var node: SkillTreeNode = _nodes[skill_id]
+		if node.visible and node.contains_point(mouse):
+			return skill_id
+	return ""
 
 
-# =========================================================================
-# --- INTERACTIEVE CAMERA BESTURING (ZOOM & PAN VIA RECHTERMUISKNOP) ---
-# =========================================================================
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		var skill_id: String = _skill_under_mouse()
+		if skill_id != "":
+			_try_buy(skill_id)
+			get_viewport().set_input_as_handled()
+
+
 func _input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.keycode == KEY_ESCAPE):
+	if event.is_action_pressed("ui_cancel") or (event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE):
 		_on_back_to_main_menu_pressed()
 		return
-
-	# 1. SLEEP DE KAART MET DE RECHTERMUISKNOP
+	if not is_instance_valid(tree_camera):
+		return
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
 		is_dragging = event.pressed
-			
-	if event is InputEventMouseMotion and is_dragging and is_instance_valid(tree_camera):
-		# GECORRIGEERD: We delen door de float .x om vector-crashes te voorkomen!
+	if event is InputEventMouseMotion and is_dragging:
 		tree_camera.global_position -= event.relative / tree_camera.zoom.x
-		
-	# 2. ZOOM IN EN UIT MET HET MUISWIEL
 	if event is InputEventMouseButton and event.is_pressed():
-		var current_zoom = tree_camera.zoom.x
+		var current_zoom: float = tree_camera.zoom.x
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			current_zoom = clamp(current_zoom + zoom_speed, min_zoom, max_zoom)
+			current_zoom = clampf(current_zoom + zoom_speed, min_zoom, max_zoom)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			current_zoom = clamp(current_zoom - zoom_speed, min_zoom, max_zoom)
+			current_zoom = clampf(current_zoom - zoom_speed, min_zoom, max_zoom)
 		tree_camera.zoom = Vector2(current_zoom, current_zoom)
 
 
-# =========================================================================
-# --- JULLIE ORIGINELE DUAL-MODUS KOOP EN SPENDERINGS AFHANDELING ---
-# =========================================================================
-func _on_any_skill_button_pressed(skill_id: String) -> void:
-	if not current_meta or not is_instance_valid(skill_slots_container): return
-	
-	# Zoek het visuele slot op basis van de skill_id property
-	var slot_node: Node = null
-	for child in skill_slots_container.get_children():
-		if "skill_id" in child and child.skill_id == skill_id:
-			slot_node = child
-			break
-			
-	if not slot_node: return
-	
-	# Haal de sub-dictionary veilig op conform de goudstandaard (0-indexed valuta)
-	var current_data = current_meta.skills_data.get(skill_id, {"level": 0, "currency_type": 0})
-	var current_level = int(current_data["level"])
-	
-	if current_level >= 100: return
-	
-	# Haal de live variabelen op uit de node (gevuld vanuit de Master CSV)
-	var cost: int = slot_node.cost_per_click if "cost_per_click" in slot_node else 5
-	var c_type: int = slot_node.currency_type if "currency_type" in slot_node else 0
-	
-	# Bepaal de bulk-afname op basis van buy_amount (+1 of +10)
-	var actual_buy_qty = buy_amount
-	if current_level + actual_buy_qty > 100:
-		actual_buy_qty = 100 - current_level
-	if actual_buy_qty <= 0: return
-	
-	var total_bulk_cost = cost * actual_buy_qty
-	var can_afford: bool = false
-	
-	# SSoT INTEGRATIE: Trek de kosten type-veilig af op basis van Godot enums (0 = currency_1)
-	if c_type == 0 and current_meta.currency_1 >= total_bulk_cost:
-		current_meta.currency_1 -= total_bulk_cost
-		can_afford = true
-	elif c_type == 1 and current_meta.currency_2 >= total_bulk_cost:
-		current_meta.currency_2 -= total_bulk_cost
-		can_afford = true
-	elif c_type == 2 and current_meta.currency_3 >= total_bulk_cost:
-		current_meta.currency_3 -= total_bulk_cost
-		can_afford = true
-	elif c_type == 3 and current_meta.currency_4 >= total_bulk_cost:
-		current_meta.currency_4 -= total_bulk_cost
-		can_afford = true
-	elif c_type == 4 and current_meta.currency_5 >= total_bulk_cost:
-		current_meta.currency_5 -= total_bulk_cost
-		can_afford = true
-	elif c_type == 5 and current_meta.currency_6 >= total_bulk_cost:
-		current_meta.currency_6 -= total_bulk_cost
-		can_afford = true
-		
-	if can_afford:
-		# Dupliceer de dictionary om Godot te dwingen de nested data-update op te slaan
-		var updated_slot_data = current_meta.skills_data.get(skill_id, {"level": 0, "currency_type": c_type}).duplicate()
-		updated_slot_data["level"] = current_level + actual_buy_qty
-		current_meta.skills_data[skill_id] = updated_slot_data
-		
-		print("SKILL TREE: Succesvol gekocht! ", skill_id, " level is nu: ", current_meta.skills_data[skill_id]["level"])
-		
-		# Sla de progressie direct op
-		var save_system = load("res://Systems/SaveSystem.gd").new()
-		if save_system and save_system.has_method("save_meta_progress"):
-			save_system.save_meta_progress(current_meta)
-			
-		# Sync ook de lokale runtime variabele op het slot zelf
-		if "current_level" in slot_node:
-			slot_node.current_level = current_meta.skills_data[skill_id]["level"]
-			
-		update_skill_tree_visuals()
+func _try_buy(skill_id: String) -> void:
+	var node: SkillTreeNode = _nodes.get(skill_id)
+	if node == null or not node.buyable:
+		print("SKILL TREE: ", skill_id, " is nog niet te koop (de parent heeft nog geen punten).")
+		return
+	var current_level: int = _level_of(skill_id)
+	var max_level: int = _max_level(skill_id)
+	var qty: int = mini(buy_amount, max_level - current_level)
+	if qty <= 0:
+		return
+	var cost: Vector2i = _cost(skill_id)   # x = valuta-index, y = prijs per level
+	var total: int = cost.y * qty
+	var field: String = "currency_" + str(cost.x + 1)
+	if int(current_meta.get(field)) < total:
+		print("SKILL TREE: onvoldoende ", CURRENCIES[cost.x], " voor ", skill_id, " (kosten: ", total, ")")
+		return
+	current_meta.set(field, int(current_meta.get(field)) - total)
+
+	var data: Dictionary = {"level": 0, "currency_type": cost.x, "loss_per_minute": _loss_per_minute(skill_id)}
+	var old = current_meta.skills_data.get(skill_id)
+	if old is Dictionary:
+		data = old.duplicate()
+	data["level"] = current_level + qty
+	data["currency_type"] = cost.x
+	data["loss_per_minute"] = _loss_per_minute(skill_id)
+	current_meta.skills_data[skill_id] = data
+	if not current_meta.discovered_skills.has(skill_id):
+		current_meta.discovered_skills.append(skill_id)
+		print("SKILL TREE: ontdekt: ", skill_id)
+
+	_save_meta()
+	update_skill_tree_visuals()
+	_update_popup()
+
+
+## Prijs uit de SSOT-kolom fill_costs_per_point ("olrite:5"). Standaard 5 olrite.
+func _cost(skill_id: String) -> Vector2i:
+	var currency: int = 0
+	var price: int = 5
+	var text: String = Ssot.get_text(skill_id, "fill_costs_per_point", "")
+	if ":" in text:
+		var parts: PackedStringArray = text.split(":")
+		var index: int = CURRENCIES.find(parts[0].strip_edges().to_lower())
+		if index >= 0:
+			currency = index
+		price = int(parts[1].strip_edges().to_float())
+	elif text.is_valid_float():
+		price = int(text.to_float())
+	return Vector2i(currency, maxi(price, 0))
+
+
+func _loss_per_minute(skill_id: String) -> int:
+	return int(Ssot.get_number(skill_id, "base_decay_per_minute",
+			Ssot.get_number("player_base", "base_decay_per_minute", 1.0)))
+
+
+func _update_popup() -> void:
+	if not is_instance_valid(skill_popup):
+		return
+	if not _nodes.has(_hovered_id):
+		skill_popup.visible = false
+		return
+	var node: SkillTreeNode = _nodes[_hovered_id]
+	var cost: Vector2i = _cost(_hovered_id)
+	var cost_text: String = "Kosten: %d %s per level" % [cost.y, CURRENCIES[cost.x]]
+	var title: String
+	var info: String
+	if node.discovered:
+		title = "%s (%d/%d)" % [node.display_name, node.level, node.max_level]
+		info = Ssot.get_text(_hovered_id, "skill_pop_up_info", Ssot.get_text(_hovered_id, "description", ""))
 	else:
-		print("SKILL TREE: Onvoldoende saldo voor ", skill_id, " (Kosten: ", total_bulk_cost, ")")
-
-
-# =========================================================================
-# --- VISUELE SYNC EN TRAP-BOCHTEN DRAW UPDATE LOOP (MET VERRE BLIK) ---
-# =========================================================================
-func update_skill_tree_visuals() -> void:
-	if not current_meta or not is_instance_valid(skill_slots_container): return
-	
-	# Wis alle oude haakse verbindingslijnen voor de herberekening
-	if is_instance_valid(skill_lines_container):
-		for line in skill_lines_container.get_children():
-			if line is Line2D:
-				line.clear_points()
-				line.visible = false
-				
-	var line_index: int = 0
-	var all_slots = skill_slots_container.get_children()
-	
-	# 1. Database controle & initialisatie via de Inspector/CSV-waarden
-	for slot in all_slots:
-		var s_id = slot.skill_id if "skill_id" in slot else slot.name
-		var c_type: int = slot.currency_type if "currency_type" in slot else 0
-		var loss_rate: int = slot.loss_per_minute if "loss_per_minute" in slot else 1
-			
-		if not current_meta.skills_data.has(s_id) or not (current_meta.skills_data[s_id] is Dictionary):
-			current_meta.skills_data[s_id] = {
-				"level": 0, 
-				"currency_type": c_type,
-				"loss_per_minute": loss_rate
-			}
-		else:
-			current_meta.skills_data[s_id]["currency_type"] = c_type
-			current_meta.skills_data[s_id]["loss_per_minute"] = loss_rate
-
-	# 2. BEPAAL DE REIKWIJDTE VAN JOUW VISUELE KIJKER (DYNAMISCH)
-	var vision_range: int = 1
-	if current_meta.skills_data.has("skill_vision"):
-		var vision_data = current_meta.skills_data["skill_vision"]
-		var vision_level = int(vision_data["level"]) if vision_data is Dictionary else int(vision_data)
-		if vision_level > 0:
-			vision_range = 2
-
-	# 3. Universele check van de stamboom (Zorgt voor zichtbaarheids-resets en lijnen)
-	for slot in all_slots:
-		var s_id = slot.skill_id if "skill_id" in slot else slot.name
-		var bar = slot.find_child("*Bar*", true, false) as ProgressBar
-		var button = slot.find_child("*Button*", true, false) as Button
-		var level = int(current_meta.skills_data[s_id]["level"])
-		
-		# Check of de overkoepelende ouders belicht zijn binnen onze range
-		var is_visible_by_fog: bool = false
-		var parent_node = slot.get("parent_skill_slot") if "parent_skill_slot" in slot else null
-		
-		if parent_node == null:
-			is_visible_by_fog = true
-		else:
-			var current_check_parent = parent_node
-			var steps_away: int = 1
-			
-			while current_check_parent != null and steps_away <= vision_range:
-				var p_id = current_check_parent.skill_id if "skill_id" in current_check_parent else current_check_parent.name
-				var p_level: int = 0
-				if current_meta.skills_data.has(p_id):
-					var p_data = current_meta.skills_data[p_id]
-					p_level = int(p_data["level"]) if p_data is Dictionary else int(p_data)
-				
-				if p_level > 0:
-					is_visible_by_fog = true
-					break
-				
-				current_check_parent = current_check_parent.get("parent_skill_slot") if "parent_skill_slot" in current_check_parent else null
-				steps_away += 1
-		
-		# 4. PAS DE ZICHTBAARHEID EN DE TRAK-LIJNEN TOE
-		if is_visible_by_fog:
-			slot.visible = true
-			if button: button.disabled = false
-			update_single_skill_visual(bar, button, level, s_id)
-			
-			if is_instance_valid(parent_node) and parent_node.visible:
-				if is_instance_valid(skill_lines_container) and line_index < skill_lines_container.get_child_count():
-					draw_line_between(skill_lines_container.get_child(line_index), parent_node, slot)
-					line_index += 1
-		else:
-			slot.visible = false
-			if button: button.disabled = true
-
-
-# --- VISUELE UPGRADE INKLEURING CONFORM JULLIE ARCHITECTUUR ---
-func update_single_skill_visual(bar: ProgressBar, button: Button, level: int, slot_name: String) -> void:
-	if not is_instance_valid(bar) or not is_instance_valid(button): return
-	bar.value = level
-	
-	var bg = StyleBoxFlat.new()
-	bg.bg_color = Color(0.15, 0.15, 0.15, 1.0)
-	bg.set_border_width_all(0)
-	bar.add_theme_stylebox_override("background", bg)
-	
-	var sb = StyleBoxFlat.new()
-	sb.set_border_width_all(0)
-	sb.anti_aliasing = false
-	
-	if level <= 0:
-		sb.bg_color = Color.RED
-		button.text = slot_name + " (0/100)"
-	elif level <= 25:
-		sb.bg_color = Color.ORANGE
-		button.text = slot_name + " (" + str(level) + "/100)"
-	elif level <= 50:
-		sb.bg_color = Color.YELLOW
-		button.text = slot_name + " (" + str(level) + "/100)"
-	elif level <= 75:
-		sb.bg_color = Color.GREEN
-		button.text = slot_name + " (" + str(level) + "/100)"
-	else:
-		sb.bg_color = Color.DODGER_BLUE
-		button.text = slot_name + " (" + str(level) + "/100)"
-		
-	bar.add_theme_stylebox_override("fill", sb)
-
-
-# --- JULLIE RECHTSTREEKSE HAAKSE Z-VORM TRAP-BOCHTEN BEREKENING (HERSTELD) ---
-func draw_line_between(line: Line2D, parent_slot: Control, child_slot: Control) -> void:
-	if not line or not parent_slot or not child_slot: return
-	
-	var p_bar = parent_slot.find_child("*Bar*", true, false)
-	var c_bar = child_slot.find_child("*Bar*", true, false)
-	
-	if p_bar and c_bar:
-		line.clear_points()
-		line.visible = true
-		line.default_color = Color.GOLD
-		line.z_index = -1
-		
-		var start_pos: Vector2 = line.to_local(p_bar.global_position + Vector2(p_bar.size.x / 2, p_bar.size.y - 3))
-		var end_pos: Vector2 = line.to_local(c_bar.global_position + Vector2(c_bar.size.x / 2, 3))
-		
-		var mid_y: float = start_pos.y + ((end_pos.y - start_pos.y) / 2)
-		var knik_1: Vector2 = Vector2(start_pos.x, mid_y)
-		var knik_2: Vector2 = Vector2(end_pos.x, mid_y)
-		
-		line.add_point(start_pos)
-		line.add_point(knik_1)
-		line.add_point(knik_2)
-		line.add_point(end_pos)
-
-# --- POPUP AFHANDELING: Muis schuift op de knop ---
-func _on_skill_button_hover_entered(skill_id: String) -> void:
-	if not is_instance_valid(skill_popup) or not current_meta: return
-	
-	# Haal de live data op uit de SSOT (als de ID bestaat)
-	var title_text = skill_id.capitalize()
-	var info_text = "Placeholder: Extra informatie over deze upgrade komt dadelijk uit de CSV!"
-	
-	# Uitleg uit de SSOT (kolom skill_pop_up_info).
-	if Ssot.has_value(skill_id, "skill_pop_up_info"):
-		info_text = Ssot.get_text(skill_id, "skill_pop_up_info")
-			
-	# Vul de labels op je monitor
-	if is_instance_valid(popup_title): popup_title.text = title_text
-	if is_instance_valid(popup_description): popup_description.text = info_text
-	
-	# Toon het venster
+		title = "Onbekende skill"
+		info = "Zet er een punt in om te ontdekken wat dit is."
+	if not node.buyable:
+		info += "\nNog niet te koop: zet eerst punten in de skill waar deze aan vastzit."
+	if is_instance_valid(popup_title):
+		popup_title.text = title
+	if is_instance_valid(popup_description):
+		popup_description.text = info + "\n" + cost_text
 	skill_popup.visible = true
 
 
-# --- POPUP AFHANDELING: Muis verlaat de knop ---
-func _on_skill_button_hover_exited() -> void:
-	if is_instance_valid(skill_popup):
-		skill_popup.visible = false
+# =========================================================================
+# --- OPSLAAN ---
+# =========================================================================
+func _load_meta() -> MetaProgress:
+	var save_system = load("res://Systems/SaveSystem.gd").new()
+	var meta: MetaProgress = save_system.get_loaded_meta_progress() as MetaProgress
+	save_system.free()
+	return meta if meta else MetaProgress.new()
+
+
+func _save_meta() -> void:
+	var save_system = load("res://Systems/SaveSystem.gd").new()
+	save_system.save_meta_progress(current_meta)
+	save_system.free()
+
+
+## Nieuwe save (of een oude save van voor deze boom): kies één keer een seed en sla die meteen op,
+## zodat de boom bij elke keer openen hetzelfde blijft.
+func _ensure_tree_seed() -> void:
+	if current_meta.tree_seed != 0:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	current_meta.tree_seed = rng.randi_range(1, 2147483646)
+	_save_meta()
+
+
+## Skills met punten uit een oudere save tellen als ontdekt.
+func _mark_bought_as_discovered() -> void:
+	for skill_id in current_meta.skills_data:
+		if _level_of(skill_id) > 0 and not current_meta.discovered_skills.has(skill_id):
+			current_meta.discovered_skills.append(skill_id)
 
 
 func _on_back_to_main_menu_pressed() -> void:
-	print("SKILL TREE: Terugkeren naar het hoofdmenu...")
-	var save_system = load("res://Systems/SaveSystem.gd").new()
-	if save_system and current_meta:
-		save_system.save_meta_progress(current_meta)
+	_save_meta()
 	get_tree().change_scene_to_file("res://Systems/main_menu.tscn")
