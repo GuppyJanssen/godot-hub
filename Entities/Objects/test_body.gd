@@ -91,6 +91,13 @@ var _investigate_target: Vector2 = Vector2.ZERO
 var _exploding: bool = false
 var _loot_factor: float = 1.0
 
+# --- WAPEN (commando's, zie EnemyGun) ---
+## Het wapen van deze vijand (entry_id uit de SSOT). Leeg = geen wapen.
+var weapon_id: String = ""
+var _weapon: SsotWeapon = null
+var _fire_cooldown: float = 0.0
+var _weapon_label: Label = null
+
 # Levens van de oude testvijanden zonder factie (test_body_type 1 en 2, uit de oude Master-CSV).
 const LEGACY_TEST_HEALTH := {1: 50, 2: 80}
 
@@ -160,6 +167,7 @@ func _load_stats() -> void:
 				faces_player = value.to_lower() in ["true", "waar", "ja", "yes"]
 	
 	_load_behavior()
+	_load_weapon()
 	
 	# De kleur van de factie over de hele vijand. De witte flits bij een treffer zit op de
 	# sprite zelf, dus die blijft gewoon werken.
@@ -185,6 +193,42 @@ func _load_behavior() -> void:
 	explosion_radius = EnemyStats.value(faction, unit_type, "explosion_radius", explosion_radius)
 
 
+# Geeft dit type een wapen uit de pool van de factie (SSOT: uses_weapon, weapon_pool).
+# Heeft hij er al een (teruggezet uit de save), dan blijft dat wapen.
+func _load_weapon() -> void:
+	if weapon_id == "" and EnemyGun.uses_weapon(faction, unit_type):
+		weapon_id = EnemyGun.pick_weapon(faction)
+	_weapon = SsotWeapon.from_ssot(weapon_id, false) if weapon_id != "" else null
+	if weapon_id == "":
+		return
+	# Met een wapen blaas je jezelf niet op: een gewapende vijand van een kamikaze-factie
+	# (bijvoorbeeld een Organic-commando) houdt afstand en schiet.
+	if behavior_agro == "kamikaze":
+		behavior_agro = "keep_distance"
+	# Klein naambordje, zodat je ziet welk wapen hij heeft (en straks kunt oprapen).
+	if _weapon_label == null:
+		_weapon_label = Label.new()
+		_weapon_label.position = Vector2(-60, -body_radius - 30)
+		_weapon_label.size = Vector2(120, 20)
+		_weapon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_weapon_label.add_theme_font_size_override("font_size", 12)
+		# Los van de draaiing van de vijand (anders draait de tekst mee); positie in _process.
+		_weapon_label.top_level = true
+		add_child(_weapon_label)
+	_weapon_label.text = Ssot.get_text(weapon_id, "ingame_name", weapon_id)
+
+
+# Schiet op de speler als hij een wapen heeft, de speler ziet en binnen bereik is.
+func _try_shoot(player: Node2D, distance: float, delta: float) -> void:
+	if _weapon == null:
+		return
+	_fire_cooldown -= delta
+	if _fire_cooldown > 0.0 or distance > _weapon.weapon_range or not _can_see(player):
+		return
+	_fire_cooldown = EnemyGun.fire_interval(_weapon, faction, unit_type)
+	EnemyGun.fire(self, _weapon, player.global_position, body_radius + 8.0)
+
+
 # --- ONTHOUDEN: de drie functies voor de groep "saveable" ---
 
 # De naam waaraan deze vijand herkend wordt binnen de kamer.
@@ -206,12 +250,18 @@ func get_run_state() -> Dictionary:
 		"rot": global_rotation,
 		"spin": spin,
 		"alerted": alerted,
+		"weapon": weapon_id,
 	}
 
 
 # Zet de bewaarde gegevens terug.
 func apply_run_state(data: Dictionary) -> void:
 	# Eerst factie en type terug, zodat de juiste waarden (max HP, snelheid, kleur) geladen worden.
+	# Het wapen eerst, zodat _load_stats() geen nieuw wapen kiest.
+	var saved_weapon: String = str(data.get("weapon", weapon_id))
+	if saved_weapon != weapon_id:
+		weapon_id = saved_weapon
+		_load_weapon()
 	var saved_faction: String = str(data.get("faction", faction))
 	var saved_type: String = str(data.get("unit_type", unit_type))
 	if saved_faction != faction or saved_type != unit_type:
@@ -223,6 +273,12 @@ func apply_run_state(data: Dictionary) -> void:
 	global_rotation = float(data.get("rot", global_rotation))
 	spin = float(data.get("spin", spin))
 	alerted = bool(data.get("alerted", alerted))
+
+
+# Het naambordje van het wapen blijft recht boven de vijand hangen.
+func _process(_delta: float) -> void:
+	if _weapon_label != null:
+		_weapon_label.global_position = global_position + Vector2(-60, -body_radius - 30)
 
 
 # --- 3. GEDRAG EN BEWEGING (60x per seconde) ---
@@ -283,6 +339,8 @@ func _physics_process(delta: float) -> void:
 				velocity = velocity.move_toward(target_velocity, 400.0 * delta)
 			_:
 				velocity = direction * movement_speed
+		if behavior_agro != "kamikaze":
+			_try_shoot(player, distance, delta)
 	elif _investigating:
 		# Een kogel gezien: kijken waar hij vandaan kwam.
 		var to_target: Vector2 = _investigate_target - global_position
@@ -499,6 +557,10 @@ func _deferred_death(hit_dir: Vector2) -> void:
 
 # --- 5. SAPPIGE LOOT EXPLOSIE ---
 func _drop_specific_loot(hit_dir: Vector2) -> void:
+	# Het wapen van een commando kan vallen (SSOT: weapon_drop_chance op de type-rij).
+	if weapon_id != "" and randf() < clampf(EnemyStats.value(faction, unit_type, "weapon_drop_chance", 0.0), 0.0, 1.0):
+		WeaponPickup.spawn(get_tree().current_scene, weapon_id, global_position)
+		print("VIJAND DROP: '", name, "' laat wapen ", weapon_id, " vallen.")
 	# Aantal, soort en splatter uit de SSOT (zie Entities/Loot/loot_drops.gd).
 	var total_drops: int = LootDrops.roll_count(faction, unit_type)
 

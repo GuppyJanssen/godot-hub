@@ -5,6 +5,11 @@ extends Area2D
 @export var damage: int = 10
 ## Het damage type van het wapen (base_damage_type in de SSOT), voor de testdummy en later de counters.
 var damage_type: String = ""
+## Kogel van een vijand (commando): raakt alleen de speler, en de F1-instellingen van de speler
+## (schade, grootte, snelheid, bereik) gelden er niet voor. Zet dit vóór add_child.
+var from_enemy: bool = false
+## Bereik voor een vijandkogel (het bereik van zijn wapen). Bij spelerkogels komt het van de speler.
+var range_override: float = -1.0
 
 # Bereik: komt uit de CSV via de wapenwaarden van de speler. Is het bereik op, dan verdwijnt de kogel.
 const FALLBACK_RANGE := 600.0
@@ -21,6 +26,12 @@ func _ready() -> void:
 	# "terug naar hoofdmenu". Bij een kamerwissel vervalt hij.
 	add_to_group("saveable")
 	add_to_group("save_only_on_quit")
+
+	if from_enemy:
+		weapon_range = range_override if range_override > 0.0 else FALLBACK_RANGE
+		# De speler heeft alleen een Area2D (groep "player"), geen botsvorm op zijn lichaam.
+		area_entered.connect(_on_area_entered)
+		return
 
 	var size_mult = Game.debug_bullet_size_multiplier if Game.debug_bullet_size_multiplier else 1.0
 	var speed_mult = Game.debug_bullet_speed_multiplier if Game.debug_bullet_speed_multiplier else 1.0
@@ -67,8 +78,20 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 
 
+# Vijandkogel raakt de speler.
+func _on_area_entered(area: Area2D) -> void:
+	if not from_enemy or not is_instance_valid(area) or not area.is_in_group("player"):
+		return
+	var player: Node = area.get_parent()
+	if is_instance_valid(player) and player.has_method("take_damage"):
+		player.take_damage(damage)
+	queue_free()
+
+
 func _on_body_entered(body: Node2D) -> void:
 	if not is_instance_valid(body): return
+	if from_enemy:
+		return  # vijandkogels raken geen andere vijanden of gebouwen
 	if body.is_in_group("targets") or body.is_in_group("Enemies") or body.is_in_group("enemies"):
 		if body.has_method("take_damage"):
 			# De vliegrichting van de kogel gaat mee, zodat de loot de goede kant op spat.
@@ -101,6 +124,7 @@ func get_run_state() -> Dictionary:
 		"damage": damage,
 		"range": weapon_range,
 		"traveled": traveled_distance,
+		"enemy": from_enemy,
 	}
 
 
@@ -113,3 +137,7 @@ func apply_run_state(data: Dictionary) -> void:
 	damage = int(data.get("damage", damage))
 	weapon_range = float(data.get("range", weapon_range))
 	traveled_distance = float(data.get("traveled", traveled_distance))
+	if bool(data.get("enemy", false)) and not from_enemy:
+		from_enemy = true
+		if not area_entered.is_connected(_on_area_entered):
+			area_entered.connect(_on_area_entered)
