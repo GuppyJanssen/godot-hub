@@ -402,7 +402,7 @@ func _on_player_hitbox_body_entered(body: Node2D) -> void:
 	# 2. Schade aan de vijand / het gebouw (rammen), zonder wapenskills.
 	if body.has_method("take_damage"):
 		var ram_damage: float = StatCalc.value(PLAYER_ROW, "damage", 10.0)
-		var ram_type: String = Ssot.get_text(PLAYER_ROW, "base_damage_type", "kinetic")
+		var ram_type: String = SsotWeapon.normalize_damage_type(Ssot.get_text(PLAYER_ROW, "base_damage_type", "kinetic"))
 		var hit_direction: Vector2 = (body.global_position - global_position).normalized()
 		if body.has_method("on_hit_info"):
 			body.on_hit_info(ram_damage, ram_type)

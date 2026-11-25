@@ -4,6 +4,9 @@ extends CanvasLayer
 var panel: PanelContainer
 var vbox: VBoxContainer
 var seed_label: Label = null
+var _scroll: ScrollContainer = null
+const PANEL_WIDTH := 460.0
+const PANEL_HEIGHT := 650.0
 var _seed_label_timer: float = 0.0
 
 ## Het F1-menu (God Mode, geld, schaal) staat alleen aan in de editor en in debug-builds.
@@ -68,7 +71,6 @@ func _unhandled_input(event: InputEvent) -> void:
 func _build_debug_ui() -> void:
 	panel = PanelContainer.new()
 	panel.position = Vector2(50, 50)
-	panel.custom_minimum_size = Vector2(500, 650)
 	add_child(panel)
 	
 	var margin = MarginContainer.new()
@@ -78,11 +80,27 @@ func _build_debug_ui() -> void:
 	margin.add_theme_constant_override("margin_bottom", 20)
 	panel.add_child(margin)
 	
+	# Scrollbaar: op een lager scherm vielen de onderste knoppen buiten beeld.
+	_scroll = ScrollContainer.new()
+	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	margin.add_child(_scroll)
 	vbox = VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 12)
-	margin.add_child(vbox)
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_scroll.add_child(vbox)
+	_fit_to_screen()
+	get_viewport().size_changed.connect(_fit_to_screen)
 	
 	_update_dashboard()
+
+## Het paneel past altijd op het scherm: hooguit PANEL_HEIGHT hoog, anders tot vlak boven de onderrand.
+func _fit_to_screen() -> void:
+	if not is_instance_valid(_scroll):
+		return
+	var screen: Vector2 = get_viewport().get_visible_rect().size
+	var height: float = clampf(screen.y - panel.position.y * 2.0 - 40.0, 200.0, PANEL_HEIGHT)
+	_scroll.custom_minimum_size = Vector2(PANEL_WIDTH, height)
+
 
 func _update_dashboard() -> void:
 	for child in vbox.get_children():

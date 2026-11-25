@@ -354,6 +354,13 @@ func _physics_process(delta: float) -> void:
 	var direction: Vector2 = to_player.normalized()
 	var facing: Vector2 = direction
 	
+	# Een kamikaze (spore) ontploft altijd als de speler hem aanraakt, ook als hij nog geen
+	# alarm heeft (dan merkt hij de speler pas op het laatste moment op).
+	if behavior_agro == "kamikaze" and current_health > 0 \
+			and distance <= maxf(kamikaze_trigger_distance, body_radius + Player.BODY_RADIUS):
+		_explode()
+		return
+	
 	if alerted or behavior_searching == "hunt":
 		match behavior_agro:
 			"kamikaze":

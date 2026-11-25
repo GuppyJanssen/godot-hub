@@ -69,7 +69,7 @@ static func from_ssot(weapon_id: String, for_player: bool = true) -> SsotWeapon:
 	# Spreiding telt skills mee: zo kan een accuracy-skill hem later kleiner maken.
 	w.spread_degrees = maxf(0.0, _stat(weapon_id, "bullet_spread", 0.0, for_player))
 	w.full_auto = Ssot.get_text(weapon_id, "weapon_type", "").strip_edges().to_lower() == "auto"
-	w.damage_type = Ssot.get_text(weapon_id, "base_damage_type", "kinetic")
+	w.damage_type = normalize_damage_type(Ssot.get_text(weapon_id, "base_damage_type", "kinetic"))
 	w.damage_type_2 = Ssot.get_text(weapon_id, "damage_type_2", "")
 
 	# Een skill kan een wapen full-auto maken (Bereik + full-auto op 100%):
@@ -110,6 +110,14 @@ func bullet_data() -> Dictionary:
 		"damage_type": damage_type,
 		"damage_type_2": damage_type_2,
 	}
+
+
+## Eén naam per damage type. "physical" is hetzelfde als kinetic (oude waarde), leeg = kinetic.
+static func normalize_damage_type(type: String) -> String:
+	var clean: String = type.strip_edges().to_lower()
+	if clean == "" or clean == "physical":
+		return "kinetic"
+	return clean
 
 
 static func _stat(weapon_id: String, stat: String, fallback: float, for_player: bool) -> float:
