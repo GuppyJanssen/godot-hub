@@ -57,8 +57,10 @@ func _physics_process(delta: float) -> void:
 	var player: Node2D = get_parent() as Node2D
 	if not is_instance_valid(player):
 		return
-	# Kijkrichting: alleen de richting van de muis, niet de afstand.
+	# Kijkrichting: alleen de richting van het vizier, niet de afstand.
 	var to_mouse: Vector2 = player.get_global_mouse_position() - player.global_position
+	if "crosshair" in player and is_instance_valid(player.crosshair):
+		to_mouse = player.crosshair.aim_offset
 	if to_mouse.length() > _setting("camera_deadzone"):
 		_look_dir = to_mouse.normalized()
 	var target: Vector2 = _target_offset()

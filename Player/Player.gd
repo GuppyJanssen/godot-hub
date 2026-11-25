@@ -48,6 +48,8 @@ var _shield_energy_debt: float = 0.0
 var _shot_energy_debt: float = 0.0
 var _dead: bool = false
 var camera: GameCamera = null
+## Het vizier; draaien en de camera volgen dit punt in plaats van de muis op het scherm.
+var crosshair: Crosshair = null
 
 
 func _ready() -> void:
@@ -79,7 +81,8 @@ func _ready() -> void:
 	# Camera (kijkt mee in de muisrichting, binnen de kamer) en vizier. Zie game_camera.gd en crosshair.gd.
 	camera = GameCamera.new()
 	add_child(camera)
-	add_child(Crosshair.new())
+	crosshair = Crosshair.new()
+	add_child(crosshair)
 
 	if Game.should_load_run:
 		call_deferred("_force_continue_position")
@@ -148,7 +151,8 @@ func _physics_process(delta: float) -> void:
 
 	# 1. Draaien naar de muis, met de draaisnelheid uit de SSOT.
 	var turn_speed: float = _stat("rotation_speed", 10.0)
-	var target_angle: float = (get_global_mouse_position() - global_position).angle()
+	var aim_at: Vector2 = crosshair.aim_point() if is_instance_valid(crosshair) else get_global_mouse_position()
+	var target_angle: float = (aim_at - global_position).angle()
 	global_rotation = rotate_toward(global_rotation, target_angle, maxf(0.0, turn_speed) * delta)
 
 	# 2. Bewegen (ijs/schaatsen): versnellen naar de topsnelheid, afremmen zonder invoer.
