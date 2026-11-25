@@ -14,8 +14,30 @@ class_name RoomBounds
 ##   RoomBounds.apply(self, 30.0, enemies_alive)
 ## Een vijand roept dit aan met enemies_alive = true (hij leeft zelf, dus de kamer is nooit leeg).
 
-const SCREEN_WIDTH := 1920.0
-const SCREEN_HEIGHT := 1080.0
+## De oude, vaste kamergrootte. Nog de standaard als de SSOT leeg is, en de "oude" weergave in F1.
+const BASE_SIZE := Vector2(1920.0, 1080.0)
+## Grenzen voor world_room_width/height (beschermt tegen een typfout in de sheet).
+const MIN_SIZE := Vector2(960.0, 540.0)
+const MAX_SIZE := Vector2(7680.0, 4320.0)
+
+
+## Grootte van een kamer in pixels: SSOT-rij world, kolommen world_room_width en world_room_height.
+## Alles wat met kamerranden, het midden of plekken in de kamer rekent, gebruikt dit.
+static func size() -> Vector2:
+	if Game.debug_classic_room:
+		return BASE_SIZE
+	return Vector2(
+		clampf(Ssot.get_number("world", "world_room_width", BASE_SIZE.x), MIN_SIZE.x, MAX_SIZE.x),
+		clampf(Ssot.get_number("world", "world_room_height", BASE_SIZE.y), MIN_SIZE.y, MAX_SIZE.y))
+
+
+static func center() -> Vector2:
+	return size() / 2.0
+
+
+## Hoeveel groter (of kleiner) de kamer is dan de oude 1920 × 1080, per as.
+static func scale_from_base() -> Vector2:
+	return size() / BASE_SIZE
 
 
 static func apply(body: CharacterBody2D, radius: float, enemies_alive: bool) -> void:
@@ -24,11 +46,14 @@ static func apply(body: CharacterBody2D, radius: float, enemies_alive: bool) -> 
 	var pos: Vector2 = body.global_position
 	var vel: Vector2 = body.velocity
 	var is_player: bool = body == Game.active_player
+	var room: Vector2 = size()
+	var room_w: float = room.x
+	var room_h: float = room.y
 
 	if LevelManager.in_test_room:
-		pos.x = clampf(pos.x, radius, SCREEN_WIDTH - radius)
-		if pos.y > SCREEN_HEIGHT - radius:
-			pos.y = SCREEN_HEIGHT - radius
+		pos.x = clampf(pos.x, radius, room_w - radius)
+		if pos.y > room_h - radius:
+			pos.y = room_h - radius
 			vel.y = 0.0
 		body.global_position = pos
 		body.velocity = vel
@@ -39,8 +64,8 @@ static func apply(body: CharacterBody2D, radius: float, enemies_alive: bool) -> 
 	if is_player and Game.debug_is_invincible:
 		if layer == 0 or layer == last_layer:
 			if pos.x < -10.0:
-				pos.x = SCREEN_WIDTH + 5.0
-			elif pos.x > SCREEN_WIDTH + 10.0:
+				pos.x = room_w + 5.0
+			elif pos.x > room_w + 10.0:
 				pos.x = -5.0
 		if layer == last_layer and pos.y < radius:
 			pos.y = radius
@@ -52,16 +77,16 @@ static func apply(body: CharacterBody2D, radius: float, enemies_alive: bool) -> 
 	if layer == 0 or layer == last_layer:
 		# Polen: rondlopen van links naar rechts.
 		if pos.x < -10.0:
-			pos.x = SCREEN_WIDTH + 5.0
-		elif pos.x > SCREEN_WIDTH + 10.0:
+			pos.x = room_w + 5.0
+		elif pos.x > room_w + 10.0:
 			pos.x = -5.0
 
 	if layer == 0:
 		if enemies_alive and pos.y < radius:
 			pos.y = radius
 			vel.y = 0.0
-		if pos.y > SCREEN_HEIGHT - radius:
-			pos.y = SCREEN_HEIGHT - radius
+		if pos.y > room_h - radius:
+			pos.y = room_h - radius
 			vel.y = 0.0
 	elif layer == last_layer:
 		if pos.y < radius:
@@ -71,24 +96,24 @@ static func apply(body: CharacterBody2D, radius: float, enemies_alive: bool) -> 
 			if pos.x < radius:
 				pos.x = radius
 				vel.x = 0.0
-			elif pos.x > SCREEN_WIDTH - radius:
-				pos.x = SCREEN_WIDTH - radius
+			elif pos.x > room_w - radius:
+				pos.x = room_w - radius
 				vel.x = 0.0
-			if pos.y > SCREEN_HEIGHT - radius:
-				pos.y = SCREEN_HEIGHT - radius
+			if pos.y > room_h - radius:
+				pos.y = room_h - radius
 				vel.y = 0.0
 	elif enemies_alive:
 		if pos.x < radius:
 			pos.x = radius
 			vel.x = 0.0
-		elif pos.x > SCREEN_WIDTH - radius:
-			pos.x = SCREEN_WIDTH - radius
+		elif pos.x > room_w - radius:
+			pos.x = room_w - radius
 			vel.x = 0.0
 		if pos.y < radius:
 			pos.y = radius
 			vel.y = 0.0
-		elif pos.y > SCREEN_HEIGHT - radius:
-			pos.y = SCREEN_HEIGHT - radius
+		elif pos.y > room_h - radius:
+			pos.y = room_h - radius
 			vel.y = 0.0
 
 	body.global_position = pos

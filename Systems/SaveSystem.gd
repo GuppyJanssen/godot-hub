@@ -183,7 +183,8 @@ func load_current_run(player_node: CharacterBody2D) -> void:
 	var room_key: String = "L" + str(LevelManager.current_layer) + "_R" + str(LevelManager.current_room_index)
 
 	if LevelManager.is_loading_from_continue:
-		player_node.global_position = Vector2(_safe_float(data.get("player_position_x", 960.0)), _safe_float(data.get("player_position_y", 540.0)))
+		var middle: Vector2 = RoomBounds.center()
+		player_node.global_position = Vector2(_safe_float(data.get("player_position_x", middle.x)), _safe_float(data.get("player_position_y", middle.y)))
 
 	# Herstel de HP van de vijanden. Waren ze al dood, dan verdwijnen ze.
 	var d_map: Dictionary = dict_or_empty(dict_or_empty(data.get("target_damage_taken")).get(room_key))

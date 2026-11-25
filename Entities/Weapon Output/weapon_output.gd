@@ -101,13 +101,14 @@ func _physics_process(delta: float) -> void:
 	if bounce_left > 0:
 		var pos: Vector2 = global_position
 		var bounced: bool = false
-		if pos.x < 0.0 or pos.x > RoomBounds.SCREEN_WIDTH:
+		var room: Vector2 = RoomBounds.size()
+		if pos.x < 0.0 or pos.x > room.x:
 			global_rotation = PI - global_rotation
-			pos.x = clampf(pos.x, 0.0, RoomBounds.SCREEN_WIDTH)
+			pos.x = clampf(pos.x, 0.0, room.x)
 			bounced = true
-		if pos.y < 0.0 or pos.y > RoomBounds.SCREEN_HEIGHT:
+		if pos.y < 0.0 or pos.y > room.y:
 			global_rotation = -global_rotation
-			pos.y = clampf(pos.y, 0.0, RoomBounds.SCREEN_HEIGHT)
+			pos.y = clampf(pos.y, 0.0, room.y)
 			bounced = true
 		if bounced:
 			global_position = pos
@@ -221,7 +222,7 @@ func get_run_id() -> String:
 # Wat deze kogel wil bewaren: plek, richting, snelheid, schade en hoe ver hij al gevlogen heeft.
 func get_run_state() -> Dictionary:
 	# Een kogel die al ver buiten de kamer vliegt, hoeft niet bewaard te worden.
-	var room: Rect2 = Rect2(-200.0, -200.0, 1920.0 + 400.0, 1080.0 + 400.0)
+	var room: Rect2 = Rect2(Vector2(-200.0, -200.0), RoomBounds.size() + Vector2(400.0, 400.0))
 	if not room.has_point(global_position):
 		return {}
 	return {

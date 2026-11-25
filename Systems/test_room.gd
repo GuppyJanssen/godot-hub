@@ -35,6 +35,8 @@ var _pad_label: Label
 ## Zet de testkamer neer in 'parent' (de kamer).
 static func build(parent: Node) -> void:
 	var room: TestRoom = TestRoom.new()
+	# De indeling is gemaakt voor 1920 × 1080; in een grotere kamer staat hij in het midden.
+	room.position = (RoomBounds.size() - RoomBounds.BASE_SIZE) / 2.0
 	parent.add_child(room)
 
 

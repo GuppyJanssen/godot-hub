@@ -47,6 +47,7 @@ var _energy_accumulator: float = 0.0
 var _shield_energy_debt: float = 0.0
 var _shot_energy_debt: float = 0.0
 var _dead: bool = false
+var camera: GameCamera = null
 
 
 func _ready() -> void:
@@ -75,6 +76,10 @@ func _ready() -> void:
 	_load_weapon_stats(Game.active_weapon_key)
 	_weapon_wheel = load("res://Systems/weapon_wheel.gd").new()
 	add_child(_weapon_wheel)
+	# Camera (kijkt mee in de muisrichting, binnen de kamer) en vizier. Zie game_camera.gd en crosshair.gd.
+	camera = GameCamera.new()
+	add_child(camera)
+	add_child(Crosshair.new())
 
 	if Game.should_load_run:
 		call_deferred("_force_continue_position")
@@ -171,10 +176,6 @@ func _physics_process(delta: float) -> void:
 
 	# 4. Kamergrenzen (Systems/room_bounds.gd).
 	if is_instance_valid(LevelManager):
-		if LevelManager.current_layer == 0 and has_node("Camera2D"):
-			var cam: Camera2D = get_node("Camera2D")
-			cam.limit_left = -10000
-			cam.limit_right = 10000
 		var enemies_alive: bool = get_tree().get_nodes_in_group("targets").size() + get_tree().get_nodes_in_group("enemies").size() > 0
 		RoomBounds.apply(self, BODY_RADIUS, enemies_alive)
 
@@ -463,7 +464,7 @@ func _force_continue_position() -> void:
 		return
 	var found_pos := Vector2(SaveSystem._safe_float(run_data["player_x"]), SaveSystem._safe_float(run_data["player_y"]))
 	# Alleen een plek binnen (of vlak naast) de kamer overnemen.
-	if found_pos != Vector2.ZERO and Rect2(-200.0, -200.0, 2320.0, 1480.0).has_point(found_pos):
+	if found_pos != Vector2.ZERO and Rect2(Vector2(-200.0, -200.0), RoomBounds.size() + Vector2(400.0, 400.0)).has_point(found_pos):
 		global_position = found_pos
 
 

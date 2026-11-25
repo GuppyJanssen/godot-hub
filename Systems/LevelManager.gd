@@ -46,6 +46,6 @@ func reset_manager_for_new_run() -> void:
 	is_loading_from_continue = false
 	in_test_room = false
 	set_meta("last_direction", "up")
-	set_meta("player_exit_x", 960.0)
-	set_meta("player_exit_y", 1000.0)
+	set_meta("player_exit_x", RoomBounds.center().x)
+	set_meta("player_exit_y", RoomBounds.size().y - 80.0)
 	print("LEVEL MANAGER: Router succesvol gereset naar Ring 0.")

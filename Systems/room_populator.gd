@@ -29,9 +29,8 @@ const DEFAULTS := {
 	"room_center_free_radius": 220.0,
 }
 
-## Waar fabrieken mogen staan (een kamer is 1920 x 1080), met afstand tot elkaar en tot het midden.
-const AREA := Rect2(260, 180, 1400, 720)
-const CENTER := Vector2(960, 540)
+## Waar fabrieken mogen staan: de kamer (RoomBounds.size) met deze rand, met afstand tot elkaar en tot het midden.
+const AREA_MARGIN := Vector2(260, 180)
 
 
 ## Zet de fabrieken van deze kamer neer, als kinderen van 'parent'.
@@ -104,10 +103,10 @@ static func _free_spot(rng: RandomNumberGenerator, placed: Array[Vector2]) -> Ve
 	var best: Vector2 = Vector2.ZERO
 	for attempt in 40:
 		var p: Vector2 = Vector2(
-			roundf(rng.randf_range(AREA.position.x, AREA.end.x)),
-			roundf(rng.randf_range(AREA.position.y, AREA.end.y)))
+			roundf(rng.randf_range(_area().position.x, _area().end.x)),
+			roundf(rng.randf_range(_area().position.y, _area().end.y)))
 		best = p
-		if p.distance_to(CENTER) < _setting("room_center_free_radius"):
+		if p.distance_to(RoomBounds.center()) < _setting("room_center_free_radius"):
 			continue
 		var ok: bool = true
 		for other in placed:
@@ -121,3 +120,7 @@ static func _free_spot(rng: RandomNumberGenerator, placed: Array[Vector2]) -> Ve
 
 static func _setting(setting_name: String) -> float:
 	return Ssot.get_number(SETTINGS_ROW, setting_name, float(DEFAULTS[setting_name]))
+
+
+static func _area() -> Rect2:
+	return Rect2(AREA_MARGIN, RoomBounds.size() - 2.0 * AREA_MARGIN)

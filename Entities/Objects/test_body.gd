@@ -84,8 +84,8 @@ var alerted: bool = false
 var body_radius: float = 30.0
 
 const SIGHT_CHECK_SECONDS := 0.2
-## Waar een zwervende vijand naartoe mag: de kamer, met een rand van 100 pixels.
-const WANDER_AREA := Rect2(100.0, 100.0, 1720.0, 880.0)
+## Waar een zwervende vijand naartoe mag: de kamer, met een rand van WANDER_MARGIN pixels.
+const WANDER_MARGIN := 100.0
 
 var _sight_timer: float = 0.0
 ## Loopt af na een treffer; bij 0 slaat de vijand alarm. -1 = er loopt niets.
@@ -418,8 +418,8 @@ func _wander(delta: float) -> void:
 	_wander_timer -= delta
 	if _wander_timer <= 0.0 or global_position.distance_to(_wander_target) < 20.0:
 		_wander_target = Vector2(
-				randf_range(WANDER_AREA.position.x, WANDER_AREA.end.x),
-				randf_range(WANDER_AREA.position.y, WANDER_AREA.end.y))
+				randf_range(_wander_area().position.x, _wander_area().end.x),
+				randf_range(_wander_area().position.y, _wander_area().end.y))
 		_wander_timer = randf_range(3.0, 6.0)
 	var to_target: Vector2 = (_wander_target - global_position).normalized()
 	velocity = velocity.move_toward(to_target * movement_speed * wander_speed_factor, acceleration * delta)
@@ -445,8 +445,8 @@ func _look_around(player: Node2D) -> void:
 		var travelled: float = float(bullet.get("traveled_distance")) if "traveled_distance" in bullet else scan_radius
 		var origin: Vector2 = bullet_pos - flight * travelled
 		_investigate_target = Vector2(
-				clampf(origin.x, WANDER_AREA.position.x, WANDER_AREA.end.x),
-				clampf(origin.y, WANDER_AREA.position.y, WANDER_AREA.end.y))
+				clampf(origin.x, _wander_area().position.x, _wander_area().end.x),
+				clampf(origin.y, _wander_area().position.y, _wander_area().end.y))
 		_investigating = true
 		return
 
@@ -638,3 +638,9 @@ func _flash_white() -> void:
 	for s in sprites:
 		if is_instance_valid(s):
 			s.modulate = Color.WHITE
+
+
+## De kamer (RoomBounds.size), met een rand van WANDER_MARGIN.
+static func _wander_area() -> Rect2:
+	var room: Vector2 = RoomBounds.size()
+	return Rect2(WANDER_MARGIN, WANDER_MARGIN, room.x - 2.0 * WANDER_MARGIN, room.y - 2.0 * WANDER_MARGIN)

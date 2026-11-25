@@ -4,9 +4,14 @@ extends Node2D
 @onready var background_node = $Background if has_node("Background") else null
 
 # GLOBALE SCRIPT-VARIABELEN (Schoon opgelijnd zonder shadowing!)
+## Kamergrootte: komt uit RoomBounds.size() (SSOT world_room_width/height), gezet in _ready.
 var screen_width: float = 1920.0
 var screen_height: float = 1080.0
 var edge_margin: float = 35.0
+## Zo dicht bij de rand ga je naar de volgende kamer (pixels).
+const TRANSITION_EDGE := 25.0
+## Dikte van de zichtbare balken langs de rand.
+const BARRIER_THICKNESS := 10.0
 var active_player: CharacterBody2D = null
 
 # Startposities voor de barrières
@@ -42,6 +47,7 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	
+	_apply_room_size()
 	var active_layer = LevelManager.current_layer
 	my_layer = active_layer
 	my_room = LevelManager.current_room_index
@@ -132,12 +138,16 @@ func _ready() -> void:
 	# 5. TOGGLE-AFHANKELIJKE RANDSPAWN
 	if is_instance_valid(active_player) and LevelManager.has_meta("coming_from"):
 		var direction = LevelManager.get_meta("coming_from")
-		var exit_x = LevelManager.get_meta("player_exit_x") if LevelManager.has_meta("player_exit_x") else 960.0
-		var exit_y = LevelManager.get_meta("player_exit_y") if LevelManager.has_meta("player_exit_y") else 540.0
+		var middle: Vector2 = Vector2(screen_width, screen_height) / 2.0
+		var exit_x = LevelManager.get_meta("player_exit_x") if LevelManager.has_meta("player_exit_x") else middle.x
+		var exit_y = LevelManager.get_meta("player_exit_y") if LevelManager.has_meta("player_exit_y") else middle.y
+		# De vorige kamer kan een andere grootte hebben gehad (F1 zoomtest): binnen deze kamer houden.
+		exit_x = clampf(float(exit_x), edge_margin, screen_width - edge_margin)
+		exit_y = clampf(float(exit_y), edge_margin, screen_height - edge_margin)
 		
 		if not Game.debug_use_mirror_spawn:
-			exit_x = 960.0
-			exit_y = 540.0
+			exit_x = middle.x
+			exit_y = middle.y
 		
 		match direction:
 			"down": active_player.global_position = Vector2(exit_x, screen_height - edge_margin)
@@ -145,6 +155,30 @@ func _ready() -> void:
 			"right": active_player.global_position = Vector2(screen_width - edge_margin, exit_y)
 			"left": active_player.global_position = Vector2(edge_margin, exit_y)
 		LevelManager.remove_meta("coming_from")
+
+
+## Zet de kamer op de grootte uit RoomBounds: achtergrond en de balken langs de randen.
+## Moet vóór het onthouden van de beginplek van de balken (stap 3 in _ready).
+func _apply_room_size() -> void:
+	var room: Vector2 = RoomBounds.size()
+	screen_width = room.x
+	screen_height = room.y
+	if background_node is Control:
+		background_node.position = Vector2.ZERO
+		background_node.size = room
+	var t: float = BARRIER_THICKNESS
+	_place_barrier("BarrierVisuals/TopBarrier", Vector2.ZERO, Vector2(room.x, t))
+	_place_barrier("BarrierVisuals/BottomBarrier", Vector2(0.0, room.y - t), Vector2(room.x, t))
+	_place_barrier("BarrierVisuals/LeftBarrier", Vector2.ZERO, Vector2(t, room.y))
+	_place_barrier("BarrierVisuals/RightBarrier", Vector2(room.x - t, 0.0), Vector2(t, room.y))
+
+
+func _place_barrier(path: String, at: Vector2, area: Vector2) -> void:
+	var bar: Control = get_node_or_null(path) as Control
+	if bar == null:
+		return
+	bar.position = at
+	bar.size = area
 
 
 func _process(_delta: float) -> void:
@@ -202,7 +236,7 @@ func _check_software_transitions() -> void:
 	
 	# Testkamer: alleen terug omhoog naar de zuidpool. Niets bewaren.
 	if LevelManager.in_test_room:
-		if active_player.global_position.y < 25.0:
+		if active_player.global_position.y < TRANSITION_EDGE:
 			LevelManager.in_test_room = false
 			LevelManager.set_meta("coming_from", "down")
 			LevelManager.set_meta("player_exit_x", active_player.global_position.x)
@@ -225,7 +259,7 @@ func _check_software_transitions() -> void:
 	
 	
 	# NOORD-TRANSITIE (Up)
-	if active_player.global_position.y < 25.0:
+	if active_player.global_position.y < TRANSITION_EDGE:
 		if current_layer < max_layer_index:
 			LevelManager.set_meta("coming_from", "down")
 			LevelManager.set_meta("player_exit_x", active_player.global_position.x)
@@ -236,7 +270,7 @@ func _check_software_transitions() -> void:
 			return
 			
 	# ZUID-TRANSITIE (Down)
-	elif active_player.global_position.y > 1055.0:
+	elif active_player.global_position.y > screen_height - TRANSITION_EDGE:
 		if current_layer == 0 and Game.debug_is_invincible:
 			# Onder de startkamer ligt de testkamer (alleen met God Mode).
 			_save_before_transition()
@@ -258,7 +292,7 @@ func _check_software_transitions() -> void:
 	# Dit voorkomt dat je winst-tellers leeglopen zodra je zijwaarts door een poort vliegt.
 	if current_layer > 0 and current_layer < max_layer_index:
 		# LINKS-TRANSITIE
-		if active_player.global_position.x < 15.0:
+		if active_player.global_position.x < TRANSITION_EDGE:
 			LevelManager.set_meta("coming_from", "right")
 			LevelManager.set_meta("player_exit_y", active_player.global_position.y)
 			LevelManager.current_room_index -= 1
@@ -272,7 +306,7 @@ func _check_software_transitions() -> void:
 			return
 			
 		# RECHTS-TRANSITIE
-		elif active_player.global_position.x > screen_width - 15.0:
+		elif active_player.global_position.x > screen_width - TRANSITION_EDGE:
 			LevelManager.set_meta("coming_from", "left")
 			LevelManager.set_meta("player_exit_y", active_player.global_position.y)
 			LevelManager.current_room_index += 1

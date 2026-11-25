@@ -1,0 +1,85 @@
+extends Camera2D
+class_name GameCamera
+## GameCamera – de camera tijdens een run (zoomtest).
+##
+## Wat hij doet:
+## - Volgt de speler en kijkt vooruit in de RICHTING van de muis/crosshair. Hoe ver de muis van het
+##   schip staat, maakt niets uit (geen zeeziek-effect): de camera schuift altijd even ver op.
+## - Komt nooit buiten de kamer (limit_* = de kamerranden). In een hoek staat het beeld stil.
+## - Draait rustig bij (afgevlakt) en reageert niet als de muis vlak bij het schip staat (dode zone).
+##
+## SSOT, rij world (leeg = de standaard hieronder):
+##   camera_zoom       1 = ware grootte, 2 = twee keer ingezoomd (je ziet een kwart).
+##   camera_lookahead  hoe ver de camera vooruitkijkt, als deel van het halve beeld (0.6 = 60%).
+##                     Het schip staat dan nooit dichter dan 40% van het halve beeld bij de rand.
+##   camera_smoothing  hoe snel de camera bijdraait (hoger = sneller).
+##   camera_deadzone   pixels rond het schip waarin de muis de kijkrichting niet verandert.
+##
+## Ontwikkelaarsnotities:
+## - top_level: de camera draait niet mee met het schip; hij zet zijn eigen positie.
+## - Werkt samen met RoomBounds.size() (world_room_width/height), zodat de kamer groter kan.
+
+const SETTINGS_ROW := "world"
+const DEFAULTS := {
+	"camera_zoom": 1.0,
+	"camera_lookahead": 0.6,
+	"camera_smoothing": 6.0,
+	"camera_deadzone": 40.0,
+}
+## Het schip blijft altijd minstens dit deel van het halve beeld van de rand af.
+const MAX_LOOKAHEAD := 0.85
+
+var _look_dir: Vector2 = Vector2.ZERO
+var _offset_now: Vector2 = Vector2.ZERO
+
+
+func _ready() -> void:
+	top_level = true
+	process_callback = Camera2D.CAMERA2D_PROCESS_PHYSICS
+	apply_settings()
+	make_current()
+	_snap_to_target()
+
+
+## Leest zoom en kamergrenzen opnieuw (bijvoorbeeld na een wissel in het F1-menu).
+func apply_settings() -> void:
+	# F1 "Kamer: oud": de oude weergave (hele kamer van 1920 × 1080 in beeld, geen zoom).
+	var z: float = 1.0 if Game.debug_classic_room else clampf(_setting("camera_zoom"), 0.25, 4.0)
+	zoom = Vector2(z, z)
+	var room: Vector2 = RoomBounds.size()
+	limit_left = 0
+	limit_top = 0
+	limit_right = int(room.x)
+	limit_bottom = int(room.y)
+
+
+func _physics_process(delta: float) -> void:
+	var player: Node2D = get_parent() as Node2D
+	if not is_instance_valid(player):
+		return
+	# Kijkrichting: alleen de richting van de muis, niet de afstand.
+	var to_mouse: Vector2 = player.get_global_mouse_position() - player.global_position
+	if to_mouse.length() > _setting("camera_deadzone"):
+		_look_dir = to_mouse.normalized()
+	var target: Vector2 = _target_offset()
+	var weight: float = clampf(_setting("camera_smoothing") * delta, 0.0, 1.0)
+	_offset_now = _offset_now.lerp(target, weight)
+	global_position = player.global_position + _offset_now
+
+
+## Hoe ver de camera vooruitkijkt, per as: een deel van het halve beeld (rekening houdend met de zoom).
+func _target_offset() -> Vector2:
+	var half_view: Vector2 = get_viewport_rect().size / zoom / 2.0
+	var amount: float = clampf(_setting("camera_lookahead"), 0.0, MAX_LOOKAHEAD)
+	return Vector2(_look_dir.x * half_view.x, _look_dir.y * half_view.y) * amount
+
+
+func _snap_to_target() -> void:
+	var player: Node2D = get_parent() as Node2D
+	if is_instance_valid(player):
+		global_position = player.global_position
+	reset_smoothing()
+
+
+static func _setting(setting_name: String) -> float:
+	return Ssot.get_number(SETTINGS_ROW, setting_name, float(DEFAULTS[setting_name]))
