@@ -2,25 +2,37 @@ extends Node2D
 class_name Crosshair
 ## Crosshair – het vizier tijdens een run.
 ##
-## - Volgt de muis, maar komt nooit verder dan het bereik van het huidige wapen
-##   (current_weapon_stats["weapon_range"] van de speler, met de F1-bereikinstelling).
-##   Ligt de muis verder weg, dan staat het vizier op het bereik, in de mikrichting.
-## - Een dun lijntje van het schip naar het vizier laat de mikrichting zien.
-## - De muis zelf is onzichtbaar tijdens het spelen, en gewoon zichtbaar zodra het spel op pauze
-##   staat of het F1-menu open is. Bij het verlaten van de kamer wordt de muis weer zichtbaar.
+## Hoe het werkt:
+## - Het vizier hangt op een vaste plek TEN OPZICHTE VAN HET SCHIP (aim_offset). Alleen als je de muis
+##   beweegt, verschuift het. Vlieg je zonder de muis te bewegen, dan blijft je mikrichting en
+##   -afstand precies gelijk; het vizier vliegt gewoon met je mee.
+## - Het vizier komt nooit verder dan het bereik van het huidige wapen
+##   (current_weapon_stats["weapon_range"], met de F1-bereikinstelling). Beweeg je de muis verder,
+##   dan blijft het vizier op het bereik; terugbewegen werkt meteen.
+## - Tijdens het spelen is de muis "gevangen" (MOUSE_MODE_CAPTURED): onzichtbaar, en hij kan niet
+##   uit het venster of tegen de schermrand lopen. In pauze, menu's en het F1-menu is hij gewoon vrij.
+##
+## SSOT, rij world: aim_sensitivity (leeg = 1): hoe ver het vizier beweegt per beweging van de muis.
 ##
 ## Ontwikkelaarsnotities:
-## - top_level en process_mode ALWAYS: het vizier draait niet mee met het schip, en de muis wordt
-##   ook tijdens de pauze goed gezet.
-## - Alleen tekenen met _draw (geen sprite nodig). Kleuren en maten hieronder.
+## - Vroeger volgde het vizier de echte muis op het scherm. Omdat de camera meebeweegt (en bij de
+##   kamerrand stilstaat), schoof de wereld onder een stilstaande muis door en werd het vizier
+##   "meegesleept". Nu telt alleen de beweging van de muis (InputEventMouseMotion.relative).
+## - Player (draaien) en GameCamera (vooruitkijken) lezen aim_point() in plaats van de muispositie.
+## - top_level en process_mode ALWAYS: het vizier draait niet mee met het schip, en de muismodus
+##   wordt ook tijdens de pauze goed gezet.
 
 const COLOR := Color(1.0, 1.0, 1.0, 0.9)
 const LINE_COLOR := Color(1.0, 1.0, 1.0, 0.18)
 const RING_RADIUS := 10.0
 const TICK := 6.0
 const WIDTH := 2.0
+## Beginafstand van het vizier voor het schip, als deel van het bereik.
+const START_FRACTION := 0.5
 
-var _aim_point: Vector2 = Vector2.ZERO
+## Plek van het vizier ten opzichte van het schip (wereld-pixels).
+var aim_offset: Vector2 = Vector2.ZERO
+var _initialized: bool = false
 
 
 func _ready() -> void:
@@ -29,41 +41,72 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
 
+## Waar het vizier nu staat, in wereld-coördinaten.
+func aim_point() -> Vector2:
+	var player: Node2D = get_parent() as Node2D
+	if not is_instance_valid(player):
+		return global_position
+	return player.global_position + aim_offset
+
+
+func _input(event: InputEvent) -> void:
+	var motion: InputEventMouseMotion = event as InputEventMouseMotion
+	if motion == null or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		return
+	# Schermbeweging omrekenen naar wereld-pixels (houdt rekening met de camerazoom).
+	var world_delta: Vector2 = get_viewport().get_canvas_transform().affine_inverse().basis_xform(motion.relative)
+	aim_offset += world_delta * _sensitivity()
+	_clamp_to_range()
+
+
 func _process(_delta: float) -> void:
 	_update_mouse_mode()
 	var player: Node2D = get_parent() as Node2D
 	if not is_instance_valid(player):
 		return
-	var from: Vector2 = player.global_position
-	var to_mouse: Vector2 = get_global_mouse_position() - from
-	var reach: float = _weapon_range(player)
-	if to_mouse.length() > reach:
-		to_mouse = to_mouse.normalized() * reach
-	_aim_point = from + to_mouse
+	if not _initialized:
+		_initialized = true
+		aim_offset = Vector2.RIGHT.rotated(player.global_rotation) * _weapon_range(player) * START_FRACTION
+	# Ander wapen met een korter bereik: het vizier schuift mee naar binnen.
+	_clamp_to_range()
 	global_position = Vector2.ZERO
 	queue_redraw()
+
+
+func _clamp_to_range() -> void:
+	var player: Node = get_parent()
+	if not is_instance_valid(player):
+		return
+	var reach: float = _weapon_range(player)
+	if aim_offset.length() > reach:
+		aim_offset = aim_offset.normalized() * reach
 
 
 func _draw() -> void:
 	var player: Node2D = get_parent() as Node2D
 	if not is_instance_valid(player):
 		return
-	draw_line(player.global_position, _aim_point, LINE_COLOR, 1.0)
-	draw_arc(_aim_point, RING_RADIUS, 0.0, TAU, 24, COLOR, WIDTH)
+	var point: Vector2 = aim_point()
+	draw_line(player.global_position, point, LINE_COLOR, 1.0)
+	draw_arc(point, RING_RADIUS, 0.0, TAU, 24, COLOR, WIDTH)
 	for dir in [Vector2.RIGHT, Vector2.LEFT, Vector2.UP, Vector2.DOWN]:
-		draw_line(_aim_point + dir * (RING_RADIUS + 2.0), _aim_point + dir * (RING_RADIUS + 2.0 + TICK), COLOR, WIDTH)
+		draw_line(point + dir * (RING_RADIUS + 2.0), point + dir * (RING_RADIUS + 2.0 + TICK), COLOR, WIDTH)
 
 
 func _exit_tree() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
-## Muis verbergen tijdens het spelen, tonen bij pauze of met het F1-menu open.
+## Muis gevangen tijdens het spelen, vrij bij pauze of met het F1-menu open.
 func _update_mouse_mode() -> void:
 	var menu_open: bool = get_tree().paused or (is_instance_valid(DebugOverlay) and DebugOverlay.visible)
-	var wanted: int = Input.MOUSE_MODE_VISIBLE if menu_open else Input.MOUSE_MODE_HIDDEN
+	var wanted: Input.MouseMode = Input.MOUSE_MODE_VISIBLE if menu_open else Input.MOUSE_MODE_CAPTURED
 	if Input.mouse_mode != wanted:
 		Input.mouse_mode = wanted
+
+
+static func _sensitivity() -> float:
+	return clampf(Ssot.get_number("world", "aim_sensitivity", 1.0), 0.1, 5.0)
 
 
 static func _weapon_range(player: Node) -> float:

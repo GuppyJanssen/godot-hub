@@ -19,6 +19,8 @@ var _resource_rows: Dictionary = {}
 var _vault: MetaProgress = null
 var _vault_timer: float = 0.0
 const VAULT_REFRESH_SECONDS := 0.5
+## Afstand van de grondstoflijst tot de rechterbovenhoek van het scherm (pixels).
+const CURRENCY_MARGIN := Vector2(40.0, 40.0)
 
 # Eén SaveSystem dat hergebruikt wordt (voor de saldo-weergave in de skill tree).
 var _save_sys: SaveSystem = null
@@ -30,6 +32,13 @@ func _ready() -> void:
 	
 	if currency_container:
 		currency_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# Rechtsboven vastzetten en naar LINKS laten groeien, zodat lange regels niet buiten beeld vallen
+		# (stond eerst op een vaste x van 1700 en groeide naar rechts).
+		currency_container.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+		currency_container.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+		currency_container.offset_right = -CURRENCY_MARGIN.x
+		currency_container.offset_left = -CURRENCY_MARGIN.x
+		currency_container.offset_top = CURRENCY_MARGIN.y
 	
 	_find_active_player()
 	
@@ -131,6 +140,7 @@ func _build_resource_rows() -> void:
 	for id in LootResources.ids():
 		var hbox = HBoxContainer.new()
 		hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hbox.alignment = BoxContainer.ALIGNMENT_END  # rechts uitlijnen
 		hbox.visible = false
 		currency_container.add_child(hbox)
 
