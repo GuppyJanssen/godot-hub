@@ -20,6 +20,9 @@ class_name LootDrop
 ##    naar het midden van de stukjes van dezelfde grondstof om zich heen (loot_gather_speed). Zo
 ##    komen losse stukjes en groepjes vanzelf bij elkaar. Een stukje dat al tegen een ander aan ligt
 ##    in de richting waarin het wil, blijft stil liggen (geen geduw of getril).
+## 7. Rust: een stukje stopt definitief (RUST, kijkt niet meer rond) zodra het binnen
+##    loot_gather_stop_distance van een stukje van dezelfde grondstof ligt, of na loot_gather_time
+##    seconden samenkomen. Pas als er nieuwe loot in de buurt neerkomt, wordt het weer wakker gepord.
 ##
 ## INSTELLINGEN (SSOT-rij "world"; leeg = de standaard in MERGE_DEFAULTS):
 ##   loot_merge_delay      seconden na het neerkomen voordat een stukje gaat zoeken
@@ -32,6 +35,8 @@ class_name LootDrop
 ##                         samendrijven gaat met (loot_merge_speed - loot_cluster_friction) vooruit.
 ##   loot_merge_wait       seconden dat een stukje stil moet liggen voordat het mag samenklonteren
 ##   loot_gather_speed     snelheid van het langzame samenkomen (pixels per seconde; 0 = uit)
+##   loot_gather_stop_distance  zo dicht (ruimte tussen de randen, pixels) bij dezelfde grondstof: stoppen
+##   loot_gather_time      zo lang (seconden) mag een stukje samenkomen; daarna rust het
 ##   loot_merge_duration   seconden dat het samensmelten zelf duurt (de "lavalamp": de stukjes glijden
 ##                         langzaam in elkaar en het nieuwe stuk groeit daarna rustig tot zijn grootte)
 ##   loot_bounce, loot_settled_speed, loot_grow_seconds, loot_chunk_scale, loot_stone_scale,
@@ -76,6 +81,8 @@ const MERGE_DEFAULTS := {
 	"loot_stone_circle_factor": 1.75,  # cirkel voor een steen = zoveel keer loot_merge_circle
 	"loot_sleep_after": 4.0,           # na zoveel seconden samendrijven zonder resultaat: slapen
 	"loot_gather_speed": 12.0,         # langzaam samenkomen van dezelfde grondstof (pixels per seconde)
+	"loot_gather_stop_distance": 8.0,  # zo dicht bij dezelfde grondstof: stoppen (pixels tussen de randen)
+	"loot_gather_time": 5.0,           # zo lang mag een stukje samenkomen, daarna rust het
 }
 ## Zo dicht bij het midden van zijn groepje stopt een stukje met samenkomen (in stralen).
 const GATHER_STOP_RADII := 1.5
@@ -123,6 +130,9 @@ var _sleep_neighbor_count: int = 0
 var _awake_time: float = 0.0       # seconden samendrijven sinds het neerkomen of wakker worden
 var _quiet_time: float = 0.0       # seconden dat het stukje al (bijna) stil ligt
 var _gather_dir: Vector2 = Vector2.ZERO  # richting van het langzame samenkomen (nul = stil liggen)
+var _gather_time: float = 0.0      # seconden samenkomen sinds het neerkomen of de laatste por
+var _resting: bool = false         # RUST: kijkt niet meer rond tot er nieuwe loot in de buurt komt
+var _has_poked: bool = false       # dit stukje heeft zijn buren al één keer wakker gepord
 var _target_scale: float = 1.0     # de echte grootte; een nieuw stuk groeit hier naartoe         # al opgegaan in een klompje of steen (wordt zo verwijderd)
 
 @onready var color_rect: ColorRect = $ColorRect
@@ -228,6 +238,8 @@ func _physics_process(delta: float) -> void:
 		return
 
 	if _asleep:
+		if _resting:
+			return  # niets te doen tot een nieuw stukje in de buurt ons wakker port (_poke)
 		# Langzaam samenkomen: elk frame een klein stapje, de richting alleen bij elke controle.
 		if _gather_dir != Vector2.ZERO:
 			global_position += _gather_dir * _setting("loot_gather_speed") * delta
@@ -236,6 +248,7 @@ func _physics_process(delta: float) -> void:
 		if _sleep_check_timer > 0.0:
 			return
 		_sleep_check_timer = SLEEP_CHECK
+		_gather_time += SLEEP_CHECK
 		_refresh_neighbors()
 		if _neighbors.size() != _sleep_neighbor_count:
 			_wake()
@@ -243,6 +256,9 @@ func _physics_process(delta: float) -> void:
 			_try_merge()
 			if _asleep and not _merging:
 				_gather_dir = _gather_direction()
+				if _gather_dir == Vector2.ZERO or _gather_time >= _setting("loot_gather_time"):
+					_gather_dir = Vector2.ZERO
+					_resting = true
 			return
 
 	_neighbor_timer -= delta
@@ -278,8 +294,24 @@ func _physics_process(delta: float) -> void:
 func _go_to_sleep() -> void:
 	_asleep = true
 	velocity = Vector2.ZERO
+	# De eerste keer dat dit stukje neerkomt: rustende buren wakker porren (er is iets nieuws).
+	# Maar één keer per stukje, zodat stukjes elkaar niet eindeloos wakker houden.
+	if not _has_poked:
+		_has_poked = true
+		for other in _nearby(_setting("loot_merge_radius")):
+			if other != self and is_instance_valid(other) and other.has_method("_poke"):
+				other._poke()
 	_sleep_neighbor_count = _neighbors.size()
 	_sleep_check_timer = randf() * SLEEP_CHECK  # gespreid over de frames
+
+
+## Er is nieuwe loot in de buurt: weer rondkijken, samenkomen en samensmelten.
+func _poke() -> void:
+	if not _resting:
+		return
+	_resting = false
+	_gather_time = 0.0
+	_sleep_check_timer = randf() * SLEEP_CHECK
 
 
 func _wake() -> void:
@@ -492,6 +524,12 @@ func _gather_direction() -> Vector2:
 		count += 1
 	if count == 0:
 		return Vector2.ZERO
+	# Al dicht genoeg bij dezelfde grondstof: niet meer bewegen.
+	var stop_gap: float = _setting("loot_gather_stop_distance")
+	for other in _neighbors:
+		if other != self and is_instance_valid(other) and other.resource_id == resource_id and other.can_merge() \
+				and global_position.distance_to(other.global_position) <= radius + other.radius + stop_gap:
+			return Vector2.ZERO
 	var to_center: Vector2 = sum / count - global_position
 	if to_center.length() <= radius * GATHER_STOP_RADII:
 		return Vector2.ZERO

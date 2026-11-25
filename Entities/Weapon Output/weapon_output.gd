@@ -23,9 +23,9 @@ var damage_type: String = ""
 var from_enemy: bool = false
 ## Bereik van het wapen. De schutter zet dit; -1 = uit de wapenwaarden van de speler lezen (oud).
 var range_override: float = -1.0
-## Snelheid van de schutter op het moment van schieten. Het deel in de schietrichting telt mee
-## (world: shot_inherit_velocity): vooruit vliegend schiet je verder, achteruit minder ver.
-## Zijwaarts telt niet mee, zodat de kogel altijd op het vizier af gaat. Zet dit vóór add_child.
+## Snelheid van de schutter op het moment van schieten. Een deel ervan gaat mee met de kogel
+## (world: shot_inherit_velocity), in alle richtingen: vooruit vliegend schiet je verder, achteruit
+## minder ver, zijwaarts gaat de kogel schuin mee (zoals in Isaac). Zet dit vóór add_child.
 var shooter_velocity: Vector2 = Vector2.ZERO
 ## De kogel gaat nooit langzamer dan dit deel van zijn eigen snelheid (ook niet bij hard achteruit).
 const MIN_INHERIT_FACTOR := 0.3
@@ -82,16 +82,22 @@ func _ready() -> void:
 	_apply_shooter_velocity()
 
 
-# Vaart van de schutter erbij. Het bereik groeit en krimpt mee, zodat de kogel even lang vliegt:
-# meer vaart = verder, minder vaart = minder ver (zoals in The Binding of Isaac).
+# Vaart van de schutter erbij (als vector). De kogel draait mee naar de nieuwe richting en het bereik
+# groeit en krimpt mee, zodat hij even lang vliegt: meer vaart = verder (zoals in The Binding of Isaac).
 func _apply_shooter_velocity() -> void:
-	var inherit: float = clampf(Ssot.get_number("world", "shot_inherit_velocity", 0.5), 0.0, 2.0)
+	var inherit: float = clampf(Ssot.get_number("world", "shot_inherit_velocity", 0.75), 0.0, 2.0)
 	if inherit <= 0.0 or speed <= 0.0 or shooter_velocity == Vector2.ZERO:
 		return
-	var forward: float = shooter_velocity.dot(Vector2.from_angle(global_rotation))
-	var new_speed: float = maxf(speed * MIN_INHERIT_FACTOR, speed + forward * inherit)
+	var aim: Vector2 = Vector2.from_angle(global_rotation)
+	var flight: Vector2 = aim * speed + shooter_velocity * inherit
+	var new_speed: float = flight.length()
+	if new_speed < speed * MIN_INHERIT_FACTOR:
+		# Bijna stil of achteruit: dan toch vooruit, met de minimale snelheid.
+		flight = aim * speed * MIN_INHERIT_FACTOR
+		new_speed = flight.length()
 	weapon_range *= new_speed / speed
 	speed = new_speed
+	global_rotation = flight.angle()
 
 
 # Haalt het bereik van het actieve wapen op uit de wapenwaarden van de speler
