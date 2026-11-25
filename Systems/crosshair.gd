@@ -5,6 +5,8 @@ class_name Crosshair
 ## - Volgt de muis, maar komt nooit verder dan het bereik van het huidige wapen
 ##   (current_weapon_stats["weapon_range"] van de speler, met de F1-bereikinstelling).
 ##   Ligt de muis verder weg, dan staat het vizier op het bereik, in de mikrichting.
+## - De muis zit vast aan het vizier: hij kan niet verder dan het bereik. Komt hij er toch voorbij,
+##   dan wordt hij teruggezet op het vizier. Zo hoef je nooit "terug te zoeken" om te draaien.
 ## - Een dun lijntje van het schip naar het vizier laat de mikrichting zien.
 ## - De muis zelf is onzichtbaar tijdens het spelen, en gewoon zichtbaar zodra het spel op pauze
 ##   staat of het F1-menu open is. Bij het verlaten van de kamer wordt de muis weer zichtbaar.
@@ -37,9 +39,13 @@ func _process(_delta: float) -> void:
 	var from: Vector2 = player.global_position
 	var to_mouse: Vector2 = get_global_mouse_position() - from
 	var reach: float = _weapon_range(player)
-	if to_mouse.length() > reach:
+	var clamped: bool = to_mouse.length() > reach
+	if clamped:
 		to_mouse = to_mouse.normalized() * reach
 	_aim_point = from + to_mouse
+	# De echte muis terug op het vizier (alleen tijdens het spelen, niet in een menu).
+	if clamped and Input.mouse_mode == Input.MOUSE_MODE_HIDDEN:
+		get_viewport().warp_mouse(get_viewport().get_canvas_transform() * _aim_point)
 	global_position = Vector2.ZERO
 	queue_redraw()
 
