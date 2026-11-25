@@ -59,6 +59,8 @@ func _ready() -> void:
 	add_to_group("targets")
 	if not passive:
 		add_to_group("saveable")  # deze fabriek wil onthouden worden (zie game_room.gd)
+	# Hitbox passend bij de sprite (vóór de grootte uit de SSOT).
+	SpriteFit.fit(self)
 	# Levens van de fabriek uit de SSOT (rij unit_factory, plus de factie-modifier).
 	# Staat dat er niet, dan telt Spawner Max Health uit de Inspector.
 	spawner_max_health = EnemyStats.value(faction, building_type, "max_health", spawner_max_health)

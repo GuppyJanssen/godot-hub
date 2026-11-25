@@ -111,6 +111,7 @@ func _build_pad() -> void:
 	_pad_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_pad_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	pad.add_child(_pad_label)
+	GameCamera.fit_world_label(_pad_label)
 	pad.body_entered.connect(_on_pad_entered)
 	# De speler botst via zijn Area2D (groep "player"), niet via zijn CharacterBody2D.
 	pad.area_entered.connect(_on_pad_area_entered)

@@ -36,8 +36,11 @@ const PLAYER_ROW := "player_base"
 const MUZZLE_SPACING := 14.0
 ## Ondergrens voor de tijd tussen schoten, ook met F1 of skills.
 const MIN_FIRE_INTERVAL := 0.02
-## Rand van de speler voor RoomBounds (botsvorm van het schip).
+## Rand van de speler als de sprite ontbreekt; anders rekent SpriteFit hem uit (body_radius).
 const BODY_RADIUS := 30.0
+## Het schip is gedraaid getekend; alleen dit deel van de omhullende telt als raakbaar.
+const HITBOX_SHRINK := 0.6
+var body_radius: float = BODY_RADIUS
 
 ## Tijd tot het schild weer mag laden (na een treffer).
 var _shield_delay_left: float = 0.0
@@ -55,6 +58,10 @@ var crosshair: Crosshair = null
 func _ready() -> void:
 	if is_instance_valid(Game):
 		Game.active_player = self
+	# Hitbox passend bij de sprite van het schip.
+	var fitted: float = SpriteFit.fit(self, HITBOX_SHRINK)
+	if fitted > 0.0:
+		body_radius = fitted
 
 	# 1. Skills (gekocht + run-punten) in Mods zetten, vóór de stats worden uitgerekend.
 	SkillEffects.refresh_from_save()
@@ -181,7 +188,7 @@ func _physics_process(delta: float) -> void:
 	# 4. Kamergrenzen (Systems/room_bounds.gd).
 	if is_instance_valid(LevelManager):
 		var enemies_alive: bool = get_tree().get_nodes_in_group("targets").size() + get_tree().get_nodes_in_group("enemies").size() > 0
-		RoomBounds.apply(self, BODY_RADIUS, enemies_alive)
+		RoomBounds.apply(self, body_radius, enemies_alive)
 
 	# 5. Schieten (full-auto: knop vasthouden, semi: per klik).
 	if can_fire:

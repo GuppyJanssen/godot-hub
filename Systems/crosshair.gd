@@ -87,10 +87,12 @@ func _draw() -> void:
 	if not is_instance_valid(player):
 		return
 	var point: Vector2 = aim_point()
-	draw_line(player.global_position, point, LINE_COLOR, 1.0)
-	draw_arc(point, RING_RADIUS, 0.0, TAU, 24, COLOR, WIDTH)
+	# Even groot op het scherm, hoe ver de camera ook is uitgezoomd.
+	var k: float = GameCamera.ui_scale()
+	draw_line(player.global_position, point, LINE_COLOR, 1.0 * k)
+	draw_arc(point, RING_RADIUS * k, 0.0, TAU, 24, COLOR, WIDTH * k)
 	for dir in [Vector2.RIGHT, Vector2.LEFT, Vector2.UP, Vector2.DOWN]:
-		draw_line(point + dir * (RING_RADIUS + 2.0), point + dir * (RING_RADIUS + 2.0 + TICK), COLOR, WIDTH)
+		draw_line(point + dir * (RING_RADIUS + 2.0) * k, point + dir * (RING_RADIUS + 2.0 + TICK) * k, COLOR, WIDTH * k)
 
 
 func _exit_tree() -> void:

@@ -47,6 +47,9 @@ func _ready() -> void:
 	# Daarom luisteren we ook naar areas; die geven we door als de speler zelf.
 	area_entered.connect(_on_area_entered)
 	area_exited.connect(_on_area_exited)
+	# Leesbaar bij elke camerazoom.
+	GameCamera.fit_world_label(name_label)
+	GameCamera.fit_world_label(hint_label)
 	_refresh_labels()
 
 

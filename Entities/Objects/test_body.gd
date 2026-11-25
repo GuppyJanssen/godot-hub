@@ -114,6 +114,11 @@ func _ready() -> void:
 	if not passive:
 		add_to_group("saveable")  # deze vijand wil onthouden worden (zie game_room.gd)
 	
+	# Hitboxen passend bij de sprite (vóór de grootte uit de SSOT); body_radius volgt mee.
+	var fitted: float = SpriteFit.fit(self)
+	if fitted > 0.0:
+		body_radius = fitted
+	
 	# 1. DATA LADEN UIT DE SINGLE SOURCE OF TRUTH (SSoT) CSV
 	_load_stats()
 	
@@ -229,8 +234,8 @@ func _load_weapon() -> void:
 	# (bijvoorbeeld een Organic-commando) houdt afstand en schiet.
 	if behavior_agro == "kamikaze":
 		behavior_agro = "keep_distance"
-	# Klein naambordje, zodat je ziet welk wapen hij heeft (en straks kunt oprapen).
-	if _weapon_label == null:
+	# Klein naambordje met het wapen, alleen in de testkamer (in het gewone spel niet in beeld).
+	if _weapon_label == null and LevelManager.in_test_room:
 		_weapon_label = Label.new()
 		_weapon_label.position = Vector2(-60, -body_radius - 30)
 		_weapon_label.size = Vector2(120, 20)
@@ -239,7 +244,9 @@ func _load_weapon() -> void:
 		# Los van de draaiing van de vijand (anders draait de tekst mee); positie in _process.
 		_weapon_label.top_level = true
 		add_child(_weapon_label)
-	_weapon_label.text = Ssot.get_text(weapon_id, "ingame_name", weapon_id)
+		GameCamera.fit_world_label(_weapon_label)
+	if _weapon_label != null:
+		_weapon_label.text = Ssot.get_text(weapon_id, "ingame_name", weapon_id)
 
 
 # Schiet op de speler als hij een wapen heeft, de speler ziet en binnen bereik is.
@@ -357,7 +364,7 @@ func _physics_process(delta: float) -> void:
 	# Een kamikaze (spore) ontploft altijd als de speler hem aanraakt, ook als hij nog geen
 	# alarm heeft (dan merkt hij de speler pas op het laatste moment op).
 	if behavior_agro == "kamikaze" and current_health > 0 \
-			and distance <= maxf(kamikaze_trigger_distance, body_radius + Player.BODY_RADIUS):
+			and distance <= maxf(kamikaze_trigger_distance, body_radius + _player_radius(player)):
 		_explode()
 		return
 	
@@ -644,3 +651,10 @@ func _flash_white() -> void:
 static func _wander_area() -> Rect2:
 	var room: Vector2 = RoomBounds.size()
 	return Rect2(WANDER_MARGIN, WANDER_MARGIN, room.x - 2.0 * WANDER_MARGIN, room.y - 2.0 * WANDER_MARGIN)
+
+
+## Straal van het schip van de speler (passend bij zijn sprite), voor aanraken.
+static func _player_radius(player: Node) -> float:
+	if "body_radius" in player:
+		return float(player.body_radius)
+	return Player.BODY_RADIUS

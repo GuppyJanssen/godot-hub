@@ -21,6 +21,7 @@ func _ready() -> void:
 	_label.size = Vector2(180, 24)
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_label)
+	GameCamera.fit_world_label(_label)
 	_spawn()
 
 

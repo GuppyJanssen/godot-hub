@@ -44,6 +44,7 @@ func _ready() -> void:
 	_info.size = Vector2(240, 60)
 	_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_info)
+	GameCamera.fit_world_label(_info)
 	_update_info()
 
 
@@ -85,6 +86,7 @@ func _float_text(text: String) -> void:
 	label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.3))
 	label.position = Vector2(randf_range(-30, 10), -RADIUS - 24)
 	add_child(label)
+	GameCamera.fit_world_label(label)
 	var tween: Tween = create_tween()
 	tween.set_parallel(true)
 	tween.tween_property(label, "position:y", label.position.y - 50.0, 0.8)

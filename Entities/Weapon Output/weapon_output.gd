@@ -46,6 +46,8 @@ func _ready() -> void:
 	# "terug naar hoofdmenu". Bij een kamerwissel vervalt hij.
 	add_to_group("saveable")
 	add_to_group("save_only_on_quit")
+	# Hitbox passend bij de sprite; de schaal van de kogel (base_size) geldt daarna voor beide.
+	SpriteFit.fit(self)
 
 	if from_enemy:
 		weapon_range = range_override if range_override > 0.0 else FALLBACK_RANGE
@@ -95,7 +97,9 @@ func _physics_process(delta: float) -> void:
 	# GECORRIGEERD: Gebruikt de betrouwbare transform-richting van Godot 4.7
 	# Dit voorkomt dat de kogel bij een verkeerde rotatie-matrix naar (0,0) schiet!
 	var move_amount: float = speed * delta
-	global_position += transform.x * move_amount
+	# Richting zonder schaal: transform.x is zo lang als de schaal van de kogel (base_size). Een kleine
+	# kogel (pistool 0,5) vloog daardoor half zo snel en kwam maar tot de helft van zijn bereik.
+	global_position += transform.x.normalized() * move_amount
 	
 	# Stuiteren tegen de rand van de kamer.
 	if bounce_left > 0:

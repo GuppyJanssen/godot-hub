@@ -43,8 +43,7 @@ func _ready() -> void:
 
 ## Leest zoom en kamergrenzen opnieuw (bijvoorbeeld na een wissel in het F1-menu).
 func apply_settings() -> void:
-	# F1 "Kamer: oud": de oude weergave (hele kamer van 1920 × 1080 in beeld, geen zoom).
-	var z: float = 1.0 if Game.debug_classic_room else clampf(_setting("camera_zoom"), 0.25, 4.0)
+	var z: float = current_zoom()
 	zoom = Vector2(z, z)
 	var room: Vector2 = RoomBounds.size()
 	limit_left = 0
@@ -81,6 +80,27 @@ func _snap_to_target() -> void:
 	if is_instance_valid(player):
 		global_position = player.global_position
 	reset_smoothing()
+
+
+## De zoom van de camera. F1 "Kamer: oud": 1 (de oude weergave, hele kamer van 1920 × 1080 in beeld).
+static func current_zoom() -> float:
+	if Game.debug_classic_room:
+		return 1.0
+	return clampf(_setting("camera_zoom"), 0.25, 4.0)
+
+
+## Tekst en lijnen in de wereld (naambordjes, vizier) blijven even groot op het scherm,
+## hoe ver de camera ook is uitgezoomd: vermenigvuldig hun maat hiermee.
+static func ui_scale() -> float:
+	return 1.0 / current_zoom()
+
+
+## Een Label in de wereld leesbaar houden bij elke zoom: schalen rond zijn midden.
+static func fit_world_label(label: Label) -> void:
+	if label == null:
+		return
+	label.pivot_offset = label.size / 2.0
+	label.scale = Vector2.ONE * ui_scale()
 
 
 static func _setting(setting_name: String) -> float:
