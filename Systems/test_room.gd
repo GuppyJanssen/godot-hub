@@ -23,6 +23,9 @@ const UNIT_SPACING := 320.0
 ## Gebouwen kunnen groot zijn (een HQ is zo'n 3 fabrieken breed), dus meer ruimte.
 const BUILDING_ROW_Y := 860.0
 const BUILDING_SPACING := 460.0
+## Halve maat van een gebouw bij base_size 1 (de sprite is 128 breed) en de ruimte erboven.
+const BUILDING_HALF_SIZE := 64.0
+const BUILDING_CLEARANCE := 150.0
 const PAD_POSITION := Vector2(1640, 330)
 const PAD_SIZE := Vector2(200, 90)
 
@@ -59,7 +62,12 @@ func _ready() -> void:
 		else:
 			movers.append(str(unit_type))
 	_place_row(movers, UNIT_ROW_Y, UNIT_SPACING, 220.0)
-	_place_row(buildings, BUILDING_ROW_Y, BUILDING_SPACING, 420.0)
+	# Grote gebouwen (een HQ van base_size 3) mogen niet over de rij units heen vallen.
+	var biggest: float = 1.0
+	for building in buildings:
+		biggest = maxf(biggest, EnemyStats.value(_factions[_index], str(building), "size", 1.0))
+	var building_y: float = maxf(BUILDING_ROW_Y, UNIT_ROW_Y + BUILDING_CLEARANCE + BUILDING_HALF_SIZE * biggest)
+	_place_row(buildings, building_y, maxf(BUILDING_SPACING, BUILDING_HALF_SIZE * 2.0 * biggest + 80.0), 420.0)
 
 	_build_pad()
 	_update_pad_label()
@@ -86,6 +94,9 @@ func _unit_types() -> Array:
 		var type_name: String = str(row_id)
 		if type_name.begins_with(EnemyStats.UNIT_PREFIX):
 			type_name = type_name.substr(EnemyStats.UNIT_PREFIX.length())
+		# Een type zonder ingevulde waarden (zoals unit_outpost nu) zou als grunt verschijnen: overslaan.
+		if not Ssot.has_value(str(row_id), "base_speed"):
+			continue
 		types.append(type_name)
 	return types if not types.is_empty() else FALLBACK_UNIT_TYPES.duplicate()
 

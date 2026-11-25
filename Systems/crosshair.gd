@@ -6,6 +6,10 @@ class_name Crosshair
 ## - Het vizier hangt op een vaste plek TEN OPZICHTE VAN HET SCHIP (aim_offset). Alleen als je de muis
 ##   beweegt, verschuift het. Vlieg je zonder de muis te bewegen, dan blijft je mikrichting en
 ##   -afstand precies gelijk; het vizier vliegt gewoon met je mee.
+## - DRAAISNELHEID: de muis bepaalt waar je HEEN WIL mikken (aim_offset, een vaag stipje). Het vizier
+##   zelf staat altijd in de richting waarin het schip wijst, op dezelfde afstand. Het schip draait
+##   met base_rotation_speed naar het stipje, dus het vizier draait even snel mee. Zo voel je de
+##   draaisnelheid, en het vizier wijst altijd eerlijk aan waar je kogels heen gaan.
 ## - Het vizier komt nooit verder dan het bereik van het huidige wapen
 ##   (current_weapon_stats["weapon_range"], met de F1-bereikinstelling). Beweeg je de muis verder,
 ##   dan blijft het vizier op het bereik; terugbewegen werkt meteen.
@@ -29,6 +33,11 @@ const TICK := 6.0
 const WIDTH := 2.0
 ## Beginafstand van het vizier voor het schip, als deel van het bereik.
 const START_FRACTION := 0.5
+## Het stipje waar je heen wil mikken (alleen zichtbaar als het schip nog moet draaien).
+const TARGET_COLOR := Color(1.0, 1.0, 1.0, 0.35)
+const TARGET_RADIUS := 3.0
+## Vanaf deze afstand (wereld-pixels, voor zoom) tussen vizier en stipje is het stipje te zien.
+const TARGET_SHOW_DISTANCE := 6.0
 
 ## Plek van het vizier ten opzichte van het schip (wereld-pixels).
 var aim_offset: Vector2 = Vector2.ZERO
@@ -41,8 +50,24 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
 
-## Waar het vizier nu staat, in wereld-coördinaten.
+## Waar het vizier nu staat (in de richting van het schip), in wereld-coördinaten.
 func aim_point() -> Vector2:
+	var player: Node2D = get_parent() as Node2D
+	if not is_instance_valid(player):
+		return global_position
+	return player.global_position + shown_offset()
+
+
+## Het vizier ten opzichte van het schip: richting van het schip, afstand van de muis.
+func shown_offset() -> Vector2:
+	var player: Node2D = get_parent() as Node2D
+	if not is_instance_valid(player):
+		return aim_offset
+	return Vector2.from_angle(player.global_rotation) * aim_offset.length()
+
+
+## Waar je met de muis heen wil mikken; hier draait het schip naartoe.
+func target_point() -> Vector2:
 	var player: Node2D = get_parent() as Node2D
 	if not is_instance_valid(player):
 		return global_position
@@ -93,6 +118,9 @@ func _draw() -> void:
 	draw_arc(point, RING_RADIUS * k, 0.0, TAU, 24, COLOR, WIDTH * k)
 	for dir in [Vector2.RIGHT, Vector2.LEFT, Vector2.UP, Vector2.DOWN]:
 		draw_line(point + dir * (RING_RADIUS + 2.0) * k, point + dir * (RING_RADIUS + 2.0 + TICK) * k, COLOR, WIDTH * k)
+	var target: Vector2 = target_point()
+	if target.distance_to(point) > TARGET_SHOW_DISTANCE * k:
+		draw_circle(target, TARGET_RADIUS * k, TARGET_COLOR)
 
 
 func _exit_tree() -> void:

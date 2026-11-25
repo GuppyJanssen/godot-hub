@@ -158,7 +158,8 @@ func _physics_process(delta: float) -> void:
 
 	# 1. Draaien naar de muis, met de draaisnelheid uit de SSOT.
 	var turn_speed: float = _stat("rotation_speed", 10.0)
-	var aim_at: Vector2 = crosshair.aim_point() if is_instance_valid(crosshair) else get_global_mouse_position()
+	# Naar waar je met de muis heen wil mikken; het vizier zelf draait met het schip mee.
+	var aim_at: Vector2 = crosshair.target_point() if is_instance_valid(crosshair) else get_global_mouse_position()
 	var target_angle: float = (aim_at - global_position).angle()
 	global_rotation = rotate_toward(global_rotation, target_angle, maxf(0.0, turn_speed) * delta)
 
