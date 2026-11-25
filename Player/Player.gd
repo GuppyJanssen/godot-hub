@@ -376,6 +376,7 @@ func fire_primary_weapon() -> void:
 		bullet.explosion_radius = float(current_weapon_stats.get("explosion_radius", 0.0))
 		bullet.global_position = global_position + muzzle_offset
 		bullet.global_rotation = global_rotation + final_spread
+		bullet.shooter_velocity = velocity
 		get_tree().current_scene.add_child(bullet)
 
 	if energy_cost > 0.0 and not god:

@@ -16,6 +16,10 @@ class_name LootDrop
 ## 5. Samenklonteren pas als er binnen een cirkel (loot_merge_circle) genoeg ligt: samen minstens een
 ##    klompje (loot_chunk_small) of een steen (loot_chunk_large). De totale hoeveelheid blijft gelijk:
 ##    6 klompjes van 15 + 7 losse = 97 = één steen.
+## 6. Samenkomen: ligt er nog niet genoeg om samen te smelten, dan kruipt elk stukje heel langzaam
+##    naar het midden van de stukjes van dezelfde grondstof om zich heen (loot_gather_speed). Zo
+##    komen losse stukjes en groepjes vanzelf bij elkaar. Een stukje dat al tegen een ander aan ligt
+##    in de richting waarin het wil, blijft stil liggen (geen geduw of getril).
 ##
 ## INSTELLINGEN (SSOT-rij "world"; leeg = de standaard in MERGE_DEFAULTS):
 ##   loot_merge_delay      seconden na het neerkomen voordat een stukje gaat zoeken
@@ -27,6 +31,7 @@ class_name LootDrop
 ##   loot_cluster_friction afremming tijdens het samendrijven (pixels per seconde²). Let op: het
 ##                         samendrijven gaat met (loot_merge_speed - loot_cluster_friction) vooruit.
 ##   loot_merge_wait       seconden dat een stukje stil moet liggen voordat het mag samenklonteren
+##   loot_gather_speed     snelheid van het langzame samenkomen (pixels per seconde; 0 = uit)
 ##   loot_merge_duration   seconden dat het samensmelten zelf duurt (de "lavalamp": de stukjes glijden
 ##                         langzaam in elkaar en het nieuwe stuk groeit daarna rustig tot zijn grootte)
 ##   loot_bounce, loot_settled_speed, loot_grow_seconds, loot_chunk_scale, loot_stone_scale,
@@ -70,7 +75,10 @@ const MERGE_DEFAULTS := {
 	"loot_stone_scale": 2.6,           # grootte van een steen
 	"loot_stone_circle_factor": 1.75,  # cirkel voor een steen = zoveel keer loot_merge_circle
 	"loot_sleep_after": 4.0,           # na zoveel seconden samendrijven zonder resultaat: slapen
+	"loot_gather_speed": 12.0,         # langzaam samenkomen van dezelfde grondstof (pixels per seconde)
 }
+## Zo dicht bij het midden van zijn groepje stopt een stukje met samenkomen (in stralen).
+const GATHER_STOP_RADII := 1.5
 ## De SSOT-rij met de magneet en het oppakken van de speler.
 const PLAYER_ROW := "player_base"
 const NEIGHBOR_REFRESH := 0.15     # seconden tussen het opnieuw zoeken van buren
@@ -114,6 +122,7 @@ var _sleep_check_timer: float = 0.0
 var _sleep_neighbor_count: int = 0
 var _awake_time: float = 0.0       # seconden samendrijven sinds het neerkomen of wakker worden
 var _quiet_time: float = 0.0       # seconden dat het stukje al (bijna) stil ligt
+var _gather_dir: Vector2 = Vector2.ZERO  # richting van het langzame samenkomen (nul = stil liggen)
 var _target_scale: float = 1.0     # de echte grootte; een nieuw stuk groeit hier naartoe         # al opgegaan in een klompje of steen (wordt zo verwijderd)
 
 @onready var color_rect: ColorRect = $ColorRect
@@ -219,6 +228,10 @@ func _physics_process(delta: float) -> void:
 		return
 
 	if _asleep:
+		# Langzaam samenkomen: elk frame een klein stapje, de richting alleen bij elke controle.
+		if _gather_dir != Vector2.ZERO:
+			global_position += _gather_dir * _setting("loot_gather_speed") * delta
+			_resolve_collisions()
 		_sleep_check_timer -= delta
 		if _sleep_check_timer > 0.0:
 			return
@@ -228,6 +241,8 @@ func _physics_process(delta: float) -> void:
 			_wake()
 		else:
 			_try_merge()
+			if _asleep and not _merging:
+				_gather_dir = _gather_direction()
 			return
 
 	_neighbor_timer -= delta
@@ -269,6 +284,7 @@ func _go_to_sleep() -> void:
 
 func _wake() -> void:
 	_asleep = false
+	_gather_dir = Vector2.ZERO
 	_awake_time = 0.0
 	_quiet_time = 0.0
 
@@ -460,6 +476,33 @@ func _pull_towards_neighbor(delta: float) -> void:
 	var direction: Vector2 = (target.global_position - global_position).normalized()
 	velocity += direction * _setting("loot_merge_speed") * delta
 	velocity += direction.orthogonal() * _orbit_sign * _setting("loot_orbit_strength") * delta
+
+
+# Richting naar het midden van de stukjes van dezelfde grondstof in de buurt (_neighbors), of nul als
+# het stukje er al is, er niemand is, of er in die richting al een ander stukje tegenaan ligt.
+func _gather_direction() -> Vector2:
+	if _setting("loot_gather_speed") <= 0.0:
+		return Vector2.ZERO
+	var sum := Vector2.ZERO
+	var count: int = 0
+	for other in _neighbors:
+		if other == self or not is_instance_valid(other) or not other.can_merge() or other.resource_id != resource_id:
+			continue
+		sum += other.global_position
+		count += 1
+	if count == 0:
+		return Vector2.ZERO
+	var to_center: Vector2 = sum / count - global_position
+	if to_center.length() <= radius * GATHER_STOP_RADII:
+		return Vector2.ZERO
+	var direction: Vector2 = to_center.normalized()
+	for other in _neighbors:
+		if other == self or not is_instance_valid(other) or other.is_queued_for_deletion():
+			continue
+		var offset: Vector2 = other.global_position - global_position
+		if offset.length() <= (radius + other.radius) * 1.1 and offset.normalized().dot(direction) > 0.3:
+			return Vector2.ZERO  # er ligt al iets in de weg: stil blijven liggen
+	return direction
 
 
 # Stukjes kunnen niet door elkaar: duw ze uit elkaar en haal wat vaart weg (een zachte botsing).

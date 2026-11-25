@@ -23,6 +23,12 @@ var damage_type: String = ""
 var from_enemy: bool = false
 ## Bereik van het wapen. De schutter zet dit; -1 = uit de wapenwaarden van de speler lezen (oud).
 var range_override: float = -1.0
+## Snelheid van de schutter op het moment van schieten. Het deel in de schietrichting telt mee
+## (world: shot_inherit_velocity): vooruit vliegend schiet je verder, achteruit minder ver.
+## Zijwaarts telt niet mee, zodat de kogel altijd op het vizier af gaat. Zet dit vóór add_child.
+var shooter_velocity: Vector2 = Vector2.ZERO
+## De kogel gaat nooit langzamer dan dit deel van zijn eigen snelheid (ook niet bij hard achteruit).
+const MIN_INHERIT_FACTOR := 0.3
 var pierce_left: int = 0
 var bounce_left: int = 0
 var knockback_force: float = 0.0
@@ -53,6 +59,7 @@ func _ready() -> void:
 		weapon_range = range_override if range_override > 0.0 else FALLBACK_RANGE
 		var enemy_size: float = maxf(0.05, size_scale)
 		scale = Vector2(enemy_size, enemy_size)
+		_apply_shooter_velocity()
 		# De speler heeft alleen een Area2D (groep "player"), geen botsvorm op zijn lichaam.
 		area_entered.connect(_on_area_entered)
 		return
@@ -72,6 +79,19 @@ func _ready() -> void:
 	weapon_range = range_override if range_override > 0.0 else _read_weapon_range()
 	if Game.debug_range_multiplier:
 		weapon_range *= Game.debug_range_multiplier
+	_apply_shooter_velocity()
+
+
+# Vaart van de schutter erbij. Het bereik groeit en krimpt mee, zodat de kogel even lang vliegt:
+# meer vaart = verder, minder vaart = minder ver (zoals in The Binding of Isaac).
+func _apply_shooter_velocity() -> void:
+	var inherit: float = clampf(Ssot.get_number("world", "shot_inherit_velocity", 0.5), 0.0, 2.0)
+	if inherit <= 0.0 or speed <= 0.0 or shooter_velocity == Vector2.ZERO:
+		return
+	var forward: float = shooter_velocity.dot(Vector2.from_angle(global_rotation))
+	var new_speed: float = maxf(speed * MIN_INHERIT_FACTOR, speed + forward * inherit)
+	weapon_range *= new_speed / speed
+	speed = new_speed
 
 
 # Haalt het bereik van het actieve wapen op uit de wapenwaarden van de speler

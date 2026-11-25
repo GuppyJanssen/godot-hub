@@ -68,4 +68,6 @@ static func fire(shooter: Node2D, weapon: SsotWeapon, target_pos: Vector2, muzzl
 		bullet.global_rotation = aim + spread
 		bullet.global_position = shooter.global_position + Vector2.from_angle(aim) * muzzle_distance
 		bullet.modulate = Color(1.0, 0.55, 0.45)  # vijandkogels iets roder, zodat je ze herkent
+		if "velocity" in shooter and shooter.velocity is Vector2:
+			bullet.shooter_velocity = shooter.velocity
 		parent.add_child(bullet)
