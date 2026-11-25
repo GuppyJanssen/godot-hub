@@ -24,8 +24,6 @@ const MAX_SIZE := Vector2(7680.0, 4320.0)
 ## Grootte van een kamer in pixels: SSOT-rij world, kolommen world_room_width en world_room_height.
 ## Alles wat met kamerranden, het midden of plekken in de kamer rekent, gebruikt dit.
 static func size() -> Vector2:
-	if Game.debug_classic_room:
-		return BASE_SIZE
 	return Vector2(
 		clampf(Ssot.get_number("world", "world_room_width", BASE_SIZE.x), MIN_SIZE.x, MAX_SIZE.x),
 		clampf(Ssot.get_number("world", "world_room_height", BASE_SIZE.y), MIN_SIZE.y, MAX_SIZE.y))

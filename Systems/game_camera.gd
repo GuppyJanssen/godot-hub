@@ -82,11 +82,19 @@ func _snap_to_target() -> void:
 	reset_smoothing()
 
 
-## De zoom van de camera. F1 "Kamer: oud": 1 (de oude weergave, hele kamer van 1920 × 1080 in beeld).
+## De zoom van de camera (camera_zoom uit de SSOT).
+## F1 "Zoomtest": zo ver uitgezoomd dat de hele kamer in beeld is. De kamer en alles erin blijven
+## even groot; alleen de camera kijkt van verder weg.
 static func current_zoom() -> float:
-	if Game.debug_classic_room:
-		return 1.0
-	return clampf(_setting("camera_zoom"), 0.25, 4.0)
+	var normal: float = clampf(_setting("camera_zoom"), 0.05, 4.0)
+	if not Game.debug_zoom_overview:
+		return clampf(normal, 0.25, 4.0)
+	var view: Vector2 = Vector2(1920.0, 1080.0)
+	var tree: SceneTree = Engine.get_main_loop() as SceneTree
+	if tree != null and tree.root != null:
+		view = tree.root.get_visible_rect().size
+	var room: Vector2 = RoomBounds.size()
+	return minf(normal, minf(view.x / room.x, view.y / room.y))
 
 
 ## Tekst en lijnen in de wereld (naambordjes, vizier) blijven even groot op het scherm,

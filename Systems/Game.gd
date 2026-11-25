@@ -22,7 +22,7 @@ var debug_range_multiplier: float = 1.0
 var debug_fire_rate_multiplier: float = 1.0  # F1: 2 = twee keer zo snel schieten
 var debug_weapon_mode: int = 0  # 0 = SSOT (het wapen bepaalt het), 1 = altijd auto, 2 = altijd semi
 var debug_muzzle_count: int = 0
-var debug_classic_room: bool = false  # F1 zoomtest: true = oude kamer (1920 × 1080, hele kamer in beeld)  # 0 = het aantal uit de SSOT (base_muzzle_count)
+var debug_zoom_overview: bool = false  # F1 zoomtest: true = camera zoomt uit tot de hele kamer in beeld is (verhoudingen blijven gelijk)  # 0 = het aantal uit de SSOT (base_muzzle_count)
 
 
 # 3. JULLIE BESTAANDE READY FUNCTIE (BLIJFT 100% INTACT)
