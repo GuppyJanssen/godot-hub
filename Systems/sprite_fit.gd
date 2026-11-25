@@ -3,6 +3,7 @@ class_name SpriteFit
 ##
 ## Zo kloppen de hitboxen altijd met wat je ziet, ook als Maik een nieuwe sprite met een andere maat
 ## aanlevert: de vorm wordt bij het starten uitgerekend uit de sprite (textuur × schaal × draaiing).
+## Alleen het zichtbare deel telt: doorzichtige randen en zachte gloed (zoals om de kogel) niet.
 ##
 ## Gebruik (in _ready, vóór het object geschaald wordt met base_size):
 ##   var radius: float = SpriteFit.fit(self)   # -1 als er geen sprite is (dan blijft alles zoals het was)
@@ -12,7 +13,8 @@ class_name SpriteFit
 ## - Elke CollisionShape2D direct onder het object, en onder een Area2D direct onder het object
 ##   (bijvoorbeeld "HitBox"), krijgt een vorm van die maat, op de plek van de sprite.
 ##   Rechthoek = de sprite, cirkel = de kleinste kant, capsule = de sprite in de lengte.
-## - SHRINK maakt de vorm iets kleiner dan de tekening: lege randen van de PNG tellen niet als raak.
+## - Zichtbaar = pixels die minstens half dekkend zijn (SOLID_ALPHA). Per textuur één keer uitgerekend.
+## - SHRINK maakt de vorm daarna nog iets kleiner dan de tekening (randjes en puntjes tellen niet).
 ##
 ## Ontwikkelaarsnotities:
 ## - Vormen worden NIET in de scene aangepast (die worden gedeeld door alle exemplaren), maar per
@@ -22,8 +24,14 @@ class_name SpriteFit
 
 ## Deel van de sprite dat als raakbaar telt (0.85 = 85%).
 const SHRINK := 0.85
+## Vanaf deze dekking (0..1) telt een pixel als zichtbaar. Gloed eromheen is doorzichtiger.
+const SOLID_ALPHA := 0.5
+## Grote plaatjes worden met grotere stappen bekeken (max. ongeveer 128 × 128 metingen per textuur).
+const MAX_SAMPLES := 128
 
 static var _cache: Dictionary = {}
+## textuur (instance id) -> Rect2 van het zichtbare deel, in pixels van de textuur.
+static var _solid_cache: Dictionary = {}
 
 
 ## Past de botsvormen aan. Geeft de straal terug (gemiddelde halve maat), of -1 zonder sprite.
@@ -31,12 +39,57 @@ static func fit(root: Node2D, shrink: float = SHRINK) -> float:
 	var sprite: Sprite2D = _first_sprite(root)
 	if sprite == null or sprite.texture == null:
 		return -1.0
-	var visual: Vector2 = _rotated_size(sprite.get_rect().size * sprite.scale.abs(), sprite.rotation) * shrink
+	var full: Rect2 = sprite.get_rect()
+	var solid: Rect2 = _solid_rect(sprite)
+	var visual: Vector2 = _rotated_size(solid.size * sprite.scale.abs(), sprite.rotation) * shrink
 	if visual.x <= 0.0 or visual.y <= 0.0:
 		return -1.0
+	# Zit het zichtbare deel niet precies in het midden van het plaatje, dan schuift de vorm mee.
+	var shift: Vector2 = ((full.position + solid.position + solid.size / 2.0) * sprite.scale).rotated(sprite.rotation)
 	for shape_node in _shape_nodes(root):
-		_apply(shape_node, visual, sprite.position)
+		_apply(shape_node, visual, sprite.position + shift)
 	return (visual.x + visual.y) / 4.0
+
+
+## Het zichtbare deel van de sprite (ten opzichte van de linkerbovenhoek van get_rect()).
+## Bij sprite-sheets (frames) of een region: het hele frame, want dan is meten per frame niet zinvol.
+static func _solid_rect(sprite: Sprite2D) -> Rect2:
+	var full := Rect2(Vector2.ZERO, sprite.get_rect().size)
+	if sprite.region_enabled or sprite.hframes * sprite.vframes > 1:
+		return full
+	var key: int = sprite.texture.get_instance_id()
+	if _solid_cache.has(key):
+		return _solid_cache[key]
+	var found: Rect2 = full
+	var image: Image = sprite.texture.get_image()
+	if image != null and not image.is_empty():
+		if image.is_compressed():
+			image = image.duplicate()
+			if image.decompress() != OK:
+				image = null
+		if image != null:
+			found = _scan_solid(image, full)
+	_solid_cache[key] = found
+	return found
+
+
+static func _scan_solid(image: Image, fallback: Rect2) -> Rect2:
+	var w: int = image.get_width()
+	var h: int = image.get_height()
+	var step: int = maxi(1, ceili(float(maxi(w, h)) / MAX_SAMPLES))
+	var min_p := Vector2i(w, h)
+	var max_p := Vector2i(-1, -1)
+	for y in range(0, h, step):
+		for x in range(0, w, step):
+			if image.get_pixel(x, y).a >= SOLID_ALPHA:
+				min_p = Vector2i(mini(min_p.x, x), mini(min_p.y, y))
+				max_p = Vector2i(maxi(max_p.x, x), maxi(max_p.y, y))
+	if max_p.x < 0:
+		return fallback  # helemaal doorzichtig: dan maar het hele plaatje
+	var end := Vector2i(mini(w, max_p.x + step), mini(h, max_p.y + step))
+	# Schalen naar get_rect() (zelfde maat als de textuur, tenzij Godot hem anders toont).
+	var k: Vector2 = fallback.size / Vector2(w, h)
+	return Rect2(Vector2(min_p) * k, Vector2(end - min_p) * k)
 
 
 static func _first_sprite(root: Node) -> Sprite2D:

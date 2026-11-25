@@ -38,8 +38,8 @@ const MUZZLE_SPACING := 14.0
 const MIN_FIRE_INTERVAL := 0.02
 ## Rand van de speler als de sprite ontbreekt; anders rekent SpriteFit hem uit (body_radius).
 const BODY_RADIUS := 30.0
-## Het schip is gedraaid getekend; alleen dit deel van de omhullende telt als raakbaar.
-const HITBOX_SHRINK := 0.6
+## Het schip is een gedraaide driehoek; alleen dit deel van de omhullende rechthoek telt als raakbaar.
+const HITBOX_SHRINK := 0.7
 var body_radius: float = BODY_RADIUS
 
 ## Tijd tot het schild weer mag laden (na een treffer).

@@ -140,7 +140,7 @@ func _build_resource_rows() -> void:
 	for id in LootResources.ids():
 		var hbox = HBoxContainer.new()
 		hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		hbox.alignment = BoxContainer.ALIGNMENT_END  # rechts uitlijnen
+		hbox.alignment = BoxContainer.ALIGNMENT_BEGIN  # links uitlijnen (blok zelf staat rechtsboven)
 		hbox.visible = false
 		currency_container.add_child(hbox)
 
