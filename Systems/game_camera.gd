@@ -14,8 +14,7 @@ class_name GameCamera
 ##                     Het schip staat dan nooit dichter dan 40% van het halve beeld bij de rand.
 ##   camera_smoothing  hoe snel de camera bijdraait (hoger = sneller).
 ##   camera_deadzone   pixels rond het schip waarin de muis de kijkrichting niet verandert.
-##   camera_follow_lag hoe ver de camera achter het schip mag lopen (deel van het halve beeld).
-##                     camera_lookahead 0 = niet vooruitkijken (Daan, 26 nov: rustiger mikken).
+##   (camera_smoothing is nu: hoe snel de kijkrichting hooguit draait, in radialen per seconde.)
 ##
 ## Ontwikkelaarsnotities:
 ## - top_level: de camera draait niet mee met het schip; hij zet zijn eigen positie.
@@ -27,7 +26,6 @@ const DEFAULTS := {
 	"camera_lookahead": 0.6,
 	"camera_smoothing": 6.0,
 	"camera_deadzone": 40.0,
-	"camera_follow_lag": 0.4,
 }
 ## Het schip blijft altijd minstens dit deel van het halve beeld van de rand af.
 const MAX_LOOKAHEAD := 0.85
@@ -68,30 +66,19 @@ func _physics_process(delta: float) -> void:
 	var to_mouse: Vector2 = player.get_global_mouse_position() - player.global_position
 	if "crosshair" in player and is_instance_valid(player.crosshair):
 		to_mouse = player.crosshair.shown_offset()  # het vizier, dus ook in het tempo van het draaien
-	var weight: float = clampf(_setting("camera_smoothing") * delta, 0.0, 1.0)
+	# Kijkrichting draait METEEN mee (geen vertraging), maar met een maximale draaisnelheid
+	# (camera_smoothing, radialen per seconde). Snel heen en weer met de muis geeft zo alleen een
+	# lichte beweging, en de camera loopt niet na als de muis stilstaat.
 	if to_mouse.length() > _setting("camera_deadzone"):
 		if not _has_look:
 			_look_angle = to_mouse.angle()
 			_has_look = true
-		_look_angle = lerp_angle(_look_angle, to_mouse.angle(), weight)
+		_look_angle = rotate_toward(_look_angle, to_mouse.angle(), maxf(0.0, _setting("camera_smoothing")) * delta)
 	if _has_look:
 		_look_dir = Vector2.from_angle(_look_angle)
 	_offset_now = _target_offset()
-	# Ook het volgen van het schip zelf is afgevlakt (Daan, 26 nov: vloeiender en trager). Hoe ver
-	# de camera achter mag lopen: camera_follow_lag (deel van het halve beeld), anders schuift het
-	# schip uit beeld bij hoge snelheid.
-	var wanted: Vector2 = player.global_position + _offset_now
-	var half_view: Vector2 = get_viewport_rect().size / zoom / 2.0
-	# Teleport (nieuwe kamer, Continue, start van de run): meteen erheen, niet aanglijden. Anders
-	# lijkt alles in beeld weg te vallen en verschiet de achtergrond.
-	if global_position.distance_to(wanted) > half_view.length():
-		snap()
-		return
-	var follow: Vector2 = global_position.lerp(wanted, weight)
-	var max_lag: Vector2 = half_view * clampf(_setting("camera_follow_lag"), 0.0, MAX_LOOKAHEAD)
-	follow.x = clampf(follow.x, wanted.x - max_lag.x, wanted.x + max_lag.x)
-	follow.y = clampf(follow.y, wanted.y - max_lag.y, wanted.y + max_lag.y)
-	global_position = follow
+	# Het schip wordt zonder vertraging gevolgd; alleen de kijkrichting draait begrensd mee.
+	global_position = player.global_position + _offset_now
 
 
 ## Hoe ver de camera vooruitkijkt, per as: een deel van het halve beeld (rekening houdend met de zoom).
