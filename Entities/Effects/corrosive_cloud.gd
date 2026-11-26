@@ -156,6 +156,7 @@ func _draw() -> void:
 	var r: float = current_radius()
 	var density: float = clampf(radius / maxf(r, 0.01), 0.0, 1.0)
 	var left: float = 1.0 - _age / maxf(duration, 0.01)
-	var alpha: float = MAX_ALPHA * clampf(left * 3.0, 0.0, 1.0) * (0.35 + 0.65 * density)
+	# Doorzichtigheid gaat gelijk op met de schade (dichtheid in het kwadraat, zoals current_dps).
+	var alpha: float = MAX_ALPHA * clampf(left * 3.0, 0.0, 1.0) * density * density
 	draw_circle(Vector2.ZERO, r, Color(COLOR, alpha * 0.6))
 	draw_arc(Vector2.ZERO, r, 0.0, TAU, 48, Color(COLOR, alpha), 2.0)

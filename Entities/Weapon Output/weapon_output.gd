@@ -213,6 +213,9 @@ func _after_hit(target: Node2D) -> void:
 		pierce_left -= 1
 	elif bounce_left > 0:
 		bounce_left -= 1
+		# Na een stuit mag de kogel eerdere doelen opnieuw raken (heen en weer tussen twee vijanden);
+		# alleen het doel waar hij net vanaf stuit niet, anders raakt hij het meteen nog eens.
+		_hit_ids = {target.get_instance_id(): true}
 		var normal: Vector2 = (global_position - target.global_position).normalized()
 		if normal == Vector2.ZERO:
 			normal = -transform.x.normalized()

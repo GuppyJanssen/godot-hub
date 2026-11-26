@@ -163,8 +163,18 @@ static func _place_commandos(parent: Node, rng: RandomNumberGenerator, faction: 
 	if scene == null:
 		push_error("RoomPopulator: %s niet gevonden." % UNIT_SCENE)
 		return
+	# Bij de eigen fabrieken, alsof ze daar gebouwd zijn (Daan, 26 nov); geen fabriek = ergens op de helft.
+	var homes: Array[Vector2] = []
+	for child in parent.get_children():
+		if "faction" in child and "spawn_unit_type" in child and str(child.faction) == faction:
+			homes.append((child as Node2D).position)
 	for k in amount:
 		var pos: Vector2 = _free_spot(rng, placed, area)
+		if not homes.is_empty():
+			var home: Vector2 = homes[rng.randi_range(0, homes.size() - 1)]
+			var spread: float = _setting("room_factory_spacing") * 0.6
+			pos = home + Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(spread * 0.4, spread)
+			pos = Vector2(roundf(clampf(pos.x, _area().position.x, _area().end.x)), roundf(clampf(pos.y, _area().position.y, _area().end.y)))
 		placed.append(pos)
 		var unit: Node = scene.instantiate()
 		unit.name = "Commando_%s_%s_%d" % [faction, tag, k]

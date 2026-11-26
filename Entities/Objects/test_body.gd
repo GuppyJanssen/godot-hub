@@ -394,7 +394,9 @@ func _nearest_told_target() -> Node2D:
 	var best_d: float = INF
 	var alive: Array = []
 	for node in _told_targets:
-		if not TargetPicker.is_hostile_to(faction, node):
+		# Een doorgegeven doel kan intussen kapot zijn: eerst controleren, dan pas doorgeven
+		# (een vrijgegeven object in een getypeerde parameter laat Godot crashen).
+		if not is_instance_valid(node) or not TargetPicker.is_hostile_to(faction, node):
 			continue
 		alive.append(node)
 		var d: float = global_position.distance_squared_to(node.global_position)

@@ -14,6 +14,8 @@ class_name GameCamera
 ##                     Het schip staat dan nooit dichter dan 40% van het halve beeld bij de rand.
 ##   camera_smoothing  hoe snel de camera bijdraait (hoger = sneller).
 ##   camera_deadzone   pixels rond het schip waarin de muis de kijkrichting niet verandert.
+##   camera_follow_lag hoe ver de camera achter het schip mag lopen (deel van het halve beeld).
+##                     camera_lookahead 0 = niet vooruitkijken (Daan, 26 nov: rustiger mikken).
 ##
 ## Ontwikkelaarsnotities:
 ## - top_level: de camera draait niet mee met het schip; hij zet zijn eigen positie.
@@ -25,6 +27,7 @@ const DEFAULTS := {
 	"camera_lookahead": 0.6,
 	"camera_smoothing": 6.0,
 	"camera_deadzone": 40.0,
+	"camera_follow_lag": 0.4,
 }
 ## Het schip blijft altijd minstens dit deel van het halve beeld van de rand af.
 const MAX_LOOKAHEAD := 0.85
@@ -65,7 +68,16 @@ func _physics_process(delta: float) -> void:
 	var target: Vector2 = _target_offset()
 	var weight: float = clampf(_setting("camera_smoothing") * delta, 0.0, 1.0)
 	_offset_now = _offset_now.lerp(target, weight)
-	global_position = player.global_position + _offset_now
+	# Ook het volgen van het schip zelf is afgevlakt (Daan, 26 nov: vloeiender en trager). Hoe ver
+	# de camera achter mag lopen: camera_follow_lag (deel van het halve beeld), anders schuift het
+	# schip uit beeld bij hoge snelheid.
+	var wanted: Vector2 = player.global_position + _offset_now
+	var follow: Vector2 = global_position.lerp(wanted, weight)
+	var half_view: Vector2 = get_viewport_rect().size / zoom / 2.0
+	var max_lag: Vector2 = half_view * clampf(_setting("camera_follow_lag"), 0.0, MAX_LOOKAHEAD)
+	follow.x = clampf(follow.x, wanted.x - max_lag.x, wanted.x + max_lag.x)
+	follow.y = clampf(follow.y, wanted.y - max_lag.y, wanted.y + max_lag.y)
+	global_position = follow
 
 
 ## Hoe ver de camera vooruitkijkt, per as: een deel van het halve beeld (rekening houdend met de zoom).
@@ -76,9 +88,16 @@ func _target_offset() -> Vector2:
 
 
 func _snap_to_target() -> void:
+	snap()
+
+
+## Zet de camera meteen op het schip, zonder afvlakken (na een kamerwissel of teleport), zodat de
+## achtergrond niet "verschiet" doordat de camera vanaf het midden van de kamer komt aanglijden.
+func snap() -> void:
 	var player: Node2D = get_parent() as Node2D
+	_offset_now = _target_offset()
 	if is_instance_valid(player):
-		global_position = player.global_position
+		global_position = player.global_position + _offset_now
 	reset_smoothing()
 
 

@@ -26,7 +26,9 @@ const SETTINGS_ROW := "world"
 
 
 ## Hoort 'other' bij een andere factie dan 'my_faction' (en leeft hij nog)?
-static func is_hostile_to(my_faction: String, other: Node) -> bool:
+## Let op: geef nooit een vrijgegeven object mee (eerst is_instance_valid), Godot weigert dat al bij
+## het aanroepen. Daarom is 'other' een Variant.
+static func is_hostile_to(my_faction: String, other: Variant) -> bool:
 	if my_faction == "" or not is_instance_valid(other) or not other is Node2D:
 		return false
 	if other.is_queued_for_deletion() or not "faction" in other:

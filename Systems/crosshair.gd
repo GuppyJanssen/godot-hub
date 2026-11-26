@@ -182,7 +182,7 @@ func _update_lock_on(player: Node2D, delta: float) -> void:
 				_raw_offset += target_pos - _locked_last_pos
 			_locked_last_pos = target_pos
 			var target_offset: Vector2 = target_pos - player.global_position
-			if _raw_offset.distance_to(target_offset) > _target_radius(locked_target) + margin \
+			if _aim_miss(_raw_offset, target_offset) > _target_radius(locked_target) + margin \
 					or target_offset.length() > _weapon_range(player):
 				_unlock()
 				aim_offset = _raw_offset
@@ -200,8 +200,9 @@ func _update_lock_on(player: Node2D, delta: float) -> void:
 		aim_offset = target.global_position - player.global_position
 
 
+## Zoekt in de RICHTING waarin je mikt (Daan, 26 nov), niet alleen rond het stipje: een doel telt als
+## het binnen het bereik van het wapen ligt en hooguit (straal + marge) naast de mik-lijn.
 func _find_target(player: Node2D, margin: float) -> Node2D:
-	var point: Vector2 = player.global_position + _raw_offset
 	var reach: float = _weapon_range(player)
 	var best: Node2D = null
 	var best_distance: float = INF
@@ -213,11 +214,22 @@ func _find_target(player: Node2D, margin: float) -> Node2D:
 		var target: Node2D = node
 		if target.global_position.distance_to(player.global_position) > reach:
 			continue
-		var distance: float = target.global_position.distance_to(point)
+		var distance: float = _aim_miss(_raw_offset, target.global_position - player.global_position)
 		if distance <= _target_radius(target) + margin and distance < best_distance:
 			best = target
 			best_distance = distance
 	return best
+
+
+## Hoe ver een doel naast de mik-lijn ligt (pixels). Achter het schip = oneindig.
+static func _aim_miss(aim: Vector2, target_offset: Vector2) -> float:
+	if aim.length() < 1.0:
+		return target_offset.length()
+	var dir: Vector2 = aim.normalized()
+	var along: float = target_offset.dot(dir)
+	if along < 0.0:
+		return INF
+	return (target_offset - dir * along).length()
 
 
 func _unlock() -> void:

@@ -160,6 +160,9 @@ func _ready() -> void:
 			"right": active_player.global_position = Vector2(screen_width - edge_margin, exit_y)
 			"left": active_player.global_position = Vector2(edge_margin, exit_y)
 		LevelManager.remove_meta("coming_from")
+		# Camera meteen naar de nieuwe plek, anders glijdt hij vanaf het midden en verschiet de achtergrond.
+		if "camera" in active_player and is_instance_valid(active_player.camera):
+			active_player.camera.snap()
 
 
 ## Zet de kamer op de grootte uit RoomBounds: achtergrond en de balken langs de randen.
