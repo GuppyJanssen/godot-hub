@@ -33,6 +33,11 @@ const DEFAULTS := {
 const MAX_LOOKAHEAD := 0.85
 
 var _look_dir: Vector2 = Vector2.ZERO
+# Hoek waarin de camera nu vooruitkijkt. Draait traag mee met het vizier, "door een dikke vloeistof",
+# en altijd langs de cirkel: als het vizier naar het schip toe of eroverheen beweegt, schuift de camera
+# niet terug door het midden maar blijft hij vooruitkijken (Daan, 26 nov).
+var _look_angle: float = 0.0
+var _has_look: bool = false
 var _offset_now: Vector2 = Vector2.ZERO
 
 
@@ -63,11 +68,15 @@ func _physics_process(delta: float) -> void:
 	var to_mouse: Vector2 = player.get_global_mouse_position() - player.global_position
 	if "crosshair" in player and is_instance_valid(player.crosshair):
 		to_mouse = player.crosshair.shown_offset()  # het vizier, dus ook in het tempo van het draaien
-	if to_mouse.length() > _setting("camera_deadzone"):
-		_look_dir = to_mouse.normalized()
-	var target: Vector2 = _target_offset()
 	var weight: float = clampf(_setting("camera_smoothing") * delta, 0.0, 1.0)
-	_offset_now = _offset_now.lerp(target, weight)
+	if to_mouse.length() > _setting("camera_deadzone"):
+		if not _has_look:
+			_look_angle = to_mouse.angle()
+			_has_look = true
+		_look_angle = lerp_angle(_look_angle, to_mouse.angle(), weight)
+	if _has_look:
+		_look_dir = Vector2.from_angle(_look_angle)
+	_offset_now = _target_offset()
 	# Ook het volgen van het schip zelf is afgevlakt (Daan, 26 nov: vloeiender en trager). Hoe ver
 	# de camera achter mag lopen: camera_follow_lag (deel van het halve beeld), anders schuift het
 	# schip uit beeld bij hoge snelheid.

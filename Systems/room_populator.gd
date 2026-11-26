@@ -84,7 +84,9 @@ static func populate(parent: Node, ring: int, room_index: int) -> void:
 
 	var low: int = maxi(0, roundi(_setting("room_factory_min")))
 	var high: int = maxi(low, roundi(_setting("room_factory_max")))
-	var count: int = rng.randi_range(low, high)
+	# Hogere ringen binnen een driehoek zijn rijker gevuld (room_fill_per_ring, bijv. 1/1.25/1.5).
+	var fill: float = _ring_fill(ring)
+	var count: int = maxi(0, roundi(rng.randi_range(low, high) * fill))
 	if saved_count >= 0:
 		count = saved_count
 
@@ -96,7 +98,7 @@ static func populate(parent: Node, ring: int, room_index: int) -> void:
 			second = ""
 	else:
 		second = _pick_second(war, ring, room_index, owner)
-	var second_count: int = rng.randi_range(low, high) if second != "" else 0
+	var second_count: int = maxi(0, roundi(rng.randi_range(low, high) * fill)) if second != "" else 0
 	# Welke helft voor wie: true = links/rechts, false = boven/onder; owner_first = bezitter links/boven.
 	var split_x: bool = rng.randf() < 0.5
 	var owner_first: bool = rng.randf() < 0.5
@@ -211,6 +213,19 @@ static func _pick_second(war: Node, ring: int, room_index: int, owner: String) -
 static func _is_known_faction(faction: String) -> bool:
 	return faction != "" and faction.length() <= 2 and faction.is_valid_identifier() \
 			and Ssot.has_row(EnemyStats.faction_row(faction))
+
+
+## Vulfactor voor deze ring: de hoeveelste ring binnen zijn driehoek (onderste = 1e) kiest een waarde
+## uit room_fill_per_ring (world, bijv. "1/1.25/1.5"). Leeg of ongeldig = 1. Begrensd tot 0..5.
+static func _ring_fill(ring: int) -> float:
+	if LevelManager.triangle_of_ring(ring) < 0:
+		return 1.0
+	var step: int = (ring - 1) % LevelManager.RINGS_PER_TRIANGLE
+	var parts: PackedStringArray = Ssot.get_text(SETTINGS_ROW, "room_fill_per_ring", "").split("/", false)
+	if step >= parts.size():
+		return 1.0
+	var value: String = parts[step].strip_edges().replace(",", ".")
+	return clampf(value.to_float(), 0.0, 5.0) if value.is_valid_float() else 1.0
 
 
 ## De helft van het fabrieksgebied: links/rechts (split_x) of boven/onder; first = links of boven.

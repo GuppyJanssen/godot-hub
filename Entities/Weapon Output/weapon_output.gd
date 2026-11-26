@@ -158,6 +158,7 @@ func _physics_process(delta: float) -> void:
 		if bounced:
 			global_position = pos
 			bounce_left -= 1
+			_hit_ids.clear()  # na een stuit tegen de rand mag hij vijanden opnieuw raken
 	
 	# Bereik-controle: ruim de kogel op als zijn bereik op is (een explosieve kogel ontploft dan).
 	traveled_distance += move_amount
