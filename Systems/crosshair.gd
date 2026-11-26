@@ -4,25 +4,24 @@ class_name Crosshair
 ##
 ## Hoe het werkt:
 ## - Het vizier hangt op een vaste plek TEN OPZICHTE VAN HET SCHIP (aim_offset). Alleen als je de muis
-##   beweegt, verschuift het. Vlieg je zonder de muis te bewegen, dan blijft je mikrichting en
-##   -afstand precies gelijk; het vizier vliegt gewoon met je mee.
-## - DRAAISNELHEID: de muis bepaalt waar je HEEN WIL mikken (aim_offset, een vaag stipje). Het vizier
-##   zelf staat altijd in de richting waarin het schip wijst, op dezelfde afstand. Het schip draait
-##   met base_rotation_speed naar het stipje, dus het vizier draait even snel mee. Zo voel je de
-##   draaisnelheid, en het vizier wijst altijd eerlijk aan waar je kogels heen gaan.
+##   of de rechter stick beweegt, verschuift het. Vlieg je zonder te richten, dan blijft je
+##   mikrichting en -afstand precies gelijk; het vizier vliegt gewoon met je mee.
+## - DRAAISNELHEID: de muis of stick bepaalt waar je HEEN WIL mikken (aim_offset, een vaag stipje).
+##   Het vizier zelf staat altijd in de richting waarin het schip wijst, op dezelfde afstand. Het
+##   schip draait met base_rotation_speed naar het stipje, dus het vizier draait even snel mee.
+## - CONTROLLER en TOUCH (zie InputDevice): de rechter stick geeft alleen de richting; de afstand is
+##   aim_stick_distance × het bereik. Laat je de stick los, dan blijft het vizier staan.
 ## - Het vizier komt nooit verder dan het bereik van het huidige wapen
-##   (current_weapon_stats["weapon_range"], met de F1-bereikinstelling). Beweeg je de muis verder,
-##   dan blijft het vizier op het bereik; terugbewegen werkt meteen.
-## - Tijdens het spelen is de muis "gevangen" (MOUSE_MODE_CAPTURED): onzichtbaar, en hij kan niet
-##   uit het venster of tegen de schermrand lopen. In pauze, menu's en het F1-menu is hij gewoon vrij.
+##   (current_weapon_stats["weapon_range"], met de F1-bereikinstelling).
+## - Muis: tijdens het spelen "gevangen" (MOUSE_MODE_CAPTURED). Met de controller verborgen maar vrij
+##   (MOUSE_MODE_HIDDEN), zodat een muisbeweging meteen terugschakelt. In pauze, menu's en het
+##   F1-menu is hij gewoon zichtbaar.
 ##
 ## SSOT, rij world: aim_sensitivity (leeg = 1): hoe ver het vizier beweegt per beweging van de muis.
 ##
 ## Ontwikkelaarsnotities:
-## - Vroeger volgde het vizier de echte muis op het scherm. Omdat de camera meebeweegt (en bij de
-##   kamerrand stilstaat), schoof de wereld onder een stilstaande muis door en werd het vizier
-##   "meegesleept". Nu telt alleen de beweging van de muis (InputEventMouseMotion.relative).
-## - Player (draaien) en GameCamera (vooruitkijken) lezen aim_point() in plaats van de muispositie.
+## - Alleen de beweging van de muis telt (InputEventMouseMotion.relative), niet de plek op het scherm.
+## - Player (draaien) leest target_point(), GameCamera (vooruitkijken) shown_offset().
 ## - top_level en process_mode ALWAYS: het vizier draait niet mee met het schip, en de muismodus
 ##   wordt ook tijdens de pauze goed gezet.
 
@@ -39,7 +38,7 @@ const TARGET_RADIUS := 3.0
 ## Vanaf deze afstand (wereld-pixels, voor zoom) tussen vizier en stipje is het stipje te zien.
 const TARGET_SHOW_DISTANCE := 6.0
 
-## Plek van het vizier ten opzichte van het schip (wereld-pixels).
+## Plek waar je heen wil mikken, ten opzichte van het schip (wereld-pixels).
 var aim_offset: Vector2 = Vector2.ZERO
 var _initialized: bool = false
 
@@ -48,6 +47,7 @@ func _ready() -> void:
 	top_level = true
 	z_index = 100
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	InputDevice.ensure_bindings()
 
 
 ## Waar het vizier nu staat (in de richting van het schip), in wereld-coördinaten.
@@ -58,7 +58,7 @@ func aim_point() -> Vector2:
 	return player.global_position + shown_offset()
 
 
-## Het vizier ten opzichte van het schip: richting van het schip, afstand van de muis.
+## Het vizier ten opzichte van het schip: richting van het schip, afstand van de muis of stick.
 func shown_offset() -> Vector2:
 	var player: Node2D = get_parent() as Node2D
 	if not is_instance_valid(player):
@@ -66,7 +66,7 @@ func shown_offset() -> Vector2:
 	return Vector2.from_angle(player.global_rotation) * aim_offset.length()
 
 
-## Waar je met de muis heen wil mikken; hier draait het schip naartoe.
+## Waar je heen wil mikken; hier draait het schip naartoe.
 func target_point() -> Vector2:
 	var player: Node2D = get_parent() as Node2D
 	if not is_instance_valid(player):
@@ -75,6 +75,7 @@ func target_point() -> Vector2:
 
 
 func _input(event: InputEvent) -> void:
+	InputDevice.note_event(event)
 	var motion: InputEventMouseMotion = event as InputEventMouseMotion
 	if motion == null or Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		return
@@ -92,6 +93,11 @@ func _process(_delta: float) -> void:
 	if not _initialized:
 		_initialized = true
 		aim_offset = Vector2.RIGHT.rotated(player.global_rotation) * _weapon_range(player) * START_FRACTION
+	# Controller: de rechter stick geeft de richting, de afstand ligt vast.
+	if InputDevice.using_sticks() and not get_tree().paused:
+		var stick: Vector2 = InputDevice.aim_vector()
+		if stick != Vector2.ZERO:
+			aim_offset = stick.normalized() * _weapon_range(player) * InputDevice.aim_distance()
 	# Ander wapen met een korter bereik: het vizier schuift mee naar binnen.
 	_clamp_to_range()
 	global_position = Vector2.ZERO
@@ -127,10 +133,14 @@ func _exit_tree() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
-## Muis gevangen tijdens het spelen, vrij bij pauze of met het F1-menu open.
+## Muis gevangen tijdens het spelen, verborgen bij controller of touch, vrij bij pauze of met F1 open.
 func _update_mouse_mode() -> void:
 	var menu_open: bool = get_tree().paused or (is_instance_valid(DebugOverlay) and DebugOverlay.visible)
-	var wanted: Input.MouseMode = Input.MOUSE_MODE_VISIBLE if menu_open else Input.MOUSE_MODE_CAPTURED
+	var wanted: Input.MouseMode = Input.MOUSE_MODE_CAPTURED
+	if menu_open:
+		wanted = Input.MOUSE_MODE_VISIBLE
+	elif InputDevice.using_sticks():
+		wanted = Input.MOUSE_MODE_HIDDEN
 	if Input.mouse_mode != wanted:
 		Input.mouse_mode = wanted
 
