@@ -79,7 +79,7 @@ func _apply_settings(ring: int, room: int) -> void:
 
 static func _ring_tint(ring: int) -> Color:
 	var text: String = Ssot.get_text("world", "background_ring_tints", "")
-	var tints: Array = text.split("/", false) if text != "" else DEFAULT_TINTS
+	var tints: Array = Array(text.split("/", false)) if text != "" else DEFAULT_TINTS
 	if tints.is_empty():
 		tints = DEFAULT_TINTS
 	var pick: String = str(tints[clampi(ring, 0, tints.size() - 1)]).strip_edges()
