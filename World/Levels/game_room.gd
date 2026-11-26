@@ -34,6 +34,10 @@ var my_room: int = 0
 var room_ready: bool = false
 
 
+## Zwart beeld bij het binnenkomen van een kamer (zie _ready en _fade_in).
+var _cover: CanvasLayer = null
+const ROOM_FADE_SECONDS := 0.15
+
 func _ready() -> void:
 	print("GAMEROOM: Universele kamer online. Start initialisatie...")
 	
@@ -42,6 +46,17 @@ func _ready() -> void:
 	var barrier_visuals: Node = get_node_or_null("BarrierVisuals")
 	if barrier_visuals is CanvasItem:
 		barrier_visuals.visible = false
+	
+	# Kort zwart beeld tot de speler en de camera op hun plek staan (anders verspringt de achtergrond
+	# zichtbaar bij het binnenkomen). Wordt in _fade_in() weer weggehaald.
+	_cover = CanvasLayer.new()
+	_cover.layer = 100
+	var black := ColorRect.new()
+	black.color = Color.BLACK
+	black.set_anchors_preset(Control.PRESET_FULL_RECT)
+	black.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_cover.add_child(black)
+	add_child(_cover)
 	
 	# 1. TIMING: Wacht twee frames tot de LevelManager stabiel staat
 	await get_tree().process_frame
@@ -140,6 +155,8 @@ func _ready() -> void:
 	if barrier_visuals is CanvasItem:
 		barrier_visuals.visible = true
 
+	call_deferred("_fade_in")
+	
 	# 5a. Begin van de run in de Zuidpool: in het midden van de kamer (Daan, 26 nov).
 	if is_instance_valid(active_player) and my_layer == 0 and not LevelManager.in_test_room \
 			and not LevelManager.has_meta("coming_from") and not Game.should_load_run:
@@ -170,6 +187,17 @@ func _ready() -> void:
 		# Camera meteen naar de nieuwe plek, anders glijdt hij vanaf het midden en verschiet de achtergrond.
 		if "camera" in active_player and is_instance_valid(active_player.camera):
 			active_player.camera.snap()
+
+
+## Haalt het zwarte beeld weg, één frame nadat de speler en de camera geplaatst zijn.
+func _fade_in() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if not is_instance_valid(_cover):
+		return
+	var tween: Tween = create_tween()
+	tween.tween_property(_cover.get_child(0), "modulate:a", 0.0, ROOM_FADE_SECONDS)
+	tween.tween_callback(_cover.queue_free)
 
 
 ## Zet de kamer op de grootte uit RoomBounds: achtergrond en de balken langs de randen.

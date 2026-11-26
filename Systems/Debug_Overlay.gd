@@ -128,6 +128,7 @@ func _update_dashboard() -> void:
 	_add_dashboard_row("Oorlog tempo", "Tijd versnellen", "Snelheid: [" + str(FactionWar.debug_time_scale) + "x]", _cycle_war_speed)
 	_add_dashboard_row("One Punch", "Status: Live", "Toggle: " + ("AAN" if Game.debug_damage_multiplier > 1.0 else "UIT"), _toggle_damage)
 	_add_dashboard_row("Weapon Mode", "Stand", "Modus: [" + weapon_mode_names[clampi(Game.debug_weapon_mode, 0, 2)] + "]", _toggle_weapon_mode)
+	_add_dashboard_row("AI-labels", "Wat vijanden doen", "Labels: " + ("AAN" if Game.debug_ai_labels else "UIT"), _toggle_ai_labels)
 	_add_dashboard_row("Zoomtest", "Kamer en camera", "Camera: [" + ("HELE KAMER" if Game.debug_zoom_overview else "NORMAAL") + "]", _toggle_classic_room)
 	_add_dashboard_row("Mirror Spawn", "Transitielogica", "Modus: [" + ("MIRROR" if Game.debug_use_mirror_spawn else "CENTER") + "]", _toggle_mirror_spawn)
 	
@@ -261,6 +262,11 @@ func _toggle_classic_room() -> void:
 	if is_instance_valid(Game.active_player) and get_tree().current_scene != null \
 			and get_tree().current_scene.scene_file_path == "res://World/Levels/game_room.tscn":
 		get_tree().call_deferred("change_scene_to_file", "res://World/Levels/game_room.tscn")
+
+
+func _toggle_ai_labels() -> void:
+	Game.debug_ai_labels = not Game.debug_ai_labels
+	_update_dashboard()
 
 
 func _toggle_mirror_spawn() -> void:

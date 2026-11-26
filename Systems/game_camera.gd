@@ -15,6 +15,7 @@ class_name GameCamera
 ##   camera_smoothing  hoe snel de camera bijdraait (hoger = sneller).
 ##   camera_deadzone   pixels rond het schip waarin de muis de kijkrichting niet verandert.
 ##   (camera_smoothing is nu: hoe snel de kijkrichting hooguit draait, in radialen per seconde.)
+##   camera_turn_acceleration  hoe snel die draaisnelheid op gang komt en afremt (radialen per s²).
 ##
 ## Ontwikkelaarsnotities:
 ## - top_level: de camera draait niet mee met het schip; hij zet zijn eigen positie.
@@ -26,6 +27,7 @@ const DEFAULTS := {
 	"camera_lookahead": 0.6,
 	"camera_smoothing": 6.0,
 	"camera_deadzone": 40.0,
+	"camera_turn_acceleration": 2.0,
 }
 ## Het schip blijft altijd minstens dit deel van het halve beeld van de rand af.
 const MAX_LOOKAHEAD := 0.85
@@ -35,6 +37,7 @@ var _look_dir: Vector2 = Vector2.ZERO
 # en altijd langs de cirkel: als het vizier naar het schip toe of eroverheen beweegt, schuift de camera
 # niet terug door het midden maar blijft hij vooruitkijken (Daan, 26 nov).
 var _look_angle: float = 0.0
+var _look_speed: float = 0.0   # radialen per seconde, nu
 var _has_look: bool = false
 var _offset_now: Vector2 = Vector2.ZERO
 
@@ -73,7 +76,7 @@ func _physics_process(delta: float) -> void:
 		if not _has_look:
 			_look_angle = to_mouse.angle()
 			_has_look = true
-		_look_angle = rotate_toward(_look_angle, to_mouse.angle(), maxf(0.0, _setting("camera_smoothing")) * delta)
+		_turn_look(to_mouse.angle(), delta)
 	if _has_look:
 		_look_dir = Vector2.from_angle(_look_angle)
 	_offset_now = _target_offset()
@@ -86,6 +89,19 @@ func _target_offset() -> Vector2:
 	var half_view: Vector2 = get_viewport_rect().size / zoom / 2.0
 	var amount: float = clampf(_setting("camera_lookahead"), 0.0, MAX_LOOKAHEAD)
 	return Vector2(_look_dir.x * half_view.x, _look_dir.y * half_view.y) * amount
+
+
+## Draait de kijkrichting naar 'wanted' met een begrensde snelheid (camera_smoothing) EN een begrensde
+## versnelling (camera_turn_acceleration): het beeld komt rustig op gang en remt op tijd af. Snel
+## heen en weer met de muis bouwt zo bijna geen snelheid op, dus het beeld beweegt maar een beetje.
+func _turn_look(wanted: float, delta: float) -> void:
+	var max_speed: float = maxf(0.0, _setting("camera_smoothing"))
+	var accel: float = maxf(0.01, _setting("camera_turn_acceleration"))
+	var diff: float = wrapf(wanted - _look_angle, -PI, PI)
+	# Zo hard als kan, maar langzaam genoeg om op tijd te stoppen (remweg v²/2a).
+	var desired: float = signf(diff) * minf(max_speed, sqrt(2.0 * accel * absf(diff)))
+	_look_speed = move_toward(_look_speed, desired, accel * delta)
+	_look_angle = wrapf(_look_angle + _look_speed * delta, -PI, PI)
 
 
 func _snap_to_target() -> void:

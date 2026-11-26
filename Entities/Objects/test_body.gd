@@ -102,6 +102,9 @@ var _exploding: bool = false
 var _unit_target: Node2D = null
 # Seconden tot deze vijand weer contactschade mag doen aan een unit van een andere factie.
 var _contact_left: float = 0.0
+# Voor F1 "AI-labels": wat de vijand deze frame doet, en het label zelf.
+var _ai_state: String = ""
+var _ai_label: Label = null
 # Iets speling bij "aanraken" van een andere unit (pixels), zodat duwen ook telt.
 const CONTACT_SLACK := 6.0
 # Jagers (behavior_searching "hunt") jagen alleen op de speler als ze hem zien (kijkafstand + zicht).
@@ -313,7 +316,7 @@ func _chases_player() -> bool:
 # Deze vijand ziet de speler: onthouden en (hooguit eens per SHARE_INTERVAL) doorgeven aan de eigen
 # factie, met de communicatievertraging (alarm_communication_delay; alarm_instant_from = meteen).
 func _remember_player(pos: Vector2) -> void:
-	_leads = [pos]  # zelf gezien: dit is de nieuwste en beste plek
+	_leads = [_reachable(pos)]  # zelf gezien: dit is de nieuwste en beste plek
 	_share_left -= SIGHT_CHECK_SECONDS
 	if _share_left > 0.0:
 		return
@@ -369,11 +372,19 @@ func _receive(message: Variant) -> void:
 				return  # al bekend
 		if _leads.size() >= MAX_LEADS:
 			_leads.remove_at(0)
-		_leads.append(message)
+		_leads.append(_reachable(message))
 	elif is_instance_valid(message) and TargetPicker.is_hostile_to(faction, message) and not _told_targets.has(message):
 		if _told_targets.size() >= MAX_LEADS:
 			_told_targets.remove_at(0)
 		_told_targets.append(message)
+
+
+# Een plek waar deze vijand echt kan komen (binnen het zwerfgebied). Een spoor vlak bij de rand
+# (de speler verliet de kamer daar) bleef anders onbereikbaar: de vijand drukte dan eindeloos tegen de
+# wand ("vallende" units, Daan 26 nov).
+static func _reachable(pos: Vector2) -> Vector2:
+	var area: Rect2 = _wander_area()
+	return Vector2(clampf(pos.x, area.position.x, area.end.x), clampf(pos.y, area.position.y, area.end.y))
 
 
 # De dichtstbijzijnde plek waar de speler gezien is (index in _leads), of -1.
@@ -574,7 +585,7 @@ func _apply_snapshot(data: Dictionary) -> void:
 		_leads.clear()
 		for entry in leads.slice(0, MAX_LEADS):
 			if entry is Array and entry.size() == 2:
-				_leads.append(_snap_point(entry[0], entry[1], global_position))
+				_leads.append(_reachable(_snap_point(entry[0], entry[1], global_position)))
 	var msgs: Variant = data.get("msgs", [])
 	if msgs is Array:
 		_pending.clear()
@@ -604,6 +615,26 @@ static func _snap_point(x: Variant, y: Variant, fallback: Vector2) -> Vector2:
 func _process(_delta: float) -> void:
 	if _weapon_label != null:
 		_weapon_label.global_position = global_position + Vector2(-60, -body_radius - 30)
+	_update_ai_label()
+
+
+# F1 "AI-labels": wat deze vijand nu doet en hoe hard hij gaat, boven zijn hoofd (alleen om te testen).
+func _update_ai_label() -> void:
+	if not Game.debug_ai_labels:
+		if _ai_label != null:
+			_ai_label.queue_free()
+			_ai_label = null
+		return
+	if _ai_label == null:
+		_ai_label = Label.new()
+		_ai_label.top_level = true
+		_ai_label.size = Vector2(220, 20)
+		_ai_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_ai_label.add_theme_font_size_override("font_size", 12)
+		add_child(_ai_label)
+		GameCamera.fit_world_label(_ai_label)
+	_ai_label.text = "%s %s | %s | v %d" % [faction, unit_type, _ai_state, roundi(velocity.length())]
+	_ai_label.global_position = global_position + Vector2(-110, body_radius + 10)
 
 
 # --- 3. GEDRAG EN BEWEGING (60x per seconde) ---
@@ -679,7 +710,9 @@ func _physics_process(delta: float) -> void:
 				return
 		_touch_unit(target, distance, delta)
 	
+	_ai_state = ""
 	if fighting_unit or _chases_player():
+		_ai_state = ("doel: " + str(target.name)) if fighting_unit else "jaagt op speler"
 		match behavior_agro:
 			"kamikaze":
 				if distance <= kamikaze_trigger_distance and _try_explode():
@@ -701,6 +734,7 @@ func _physics_process(delta: float) -> void:
 		# Plek waar de speler gezien is (zelf of doorgekregen): eerst de dichtstbijzijnde.
 		var lead: int = _nearest_lead()
 		var to_seen: Vector2 = _leads[lead] - global_position
+		_ai_state = "spoor (%d)" % _leads.size()
 		if to_seen.length() < LAST_SEEN_REACHED:
 			_leads.remove_at(lead)
 		velocity = velocity.move_toward(to_seen.normalized() * movement_speed, acceleration * delta)
@@ -708,12 +742,14 @@ func _physics_process(delta: float) -> void:
 	elif _investigating:
 		# Een kogel gezien: kijken waar hij vandaan kwam.
 		var to_target: Vector2 = _investigate_target - global_position
+		_ai_state = "onderzoekt"
 		if to_target.length() < 30.0:
 			_investigating = false
 		velocity = velocity.move_toward(to_target.normalized() * movement_speed * investigate_speed_factor, acceleration * delta)
 		facing = velocity
 	else:
 		_wander(delta)
+		_ai_state = "zwerft"
 		facing = velocity
 	
 	# Draai de neus van de vijand mee (alleen als hij een voorkant heeft).
