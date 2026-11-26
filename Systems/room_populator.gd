@@ -125,9 +125,22 @@ static func _place(parent: Node, scene: PackedScene, rng: RandomNumberGenerator,
 		var factory: Node = scene.instantiate()
 		factory.faction = faction
 		factory.spawn_unit_type = "heavy" if heavy else "light"
-		factory.total_enemies_to_spawn = heavies if heavy else grunts
+		factory.total_enemies_to_spawn = _units_per_factory(faction, "heavy" if heavy else "light", heavies if heavy else grunts)
 		factory.position = pos
 		parent.add_child(factory)
+
+
+## Hoeveel units een fabriek van deze factie en dit type maakt: kolom factory_unit_total op de eigen
+## vijand-rij (bijv. enemy_organic_light = 10 spores), anders de standaard uit world
+## (room_grunts_per_factory / room_heavies_per_factory). -1 = eindeloos. Begrensd tot 200.
+static func _units_per_factory(faction: String, unit_type: String, fallback: int) -> int:
+	var row: String = EnemyStats.enemy_row(faction, unit_type)
+	if not Ssot.has_value(row, "factory_unit_total"):
+		return fallback
+	var total: int = roundi(Ssot.get_number(row, "factory_unit_total", float(fallback)))
+	if total == -1:
+		return -1
+	return clampi(total, 1, 200)
 
 
 ## De tweede factie voor deze kamer: de factie waarmee hier een front is (de aanvaller in de oorlog).
