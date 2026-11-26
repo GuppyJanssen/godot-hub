@@ -129,9 +129,9 @@ wt = wb.create_sheet('Teams')
 wt['A1'] = 'Aannames en instellingen (pas gerust aan)'
 wt['A1'].font = TITLE
 assumptions = [
-    ('Doelwitkeuze', 'dichtstbijzijnde', 'dichtstbijzijnde / zwakste / eerste (eerste = het eerste levende doel in de lijst)'),
-    ('Tijdstap (s)', 0.1, 'Hoe fijn het gevecht wordt doorgerekend. Het tabblad Gevecht heeft 300 stappen: met 0,1 s is dat 30 seconden, met 0,2 s een minuut.'),
-    ('Maximale duur (s)', 30, 'Daarna stopt de simulatie (maximaal 300 × tijdstap).'),
+    ('Doelwitkeuze', 'dichtstbij, zwakkere dichtbij', 'dichtstbij, zwakkere dichtbij = het dichtstbijzijnde doel, maar komt er een zwakkere binnen de wisselafstand, dan die. Verder: dichtstbijzijnde / zwakste / eerste (het eerste levende doel in de lijst).'),
+    ('Tijdstap (s)', 0.1, 'Hoe fijn het gevecht wordt doorgerekend. Het tabblad Gevecht heeft 200 stappen: met 0,1 s is dat 20 seconden, met 0,2 s 40 seconden.'),
+    ('Maximale duur (s)', 20, 'Daarna stopt de simulatie (maximaal 200 × tijdstap).'),
     ('Startafstand tussen de teams (px)', 800, 'Team A begint op 0, team B op deze afstand. Iedereen vliegt naar zijn doel tot het binnen bereik is.'),
     ('Aanraakschade: seconden tussen treffers', 1.0, 'Units zonder wapen (uses_weapon leeg) doen base_damage per aanraking.'),
     ('Aanraakbereik (px)', 60, 'Afstand waarop aanraakschade telt.'),
@@ -143,6 +143,10 @@ assumptions = [
     ('Kamikaze', 'eenmalig', 'Vijand met behavior_agro "kamikaze": ontploft één keer (base_explosion_damage) binnen behavior_kamikaze_trigger en is dan dood.'),
     ('Groepen', 'gedeelde levens', 'Elke teamplek is een groep: de levens van de groep worden samen opgeteld en units vallen één voor één af (eerst vol op één unit). Schild en schildherstel tellen per levende unit.'),
     ('Skills en items', 'niet meegeteld', 'Alleen de waarden uit de SSOT (StatCalc.value), zonder skills van de speler.'),
+    ('Wisselafstand (px)', 150, 'Bij "dichtstbij, zwakkere dichtbij": een doel dat hooguit zoveel verder weg is dan het dichtstbijzijnde telt ook mee; daarvan het zwakste (minste levens).'),
+    ('Communicatievertraging (s)', '=IFERROR(N(INDEX(Units!$A:$ZZ,MATCH("world",Units!$A:$A,0),MATCH("alarm_communication_delay",Units!$1:$1,0))),2)', 'Uit de SSOT (alarm_communication_delay). Een unit wordt actief als hij zelf een vijand ziet (behavior_scan_radius), geraakt wordt, of een teamgenoot al zo lang actief is. Uitzondering: alarm_instant_from (bijv. organic grunt van heavy en toren) = meteen.'),
+    ('Speler', 'altijd actief', 'De speler hoeft niets te zien of te horen.'),
+    ('Spore-wolkje', 'niet meegeteld', 'Het corrosive wolkje na een kamikaze zit nog niet in de simulatie.'),
 ]
 wt['A2'] = 'Instelling'; wt['B2'] = 'Waarde'; wt['C2'] = 'Uitleg'
 for c in ('A2', 'B2', 'C2'):
@@ -151,6 +155,7 @@ for i, (a, b, c) in enumerate(assumptions):
     wt.cell(row=3 + i, column=1, value=a)
     wt.cell(row=3 + i, column=2, value=b)
     wt.cell(row=3 + i, column=3, value=c)
+SWITCH_RANGE = "Teams!$B$17"; COMM_DELAY = "Teams!$B$18"
 RULE = "Teams!$B$3"; DT = "Teams!$B$4"; TMAX = "Teams!$B$5"; DIST = "Teams!$B$6"
 CONTACT_INT = "Teams!$B$7"; CONTACT_RANGE = "Teams!$B$8"; ENEMY_FACTOR = "Teams!$B$9"; PLAYER_WEAPON = "Teams!$B$10"
 
@@ -173,14 +178,15 @@ wt.column_dimensions['A'].width = 38
 wt.column_dimensions['B'].width = 24
 wt.column_dimensions['C'].width = 110
 
-# ---------- Strijders (berekend uit Units + Wapens) ----------
-wsj = wb.create_sheet('Strijders')
-factions = [x for x in rows if len(x) > 2 and x[2] == 'faction']
+# ---------- WarEra (berekend uit Units + Wapens) ----------
+wsj = wb.create_sheet('WarEra')
+# Maximaal 14 facties (de keuzelijst in Teams heeft plek voor 99 units; past ook binnen de grootte van een Sheet).
+factions = [x for x in rows if len(x) > 2 and x[2] == 'faction'][:14]
 types = [x for x in rows if len(x) > 2 and x[2] == 'unit_type']
 SJ_COLS = ['naam', 'factie', 'unit_type', 'type_row', 'enemy_row', 'max_health', 'max_shield',
            'shield_regen_amount', 'shield_regen_delay', 'health_regen', 'speed', 'base_damage',
            'uses_weapon', 'weapon', 'kamikaze', 'damage_type_modifier', 'attack_damage', 'attack_interval',
-           'attack_range', 'attack_damage_type', 'health_plus_shield', 'dps']
+           'attack_range', 'attack_damage_type', 'health_plus_shield', 'dps', 'behavior_scan_radius', 'alarm_instant_from']
 header(wsj, 1, 1, SJ_COLS)
 C = {n: L(i + 1) for i, n in enumerate(SJ_COLS)}
 entries = [('Speler', 'player', 'player')]
@@ -250,21 +256,23 @@ for i, (name, fac, tname) in enumerate(entries):
     wsj[f'T{r}'] = f'=IF(AND(O{r}=0,M{r}=1,N{r}<>""),{dtype},{contact_type})'
     wsj[f'U{r}'] = f'=F{r}+G{r}'
     wsj[f'V{r}'] = f'=IF(O{r}=1,0,IF(R{r}>0,Q{r}/R{r},0))'
+    wsj[f'W{r}'] = 99999 if fac == 'player' else '=' + stat_enemy(r, 'behavior_scan_radius', 'behavior_scan_radius_modifier', 0)
+    wsj[f'X{r}'] = '' if fac == 'player' else '=' + text_enemy(r, 'alarm_instant_from')
 SJ_N = len(entries) + 1
 wsj.freeze_panes = 'B2'
 wsj.column_dimensions['A'].width = 22
 
 def SJ(name_expr, col):
-    return f'INDEX(Strijders!${C[col]}$2:${C[col]}${SJ_N},MATCH({name_expr},Strijders!$A$2:$A${SJ_N},0))'
+    return f'INDEX(WarEra!${C[col]}$2:${C[col]}${SJ_N},MATCH({name_expr},WarEra!$A$2:$A${SJ_N},0))'
 
 # ---------- Gevecht ----------
 wg = wb.create_sheet('Gevecht')
-wg['A1'] = 'Deelnemers (uit Teams en Strijders)'
+wg['A1'] = 'Deelnemers (uit Teams en WarEra)'
 wg['A1'].font = TITLE
 P_COLS = ['slot', 'team', 'naam', 'unit_count', 'max_health', 'max_shield', 'shield_regen_amount',
           'shield_regen_delay', 'health_regen', 'speed', 'attack_damage', 'attack_interval', 'attack_range',
           'attack_damage_type', 'kamikaze', 'damage_type_modifier', 'start_position', 'direction',
-          'factor_vs_1', 'factor_vs_2', 'factor_vs_3']
+          'factor_vs_1', 'factor_vs_2', 'factor_vs_3', 'unit_type', 'is_player', 'behavior_scan_radius', 'alarm_instant_from']
 header(wg, 2, 1, P_COLS)
 P = {n: L(i + 1) for i, n in enumerate(P_COLS)}
 prow = {}
@@ -297,6 +305,10 @@ for i, s in enumerate(SLOTS):
     wg[f'P{r}'] = f'=IF(D{r}=0,"",{SJ("C"+str(r), "damage_type_modifier")})'
     wg[f'Q{r}'] = f'=IF(B{r}="A",0,{DIST})'
     wg[f'R{r}'] = f'=IF(B{r}="A",1,-1)'
+    wg[f'V{r}'] = f'=IF(D{r}=0,"",{SJ("C"+str(r), "unit_type")})'
+    wg[f'W{r}'] = f'=IF(D{r}=0,0,IF({SJ("C"+str(r), "factie")}="player",1,0))'
+    wg[f'X{r}'] = f'=IF(D{r}=0,0,{SJ("C"+str(r), "behavior_scan_radius")})'
+    wg[f'Y{r}'] = f'=IF(D{r}=0,"",{SJ("C"+str(r), "alarm_instant_from")}&"")'
 opp = {s: ([x for x in SLOTS if x[0] != s[0]]) for s in SLOTS}
 for s in SLOTS:
     r = prow[s]
@@ -308,14 +320,14 @@ for s in SLOTS:
 LOG_HEAD_ROW = 11
 wg[f'A{LOG_HEAD_ROW - 1}'] = 'Verloop per tijdstap (elke rij is één tijdstap)'
 wg[f'A{LOG_HEAD_ROW - 1}'].font = TITLE
-FIELDS = ['position', 'alive', 'health', 'shield', 'cooldown', 'target', 'fires', 'damage_dealt', 'damage_taken', 'time_since_hit']
+FIELDS = ['position', 'alive', 'health', 'shield', 'cooldown', 'active', 'active_time', 'nearest_distance', 'target', 'fires', 'damage_dealt', 'damage_taken', 'time_since_hit']
 log_cols = ['time', 'team_A_alive', 'team_B_alive', 'shots']
 for s in SLOTS:
     log_cols += [f'{s}_{f}' for f in FIELDS]
 header(wg, LOG_HEAD_ROW, 1, log_cols)
 G = {n: L(i + 1) for i, n in enumerate(log_cols)}
 FIRST = LOG_HEAD_ROW + 1
-STEPS = 300
+STEPS = 200
 LAST = FIRST + STEPS
 
 def pr(s, name):  # parameter
@@ -342,17 +354,32 @@ for r in range(FIRST, LAST + 1):
             for f in ('cooldown', 'target', 'fires', 'damage_dealt', 'damage_taken'):
                 wg[c(f)] = 0
             wg[c('time_since_hit')] = 999
+            wg[c('active')] = f'={pr(s, "is_player")}'
+            wg[c('active_time')] = 0
+            wg[c('nearest_distance')] = 0
             continue
         # levend: uit de levens van vorige stap
         wg[c('alive')] = f'=IF({cp("health")}<=0,0,ROUNDUP({cp("health")}/MAX(1,{pr(s, "max_health")}),0))'
+        near = ','.join(f'IF({G[o + "_alive"]}{r}>0,ABS({cp("position")}-{cp("position", o)}),1E9)' for o in opp[s])
+        wg[c('nearest_distance')] = f'=MIN({near})'
+        mates = [x for x in SLOTS if x[0] == s[0] and x != s]
+        heard = []
+        for m in mates:
+            heard.append(f'{cp("active_time", m)}>={COMM_DELAY}')
+            heard.append(f'AND({cp("active", m)}=1,{pr(m, "unit_count")}>0,ISNUMBER(SEARCH("/"&{pr(m, "unit_type")}&"/","/"&{pr(s, "alarm_instant_from")}&"/")))')
+        wg[c('active')] = (f'=IF({c("alive")}=0,{cp("active")},IF(OR({pr(s, "is_player")}=1,{cp("active")}=1,'
+                           f'{c("nearest_distance")}<={pr(s, "behavior_scan_radius")},{cp("damage_taken")}>0,{",".join(heard)}),1,0))')
+        wg[c('active_time')] = f'=IF({c("active")}=1,IF({cp("active")}=1,{cp("active_time")}+{DT},0),0)'
         # doelwit
         keys = []
         for k, o in enumerate(opp[s]):
-            key = (f'IF({G[o + "_alive"]}{r}>0,CHOOSE(MATCH({RULE},{{"dichtstbijzijnde","zwakste","eerste"}},0),'
-                   f'ABS({cp("position")}-{cp("position", o)}),{cp("health", o)},{k + 1}),1E9)')
+            d = f'ABS({cp("position")}-{cp("position", o)})'
+            key = (f'IF({G[o + "_alive"]}{r}>0,CHOOSE(MATCH({RULE},{{"dichtstbij, zwakkere dichtbij","dichtstbijzijnde","zwakste","eerste"}},0),'
+                   f'IF({d}<={c("nearest_distance")}+{SWITCH_RANGE},{cp("health", o)}+{d}/1E6,1E9),'
+                   f'{d},{cp("health", o)},{k + 1}),1E9)')
             keys.append(key)
         m = f'MIN({",".join(keys)})'
-        wg[c('target')] = (f'=IF(OR({c("alive")}=0,{pr(s, "attack_damage")}<=0),0,IF({m}>=1E9,0,'
+        wg[c('target')] = (f'=IF(OR({c("alive")}=0,{c("active")}=0,{pr(s, "attack_damage")}<=0),0,IF({m}>=1E9,0,'
                            f'IF({keys[0]}={m},1,IF({keys[1]}={m},2,3))))')
         dist = f'ABS({cp("position")}-CHOOSE({c("target")},{cp("position", opp[s][0])},{cp("position", opp[s][1])},{cp("position", opp[s][2])}))'
         wg[c('position')] = (f'=IF({c("target")}=0,{cp("position")},IF({dist}>{pr(s, "attack_range")},'
@@ -460,8 +487,8 @@ for i in range(NM):
 wm.column_dimensions['A'].width = 18
 wm.freeze_panes = 'B3'
 
-# volgorde: Units, Wapens, Teams, Gevecht, Resultaat, Matrix, Strijders
-wb.move_sheet('Strijders', offset=0)
-wb._sheets = [wb['Units'], wb['Wapens'], wb['Strijders'], wb['Teams'], wb['Gevecht'], wb['Resultaat'], wb['Matrix']]
+# volgorde: Units, Wapens, Teams, Gevecht, Resultaat, Matrix, WarEra
+wb.move_sheet('WarEra', offset=0)
+wb._sheets = [wb['Units'], wb['Wapens'], wb['WarEra'], wb['Teams'], wb['Gevecht'], wb['Resultaat'], wb['Matrix']]
 wb.save(OUT)
 print('ok', len(entries), 'strijders', STEPS, 'stappen')
