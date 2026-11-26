@@ -216,6 +216,9 @@ func spawn_single_enemy() -> void:
 		inst.faction = faction
 	if "unit_type" in inst:
 		inst.unit_type = spawn_unit_type
+	# Eeuwige fabriek: de hoeveelste unit dit is, voor minder loot per unit (loot_factory_falloff).
+	if total_enemies_to_spawn == -1 and "factory_order" in inst:
+		inst.factory_order = enemies_spawned_count
 	
 	inst.global_position = global_position + Vector2(randf_range(-20, 20), randf_range(20, 40))
 	active_scene.add_child(inst)

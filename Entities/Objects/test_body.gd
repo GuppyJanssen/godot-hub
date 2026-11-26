@@ -117,6 +117,10 @@ var _share_left: float = 0.0
 const SHARE_INTERVAL := 1.0
 # Dichter dan dit bij de laatst bekende plek: aangekomen, de speler is er niet meer.
 const LAST_SEEN_REACHED := 40.0
+# De hoeveelste unit van een eeuwige fabriek (-1 = geen eeuwige fabriek). Zet de fabriek.
+var factory_order: int = -1
+# Welke factie deze vijand het laatst raakte ("" = de speler of iets neutraals). Voor de loot.
+var _last_hit_by: String = ""
 var _loot_factor: float = 1.0
 
 # --- WAPEN (commando's, zie EnemyGun) ---
@@ -415,6 +419,7 @@ func get_run_state() -> Dictionary:
 		"alerted": alerted,
 		"weapon": weapon_id,
 		"shield": shield.current if shield != null else 0.0,
+		"order": factory_order,
 	}
 
 
@@ -442,6 +447,7 @@ func apply_run_state(data: Dictionary) -> void:
 	global_rotation = float(data.get("rot", global_rotation))
 	spin = float(data.get("spin", spin))
 	alerted = bool(data.get("alerted", alerted))
+	factory_order = clampi(SaveSystem._safe_int(data.get("order", factory_order)), -1, 1000000)
 
 
 # Het naambordje van het wapen blijft recht boven de vijand hangen.
@@ -769,6 +775,7 @@ func take_damage(amount: int, flash: bool = true, hit_dir: Vector2 = Vector2.ZER
 	# Hij slaat pas alarm na hit_alarm_delay seconden, zodat je hem nog stil kunt uitschakelen.
 	# Een treffer van een andere factie zegt niets over de speler: dan geen alarm.
 	var hit_by_faction: String = DamageCalc.take_hit_by(self)
+	_last_hit_by = hit_by_faction
 	if hit_by_faction == "" and not passive and scan_radius > 0.0 and not alerted and not _exploding and _hit_alarm_timer < 0.0:
 		_hit_alarm_timer = hit_alarm_delay
 	
@@ -819,19 +826,34 @@ func _drop_specific_loot(hit_dir: Vector2) -> void:
 	# Aantal, soort en splatter uit de SSOT (zie Entities/Loot/loot_drops.gd).
 	var total_drops: int = LootDrops.roll_count(faction, unit_type)
 
-	# Opgeblazen kamikaze: maar een deel van de loot. Bij 0,3 blokje is er 30% kans op 1 blokje.
-	if _loot_factor < 1.0:
-		var scaled: float = total_drops * _loot_factor
+	# Minder loot: opgeblazen kamikaze (_loot_factor), de zoveelste unit van een eeuwige fabriek
+	# (loot_factory_falloff ^ volgnummer) en gedood door een andere factie (loot_other_faction_factor).
+	# Bij 0,3 blokje is er 30% kans op 1 blokje.
+	var extra: float = _loot_scale_extra()
+	var factor: float = _loot_factor * extra
+	if factor < 1.0:
+		var scaled: float = total_drops * factor
 		total_drops = int(floor(scaled)) + (1 if randf() < scaled - floor(scaled) else 0)
 
 	# Oude testvijanden zonder factie houden hun grondstof uit test_body_type.
 	var resource: String = LootDrops.resource_id(faction, unit_type, LootResources.normalize(test_body_type))
 	LootDrops.spawn(get_tree().current_scene, global_position, hit_dir, total_drops, resource, LootDrops.splatter_settings(faction, unit_type))
 	# Factie-loot (biomass, circuitry ...) bovenop de gewone loot. Een opgeblazen kamikaze geeft geen factie-loot.
-	if _loot_factor >= 1.0:
+	if _loot_factor >= 1.0 and (extra >= 1.0 or randf() < extra):
 		LootDrops.spawn_faction_loot(get_tree().current_scene, global_position, hit_dir, faction, unit_type, LootDrops.splatter_settings(faction, unit_type))
 		LootDrops.spawn_bonus_loot(get_tree().current_scene, global_position, hit_dir, faction, unit_type, LootDrops.splatter_settings(faction, unit_type))
 	print("VIJAND DROP: '", name, "' laat ", total_drops, " blokjes vallen.")
+
+
+# Extra loot-factor (1 = alles): eeuwige fabriek en dader. Waarden uit SSOT world, begrensd 0..1.
+func _loot_scale_extra() -> float:
+	var f: float = 1.0
+	if factory_order > 0:
+		var falloff: float = clampf(Ssot.get_number("world", "loot_factory_falloff", 1.0), 0.0, 1.0)
+		f *= pow(falloff, float(mini(factory_order, 1000)))
+	if _last_hit_by != "" and _last_hit_by != faction:
+		f *= clampf(Ssot.get_number("world", "loot_other_faction_factor", 1.0), 0.0, 1.0)
+	return f
 
 
 # Laat ALLE plaatjes van de vijand even wit oplichten. Eerst werd alleen het eerste plaatje
