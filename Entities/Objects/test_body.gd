@@ -1010,6 +1010,12 @@ func take_damage(amount: int, flash: bool = true, hit_dir: Vector2 = Vector2.ZER
 
 # GECORRIGEERD: Smijt de grunt direct uit de groepen zodat de deuren per direct openvliegen!
 func _deferred_death(hit_dir: Vector2) -> void:
+	# Uitgestelde dood terwijl de kamer al weg is (bijvoorbeeld: de speler gaat dood door een zwerm
+	# spores en de scène wisselt in hetzelfde frame). Dan niets meer onthouden of laten vallen:
+	# de kamer bestaat niet meer (Daan, 26 nov: crash op get_tree() == null).
+	if not is_inside_tree():
+		queue_free()
+		return
 	# BINGO: Haal de node direct administratief uit de actieve groepen.
 	# Dit voorkomt dat queue_free() de deurenteller in game_room.gd een frame lang gijzelt!
 	if is_in_group("targets"): remove_from_group("targets")
@@ -1035,6 +1041,8 @@ func _deferred_death(hit_dir: Vector2) -> void:
 
 # --- 5. SAPPIGE LOOT EXPLOSIE ---
 func _drop_specific_loot(hit_dir: Vector2) -> void:
+	if not is_inside_tree() or get_tree().current_scene == null:
+		return
 	# Het wapen van een commando kan vallen (SSOT: weapon_drop_chance op de type-rij).
 	if weapon_id != "" and randf() < clampf(EnemyStats.value(faction, unit_type, "weapon_drop_chance", 0.0), 0.0, 1.0):
 		WeaponPickup.spawn(get_tree().current_scene, weapon_id, global_position)
