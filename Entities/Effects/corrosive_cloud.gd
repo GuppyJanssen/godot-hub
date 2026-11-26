@@ -22,8 +22,16 @@ extends Node2D
 ##   Een tik is een halve seconde, dus ook met een paar wolkjes tegelijk is dat goedkoop.
 ## - Schade wordt per doel opgespaard (_carry) zodat 2,5 schade per tik niet steeds naar 3 afrondt.
 ## - Pauze: process_mode erft, dus het wolkje staat stil tijdens de pauze.
+## - Onthouden: het wolkje is een scene (corrosive_cloud.tscn) in de groepen "saveable" en
+##   "save_only_on_quit", net als kogels: bij pauze/afsluiten bewaard met leeftijd en straal, en bij
+##   Continue teruggezet. Bij een kamerwissel vervalt het (de tijd in de kamer loopt dan "door").
 
 const TICK := 0.5
+const SCENE := "res://Entities/Effects/corrosive_cloud.tscn"
+## Veiligheidsgrenzen voor waarden uit een save (geen gameplaywaarden).
+const MAX_SAVED_SECONDS := 600.0
+const MAX_SAVED_RADIUS := 5000.0
+const MAX_SAVED_DPS := 10000.0
 const COLOR := Color(0.55, 0.9, 0.25)
 const MAX_ALPHA := 0.35
 
@@ -42,7 +50,8 @@ var _carry: Dictionary = {}   # instance id -> opgespaarde schade onder 1
 static func spawn(parent: Node, at: Vector2, cloud_duration: float, cloud_radius: float, dps: float, cloud_growth: float = 3.0) -> CorrosiveCloud:
 	if parent == null or cloud_duration <= 0.0 or cloud_radius <= 0.0 or dps <= 0.0:
 		return null
-	var cloud := CorrosiveCloud.new()
+	var packed: PackedScene = load(SCENE) as PackedScene
+	var cloud: CorrosiveCloud = packed.instantiate() as CorrosiveCloud if packed != null else CorrosiveCloud.new()
 	cloud.duration = cloud_duration
 	cloud.radius = cloud_radius
 	cloud.damage_per_second = dps
@@ -51,6 +60,49 @@ static func spawn(parent: Node, at: Vector2, cloud_duration: float, cloud_radius
 	parent.add_child(cloud)
 	cloud.global_position = at
 	return cloud
+
+
+func _ready() -> void:
+	add_to_group("saveable")
+	add_to_group("save_only_on_quit")
+
+
+# --- ONTHOUDEN: de drie functies voor de groep "saveable" ---
+
+func get_run_id() -> String:
+	return "cloud_" + str(get_instance_id())
+
+
+func get_run_state() -> Dictionary:
+	if _age >= duration:
+		return {}
+	return {
+		"x": global_position.x,
+		"y": global_position.y,
+		"age": _age,
+		"tick": _tick_left,
+		"duration": duration,
+		"radius": radius,
+		"growth": growth,
+		"dps": damage_per_second,
+		"type": damage_type,
+	}
+
+
+func apply_run_state(data: Dictionary) -> void:
+	var pos := Vector2(SaveSystem._safe_float(data.get("x", global_position.x)), SaveSystem._safe_float(data.get("y", global_position.y)))
+	var room := Rect2(Vector2(-200.0, -200.0), RoomBounds.size() + Vector2(400.0, 400.0))
+	if room.has_point(pos):
+		global_position = pos
+	duration = clampf(SaveSystem._safe_float(data.get("duration", duration)), 0.0, MAX_SAVED_SECONDS)
+	_age = clampf(SaveSystem._safe_float(data.get("age", 0.0)), 0.0, duration)
+	_tick_left = clampf(SaveSystem._safe_float(data.get("tick", 0.0)), 0.0, TICK)
+	radius = clampf(SaveSystem._safe_float(data.get("radius", radius)), 1.0, MAX_SAVED_RADIUS)
+	growth = clampf(SaveSystem._safe_float(data.get("growth", growth)), 1.0, 20.0)
+	damage_per_second = clampf(SaveSystem._safe_float(data.get("dps", damage_per_second)), 0.0, MAX_SAVED_DPS)
+	var saved_type: String = str(data.get("type", damage_type))
+	if saved_type.length() <= 40 and saved_type.replace("/", "").is_valid_identifier():
+		damage_type = DamageCalc.normalize(saved_type)
 
 
 func _process(delta: float) -> void:
