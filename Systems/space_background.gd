@@ -2,17 +2,19 @@ class_name SpaceBackground
 extends ColorRect
 ## SpaceBackground – placeholder-achtergrond voor de gewone kamers (niet de Zuid- en Noordpool,
 ## die hebben een eigen plaatje). Drie lagen in pixelstijl die met parallax meebewegen, zodat je
-## het idee hebt dat je ergens overheen vliegt. Rustig gehouden: donker, weinig contrast,
-## niets dat knippert, zodat vijanden, kogels en loot altijd goed zichtbaar blijven.
+## het idee hebt dat je ergens overheen vliegt: diepe ruimte (nevels en sterrenstelsels), sterren,
+## en vaag stof dichtbij. Rustig gehouden: donker, weinig contrast, niets dat knippert, zodat
+## vijanden, kogels en loot altijd goed zichtbaar blijven.
 ##
 ## Gebruik (game_room.gd): SpaceBackground.create(parent, ring, kamer, kamergrootte)
 ##
 ## SSOT, rij world (leeg = de standaard hieronder):
 ##   background_pixel_size        wereld-pixels per art-pixel (grover = blokkeriger)
-##   background_layer_speeds      parallax per laag, ver/midden/dichtbij, bijv. 0.15/0.45/1
-##   background_layer_brightness  helderheid per laag, bijv. 0.8/0.3/0.35
+##   background_layer_speeds      parallax per laag, ver/midden/dichtbij, bijv. 0.1/0.3/1
+##   background_layer_brightness  helderheid per laag: diepe ruimte/sterren/stof, bijv. 0.6/0.45/0.2
 ##   background_dim               algemene demping, 0 = niets, 1 = zwart
 ##   background_star_density      kans per art-pixel op een ster
+##   background_galaxy_density    kans per vak (64 art-pixels) op een klein sterrenstelsel, 0 = geen
 ##   background_ring_tints        kleur per ring als hex, van de Zuidpool tot de Noordpool,
 ##                                gescheiden door / (bijv. #5a4a8a/#3f6a8a/...)
 ##
@@ -58,13 +60,14 @@ func _process(_delta: float) -> void:
 
 
 func _apply_settings(ring: int, room: int) -> void:
-	var speeds: Vector3 = _vec3("background_layer_speeds", Vector3(0.15, 0.45, 1.0), 0.0, 1.0)
-	var brightness: Vector3 = _vec3("background_layer_brightness", Vector3(0.8, 0.3, 0.35), 0.0, 2.0)
+	var speeds: Vector3 = _vec3("background_layer_speeds", Vector3(0.1, 0.3, 1.0), 0.0, 1.0)
+	var brightness: Vector3 = _vec3("background_layer_brightness", Vector3(0.6, 0.45, 0.2), 0.0, 2.0)
 	_material.set_shader_parameter("pixel_size", clampf(Ssot.get_number("world", "background_pixel_size", 8.0), 1.0, 64.0))
 	_material.set_shader_parameter("layer_speed", speeds)
 	_material.set_shader_parameter("layer_brightness", brightness)
 	_material.set_shader_parameter("dim", clampf(Ssot.get_number("world", "background_dim", 0.3), 0.0, 1.0))
-	_material.set_shader_parameter("star_density", clampf(Ssot.get_number("world", "background_star_density", 0.004), 0.0, 0.05))
+	_material.set_shader_parameter("star_density", clampf(Ssot.get_number("world", "background_star_density", 0.003), 0.0, 0.05))
+	_material.set_shader_parameter("galaxy_density", clampf(Ssot.get_number("world", "background_galaxy_density", 0.25), 0.0, 1.0))
 	# Vaste variatie per kamer.
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash("bg_%d_%d" % [ring, room])
