@@ -3,7 +3,7 @@ extends Node
 # 2. HIERONDER VOLGEN JULLIE NORMALE VARIABELEN
 var active_player: CharacterBody2D = null
 var active_save_slot: String = ""
-var debug_use_mirror_spawn: bool = false
+var debug_use_mirror_spawn: bool = true  # aan: je komt binnen op de plek waar je de vorige kamer verliet
 var should_load_run: bool = false
 
 # BINGO: Hier staat de nieuwe variabele veilig geparkeerd, buiten de ready-functie!

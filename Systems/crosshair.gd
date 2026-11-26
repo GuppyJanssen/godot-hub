@@ -87,6 +87,12 @@ func shown_offset() -> Vector2:
 	return Vector2.from_angle(player.global_rotation) * aim_offset.length()
 
 
+## Waar je ECHT heen mikt (muis of stick), zonder lock-on. De camera kijkt hierheen, zodat een
+## vastgezet doel de camera niet wegtrekt (Daan, 26 nov).
+func wish_offset() -> Vector2:
+	return _raw_offset
+
+
 ## Waar je heen wil mikken; hier draait het schip naartoe.
 func target_point() -> Vector2:
 	var player: Node2D = get_parent() as Node2D

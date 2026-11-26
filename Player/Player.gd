@@ -106,6 +106,11 @@ func _exit_tree() -> void:
 
 # ---------------------------------------------------------------- stats
 
+## Draaisnelheid van het schip (rad/s); de camera gebruikt hem in de gekoppelde stand.
+func turn_speed() -> float:
+	return maxf(0.0, _stat("rotation_speed", 10.0))
+
+
 func _stat(stat_name: String, fallback: float) -> float:
 	return StatCalc.player_value(PLAYER_ROW, stat_name, fallback)
 

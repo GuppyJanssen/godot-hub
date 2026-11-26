@@ -68,7 +68,8 @@ func _physics_process(delta: float) -> void:
 	# Kijkrichting: alleen de richting van het vizier, niet de afstand.
 	var to_mouse: Vector2 = player.get_global_mouse_position() - player.global_position
 	if "crosshair" in player and is_instance_valid(player.crosshair):
-		to_mouse = player.crosshair.shown_offset()  # het vizier, dus ook in het tempo van het draaien
+		# De echte mik-richting (muis/stick), niet het lock-on-doel: vastzetten trekt de camera niet weg.
+		to_mouse = player.crosshair.wish_offset()
 	# Kijkrichting draait METEEN mee (geen vertraging), maar met een maximale draaisnelheid
 	# (camera_smoothing, radialen per seconde). Snel heen en weer met de muis geeft zo alleen een
 	# lichte beweging, en de camera loopt niet na als de muis stilstaat.
@@ -77,9 +78,11 @@ func _physics_process(delta: float) -> void:
 			_look_angle = to_mouse.angle()
 			_has_look = true
 		if _setting("camera_smoothing") <= 0.0:
-			# Test (Daan, 26 nov): de camera kijkt precies waar het schip naartoe wijst, dus hij draait
-			# even snel als het schip (base_rotation_speed).
-			_look_angle = player.global_rotation
+			# Test (Daan, 26 nov): de camera draait even snel als het schip (base_rotation_speed) naar
+			# waar je echt mikt. Zonder lock-on is dat precies de neus van het schip; met lock-on draait
+			# het schip naar het doel, maar de camera blijft bij je mik-richting.
+			var speed: float = player.call("turn_speed") if player.has_method("turn_speed") else 10.0
+			_look_angle = rotate_toward(_look_angle, to_mouse.angle(), speed * delta)
 		else:
 			_turn_look(to_mouse.angle(), delta)
 	if _has_look:
