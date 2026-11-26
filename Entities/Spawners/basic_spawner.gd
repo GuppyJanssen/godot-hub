@@ -238,7 +238,7 @@ func take_damage(amount: int, flash: bool = true, hit_dir: Vector2 = Vector2.ZER
 	
 	var through: float = float(amount)
 	if shield != null:
-		through = shield.absorb(through)
+		through = shield.absorb(through, DamageCalc.shield_factor_for(self))
 	spawner_current_health = max(0, spawner_current_health - through)
 	
 	# Arcade flits-effect op de fabriek zelf

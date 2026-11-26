@@ -45,14 +45,17 @@ func has_shield() -> bool:
 
 
 ## Vangt schade op. Geeft terug hoeveel schade er doorheen komt (voor de levens).
-func absorb(amount: float) -> float:
+## 'shield_factor': hoe sterk deze treffer tegen schilden is (DamageCalc.shield_factor_for).
+## 2 = het schild gaat twee keer zo snel leeg; wat erdoor komt telt weer als gewone schade.
+func absorb(amount: float, shield_factor: float = 1.0) -> float:
 	if max_value <= 0.0 or amount <= 0.0:
 		return amount
 	_delay_left = regen_delay
-	var absorbed: float = minf(current, amount)
+	var factor: float = maxf(0.01, shield_factor)
+	var absorbed: float = minf(current, amount * factor)
 	current -= absorbed
 	_update_ring()
-	return amount - absorbed
+	return amount - absorbed / factor
 
 
 func update(delta: float) -> void:

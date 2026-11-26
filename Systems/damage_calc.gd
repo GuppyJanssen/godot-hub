@@ -12,6 +12,12 @@ class_name DamageCalc
 ## Gebruik bij elke treffer (kogels, ontploffingen, rammen, aanraken, later wolkjes en asteroïden):
 ##   target.take_damage(DamageCalc.scaled(schade, damage_type, target), ...)
 ##
+## SCHILDEN: sommige damage types zijn sterk (of zwak) tegen schilden. Rij world, kolom
+## shield_damage_modifier, zelfde vorm ("magnetic:2/laser:1.25"). Alleen het deel van de treffer dat
+## op het schild komt telt dat mee; wat erdoor komt gaat gewoon van de levens af.
+## scaled() onthoudt het damage type op het doel (meta), zodat take_damage het bij het schild kan
+## gebruiken via shield_factor_for(). Wie take_damage zelf aanroept: eerst mark(doel, type).
+##
 ## Ontwikkelaarsnotities:
 ## - "corrosive" is hetzelfde als "acid" en "physical" hetzelfde als "kinetic" (normalize).
 ## - De lijst wordt één keer per tekst ontleed en bewaard (_cache); daarna is het een opzoeking.
@@ -20,6 +26,8 @@ class_name DamageCalc
 const COLUMN := "damage_type_modifier"
 const PLAYER_ROW := "player_base"
 const MAX_FACTOR := 10.0
+const SHIELD_COLUMN := "shield_damage_modifier"
+const LAST_TYPE_META := "last_damage_type"
 
 static var _cache: Dictionary = {}
 
@@ -40,11 +48,33 @@ static func factor(damage_type: String, target: Node) -> float:
 	return float(table.get(normalize(damage_type), 1.0))
 
 
+## Onthoudt het damage type van de treffer die zo komt (voor het schild).
+static func mark(target: Node, damage_type: String) -> void:
+	if is_instance_valid(target):
+		target.set_meta(LAST_TYPE_META, normalize(damage_type))
+
+
+## Factor van dit damage type tegen schilden (1 = normaal).
+static func shield_factor(damage_type: String) -> float:
+	var table: Dictionary = _parse(Ssot.get_text("world", SHIELD_COLUMN, ""))
+	return float(table.get(normalize(damage_type), 1.0))
+
+
+## Factor tegen het schild voor de treffer die nu binnenkomt (en vergeet het type daarna).
+static func shield_factor_for(target: Node) -> float:
+	if not is_instance_valid(target) or not target.has_meta(LAST_TYPE_META):
+		return 1.0
+	var damage_type: String = str(target.get_meta(LAST_TYPE_META))
+	target.remove_meta(LAST_TYPE_META)
+	return shield_factor(damage_type)
+
+
 ## Schade na resistances, als heel getal voor take_damage. Iets > 0 blijft minimaal 1,
 ## tenzij het doel immuun is (factor 0).
 static func scaled(amount: float, damage_type: String, target: Node) -> int:
 	if amount <= 0.0:
 		return 0
+	mark(target, damage_type)
 	var f: float = factor(damage_type, target)
 	if f <= 0.0:
 		return 0

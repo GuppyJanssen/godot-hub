@@ -448,9 +448,11 @@ func take_damage(amount: float, _flash: bool = true, _hit_dir: Vector2 = Vector2
 	_shield_delay_left = maxf(0.0, _stat("shield_regen_delay", 3.0))
 	_shield_accumulator = 0.0
 
-	var absorbed: int = mini(stats.current_shield, incoming_damage)
-	stats.current_shield -= absorbed
-	incoming_damage -= absorbed
+	# Sommige damage types zijn sterker tegen schilden (DamageCalc.shield_factor_for).
+	var shield_factor: float = maxf(0.01, DamageCalc.shield_factor_for(self))
+	var shield_hit: int = mini(stats.current_shield, roundi(incoming_damage * shield_factor))
+	stats.current_shield -= shield_hit
+	incoming_damage = maxi(0, incoming_damage - roundi(shield_hit / shield_factor))
 	if incoming_damage > 0:
 		stats.current_health = maxi(0, stats.current_health - incoming_damage)
 	_publish_status()

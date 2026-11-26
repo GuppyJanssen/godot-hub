@@ -190,7 +190,13 @@ func _max_level(skill_id: String) -> int:
 # =========================================================================
 # --- INVOER: KOPEN, HOVER, CAMERA ---
 # =========================================================================
+## Controller: R2 zoomt in, L2 zoomt uit, de rechter stick schuift de boom (zoals rechtermuis slepen).
+const PAD_ZOOM_PER_SECOND := 1.5
+const PAD_PAN_SPEED := 900.0
+
+
 func _process(_delta: float) -> void:
+	_pad_camera(_delta)
 	var under: String = _skill_under_mouse()
 	if under != _hovered_id:
 		if _nodes.has(_hovered_id):
@@ -361,3 +367,17 @@ func _mark_bought_as_discovered() -> void:
 func _on_back_to_main_menu_pressed() -> void:
 	_save_meta()
 	get_tree().change_scene_to_file("res://Systems/main_menu.tscn")
+
+
+func _pad_camera(delta: float) -> void:
+	if not is_instance_valid(tree_camera) or not InputDevice.using_pad():
+		return
+	var zoom_in: float = Input.get_joy_axis(0, JOY_AXIS_TRIGGER_RIGHT)
+	var zoom_out: float = Input.get_joy_axis(0, JOY_AXIS_TRIGGER_LEFT)
+	var change: float = (zoom_in - zoom_out) * PAD_ZOOM_PER_SECOND * delta
+	if absf(change) > 0.0001:
+		var z: float = clampf(tree_camera.zoom.x * (1.0 + change), min_zoom, max_zoom)
+		tree_camera.zoom = Vector2(z, z)
+	var stick: Vector2 = InputDevice.aim_vector()
+	if stick != Vector2.ZERO:
+		tree_camera.global_position += stick * PAD_PAN_SPEED * delta / tree_camera.zoom.x

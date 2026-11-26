@@ -579,7 +579,8 @@ func _explode() -> void:
 	CorrosiveCloud.spawn(get_tree().current_scene, center,
 			EnemyStats.value(faction, unit_type, "explosion_cloud_duration", 0.0),
 			cloud_radius if cloud_radius > 0.0 else explosion_radius,
-			EnemyStats.value(faction, unit_type, "corrosive_damage", 0.0))
+			EnemyStats.value(faction, unit_type, "corrosive_damage", 0.0),
+			EnemyStats.value(faction, unit_type, "explosion_cloud_growth", 3.0))
 	
 	# Zelf dood, en maar een fractie van de loot.
 	_loot_factor = kamikaze_loot_factor
@@ -601,7 +602,7 @@ func take_damage(amount: int, flash: bool = true, hit_dir: Vector2 = Vector2.ZER
 	# Het schild vangt eerst op; alleen de rest gaat van de levens af.
 	var through: int = amount
 	if shield != null:
-		through = roundi(shield.absorb(amount))
+		through = roundi(shield.absorb(amount, DamageCalc.shield_factor_for(self)))
 	current_health = max(0, current_health - through)
 	
 	# Geraakt worden is een duidelijk teken: een vijand die kan kijken, weet zo dat de speler er is.
