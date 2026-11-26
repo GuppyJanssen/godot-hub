@@ -28,6 +28,7 @@ const PLAYER_ROW := "player_base"
 const MAX_FACTOR := 10.0
 const SHIELD_COLUMN := "shield_damage_modifier"
 const LAST_TYPE_META := "last_damage_type"
+const HIT_BY_META := "hit_by_faction"
 
 static var _cache: Dictionary = {}
 
@@ -67,6 +68,35 @@ static func shield_factor_for(target: Node) -> float:
 	var damage_type: String = str(target.get_meta(LAST_TYPE_META))
 	target.remove_meta(LAST_TYPE_META)
 	return shield_factor(damage_type)
+
+
+## Het damage type waarmee een vijand of gebouw zelf aanvalt (rammen, aanraken, ontploffen):
+## base_damage_type van zijn rij (eigen vijand-rij, dan factie, dan type). Leeg = kinetic.
+static func attack_type(attacker: Node) -> String:
+	if not is_instance_valid(attacker) or not "faction" in attacker:
+		return "kinetic"
+	var unit: String = ""
+	if "unit_type" in attacker:
+		unit = str(attacker.unit_type)
+	elif "building_type" in attacker:
+		unit = str(attacker.building_type)
+	return normalize(EnemyStats.text(str(attacker.faction), unit, "base_damage_type", ""))
+
+
+## Onthoudt welke factie het doel zo raakt (een vijand die door een andere factie geraakt wordt,
+## slaat dan geen alarm over de speler). Lees het uit met take_hit_by().
+static func mark_attacker(target: Node, attacker_faction: String) -> void:
+	if is_instance_valid(target) and attacker_faction != "":
+		target.set_meta(HIT_BY_META, attacker_faction)
+
+
+## De factie die het doel net raakte ("" = de speler of iets neutraals), en vergeet het daarna.
+static func take_hit_by(target: Node) -> String:
+	if not is_instance_valid(target) or not target.has_meta(HIT_BY_META):
+		return ""
+	var who: String = str(target.get_meta(HIT_BY_META))
+	target.remove_meta(HIT_BY_META)
+	return who
 
 
 ## Schade na resistances, als heel getal voor take_damage. Iets > 0 blijft minimaal 1,

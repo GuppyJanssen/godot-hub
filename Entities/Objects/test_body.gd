@@ -97,6 +97,13 @@ var _wander_timer: float = 0.0
 var _investigating: bool = false
 var _investigate_target: Vector2 = Vector2.ZERO
 var _exploding: bool = false
+# Doel van een ANDERE factie (unit of gebouw) waar deze vijand nu op aanvalt, of null = de speler.
+# Gekozen door TargetPicker (zwakte in bereik), elke zoekronde opnieuw. Niet bewaard.
+var _unit_target: Node2D = null
+# Seconden tot deze vijand weer contactschade mag doen aan een unit van een andere factie.
+var _contact_left: float = 0.0
+# Iets speling bij "aanraken" van een andere unit (pixels), zodat duwen ook telt.
+const CONTACT_SLACK := 6.0
 var _loot_factor: float = 1.0
 
 # --- WAPEN (commando's, zie EnemyGun) ---
@@ -251,15 +258,71 @@ func _load_weapon() -> void:
 		_weapon_label.text = Ssot.get_text(weapon_id, "ingame_name", weapon_id)
 
 
-# Schiet op de speler als hij een wapen heeft, de speler ziet en binnen bereik is.
-func _try_shoot(player: Node2D, distance: float, delta: float) -> void:
+# Schiet op het doel (de speler of een unit van een andere factie) als hij een wapen heeft,
+# het doel ziet en het binnen bereik is.
+func _try_shoot(target: Node2D, distance: float, delta: float) -> void:
 	if _weapon == null:
 		return
 	_fire_cooldown -= delta
-	if _fire_cooldown > 0.0 or distance > _weapon.weapon_range or not _can_see(player):
+	if _fire_cooldown > 0.0 or distance > _weapon.weapon_range or not _can_see(target):
 		return
 	_fire_cooldown = EnemyGun.fire_interval(_weapon, faction, unit_type)
-	EnemyGun.fire(self, _weapon, player.global_position, body_radius + 8.0)
+	EnemyGun.fire(self, _weapon, target.global_position, body_radius + 8.0)
+
+
+# Kiest of deze vijand een unit/gebouw van een andere factie aanvalt (_unit_target) of de speler (null).
+# Volgorde (Daan, 26 nov):
+#   1. Een doel van een andere factie onder target_finish_health (7%) eerst afmaken, ook vóór de speler.
+#   2. De speler gaat voor, zodra deze vijand van hem weet (alarm, of hij jaagt altijd: "hunt").
+#   3. Anders: TargetPicker kiest in de buurt, met wissel naar een zwakte (resistance of schild).
+func _update_unit_target(player: Node2D) -> void:
+	if faction == "" or passive:
+		_unit_target = null
+		return
+	if is_instance_valid(_unit_target) and TargetPicker.is_hostile_to(faction, _unit_target) \
+			and TargetPicker.should_finish(_unit_target) \
+			and global_position.distance_to(_unit_target.global_position) <= _fight_radius() * 1.5:
+		return
+	if is_instance_valid(player) and (alerted or behavior_searching == "hunt"):
+		_unit_target = null
+		return
+	_unit_target = TargetPicker.pick(self, faction, _attack_damage_type(), _fight_radius())
+
+
+# Met welk damage type valt deze vijand aan? Het wapen, of anders base_damage_type van zijn rij.
+func _attack_damage_type() -> String:
+	if _weapon != null:
+		return DamageCalc.normalize(_weapon.damage_type)
+	return DamageCalc.attack_type(self)
+
+
+# Hoe ver kijkt deze vijand naar units van andere facties? Zijn kijkafstand; een blinde kamikaze
+# merkt alleen wat hij bijna aanraakt (dan ontploft hij).
+func _fight_radius() -> float:
+	if behavior_agro == "kamikaze":
+		return maxf(scan_radius, kamikaze_trigger_distance + body_radius)
+	return scan_radius
+
+
+# Contactschade aan een unit van een andere factie als hij hem aanraakt (alleen zonder wapen en
+# geen kamikaze), hooguit eens per contact_damage_interval seconden (SSOT world).
+func _touch_unit(target: Node2D, distance: float, delta: float) -> void:
+	_contact_left -= delta
+	if _weapon != null or behavior_agro == "kamikaze" or _contact_left > 0.0:
+		return
+	if distance > body_radius + _target_radius(target) + CONTACT_SLACK or not target.has_method("take_damage"):
+		return
+	_contact_left = maxf(0.1, Ssot.get_number("world", "contact_damage_interval", 1.0))
+	DamageCalc.mark_attacker(target, faction)
+	target.take_damage(DamageCalc.scaled(get_contact_damage(), DamageCalc.attack_type(self), target),
+			true, (target.global_position - global_position).normalized())
+
+
+# Straal van een ander doel (unit: body_radius; gebouw zonder body_radius: een ruwe schatting).
+static func _target_radius(target: Node) -> float:
+	if "body_radius" in target:
+		return float(target.body_radius)
+	return 60.0
 
 
 # --- ONTHOUDEN: de drie functies voor de groep "saveable" ---
@@ -361,6 +424,7 @@ func _physics_process(delta: float) -> void:
 	if _sight_timer <= 0.0:
 		_sight_timer = SIGHT_CHECK_SECONDS
 		_look_around(player)
+		_update_unit_target(player)
 	
 	var to_player: Vector2 = player.global_position - global_position
 	var distance: float = to_player.length()
@@ -374,7 +438,20 @@ func _physics_process(delta: float) -> void:
 		_explode()
 		return
 	
-	if alerted or behavior_searching == "hunt":
+	# Aanvallen op een unit of gebouw van een andere factie (zie _update_unit_target).
+	var target: Node2D = player
+	var fighting_unit: bool = is_instance_valid(_unit_target)
+	if fighting_unit:
+		target = _unit_target
+		distance = global_position.distance_to(target.global_position)
+		direction = (target.global_position - global_position).normalized()
+		facing = direction
+		if behavior_agro == "kamikaze" and distance <= maxf(kamikaze_trigger_distance, body_radius + _target_radius(target)):
+			_explode()
+			return
+		_touch_unit(target, distance, delta)
+	
+	if fighting_unit or alerted or behavior_searching == "hunt":
 		match behavior_agro:
 			"kamikaze":
 				if distance <= kamikaze_trigger_distance:
@@ -384,7 +461,7 @@ func _physics_process(delta: float) -> void:
 			"keep_distance":
 				var keep: float = (scan_radius if scan_radius > 0.0 else 400.0) * keep_distance_factor
 				var target_velocity: Vector2 = Vector2.ZERO
-				if distance > keep + 40.0 or not _can_see(player):
+				if distance > keep + 40.0 or not _can_see(target):
 					target_velocity = direction * movement_speed       # dichterbij, of terug in zicht
 				elif distance < keep - 40.0:
 					target_velocity = -direction * movement_speed      # te dichtbij: afstand nemen
@@ -392,7 +469,7 @@ func _physics_process(delta: float) -> void:
 			_:
 				velocity = velocity.move_toward(direction * movement_speed, acceleration * delta)
 		if behavior_agro != "kamikaze":
-			_try_shoot(player, distance, delta)
+			_try_shoot(target, distance, delta)
 	elif _investigating:
 		# Een kogel gezien: kijken waar hij vandaan kwam.
 		var to_target: Vector2 = _investigate_target - global_position
@@ -571,6 +648,8 @@ func _explode() -> void:
 	print("BOEM: ", name, " ontploft en raakt ", victims.size(), " doelen.")
 	for victim in victims:
 		var push: Vector2 = (victim.global_position - center).normalized()
+		if "faction" in victim and str(victim.faction) != faction:
+			DamageCalc.mark_attacker(victim, faction)
 		victim.take_damage(DamageCalc.scaled(explosion_damage, DamageCalc.attack_type(self), victim), true, push)
 	
 	# Spore: een corrosive wolkje blijft hangen (SSOT: explosion_cloud_duration, explosion_cloud_radius,
@@ -607,7 +686,9 @@ func take_damage(amount: int, flash: bool = true, hit_dir: Vector2 = Vector2.ZER
 	
 	# Geraakt worden is een duidelijk teken: een vijand die kan kijken, weet zo dat de speler er is.
 	# Hij slaat pas alarm na hit_alarm_delay seconden, zodat je hem nog stil kunt uitschakelen.
-	if not passive and scan_radius > 0.0 and not alerted and not _exploding and _hit_alarm_timer < 0.0:
+	# Een treffer van een andere factie zegt niets over de speler: dan geen alarm.
+	var hit_by_faction: String = DamageCalc.take_hit_by(self)
+	if hit_by_faction == "" and not passive and scan_radius > 0.0 and not alerted and not _exploding and _hit_alarm_timer < 0.0:
 		_hit_alarm_timer = hit_alarm_delay
 	
 	# Een treffer geeft een tollende vijand een zetje, linksom of rechtsom.

@@ -13,7 +13,8 @@ class_name EnemyGun
 ## Ontwikkelaarsnotities:
 ## - Het gekozen wapen wordt bewaard met de vijand (test_body.gd, get_run_state), zodat een commando
 ##   na het terugkomen in een kamer hetzelfde wapen heeft.
-## - Kogels zijn de gewone weapon_output-kogels met from_enemy = true.
+## - Kogels zijn de gewone weapon_output-kogels met from_enemy = true en shooter_faction: ze raken
+##   de speler en andere facties, niet de eigen factie.
 
 const BULLET_SCENE := "res://Entities/Weapon Output/weapon_output.tscn"
 const DEFAULT_FIRE_FACTOR := 2.0
@@ -54,6 +55,8 @@ static func fire(shooter: Node2D, weapon: SsotWeapon, target_pos: Vector2, muzzl
 	for i in maxi(1, weapon.bullets_per_shot):
 		var bullet = scene.instantiate()
 		bullet.from_enemy = true
+		if "faction" in shooter:
+			bullet.shooter_faction = str(shooter.faction)
 		bullet.damage = weapon.damage
 		bullet.size_scale = weapon.size
 		bullet.speed = weapon.projectile_speed

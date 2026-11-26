@@ -18,9 +18,12 @@ extends Area2D
 var size_scale: float = 1.0
 ## Het damage type van het wapen (base_damage_type in de SSOT), voor de testdummy en later de counters.
 var damage_type: String = ""
-## Kogel van een vijand (commando): raakt alleen de speler, en de F1-instellingen van de speler
-## (schade, grootte, snelheid, bereik) gelden er niet voor. Zet dit vóór add_child.
+## Kogel van een vijand (commando): raakt de speler en units/gebouwen van ANDERE facties (niet de
+## eigen factie), en de F1-instellingen van de speler (schade, grootte, snelheid, bereik) gelden er
+## niet voor. Zet dit vóór add_child.
 var from_enemy: bool = false
+## De factie van de schutter (alleen bij from_enemy). Zet EnemyGun vóór add_child.
+var shooter_faction: String = ""
 ## Bereik van het wapen. De schutter zet dit; -1 = uit de wapenwaarden van de speler lezen (oud).
 var range_override: float = -1.0
 ## Snelheid van de schutter op het moment van schieten. Een deel ervan gaat mee met de kogel
@@ -179,8 +182,8 @@ func _on_area_entered(area: Area2D) -> void:
 
 func _on_body_entered(body: Node2D) -> void:
 	if not is_instance_valid(body): return
-	if from_enemy:
-		return  # vijandkogels raken geen andere vijanden of gebouwen
+	if from_enemy and not TargetPicker.is_hostile_to(shooter_faction, body):
+		return  # vijandkogels gaan door de eigen factie heen (en raken niets zonder factie)
 	if body.is_in_group("targets") or body.is_in_group("Enemies") or body.is_in_group("enemies"):
 		if _hit_ids.has(body.get_instance_id()):
 			return  # dit doel is al geraakt (pierce/bounce)
@@ -192,6 +195,8 @@ func _on_body_entered(body: Node2D) -> void:
 			if body.has_method("on_hit_info"):
 				body.on_hit_info(damage, damage_type)
 			# Resistances en zwaktes van het doel tellen mee (DamageCalc).
+			if from_enemy:
+				DamageCalc.mark_attacker(body, shooter_faction)
 			body.take_damage(DamageCalc.scaled(damage, damage_type, body), true, impact_direction)
 		if knockback_force > 0.0 and "velocity" in body:
 			body.velocity += impact_direction * knockback_force
@@ -232,17 +237,22 @@ func _explode() -> void:
 		var player: Node2D = Game.active_player
 		if is_instance_valid(player) and player.global_position.distance_to(center) <= explosion_radius:
 			player.take_damage(DamageCalc.scaled(explosion_damage, damage_type, player))
-		return
+		if shooter_faction == "":
+			return
 	var victims: Dictionary = {}
 	for node in get_tree().get_nodes_in_group("targets") + get_tree().get_nodes_in_group("enemies"):
 		if victims.has(node) or not node is Node2D or not node.has_method("take_damage"):
 			continue
+		if from_enemy and not TargetPicker.is_hostile_to(shooter_faction, node):
+			continue  # vijandbom: alleen andere facties (de speler is hierboven al geraakt)
 		if node.global_position.distance_to(center) <= explosion_radius:
 			victims[node] = true
 	for victim in victims:
 		var push: Vector2 = (victim.global_position - center).normalized()
 		if victim.has_method("on_hit_info"):
 			victim.on_hit_info(explosion_damage, damage_type)
+		if from_enemy:
+			DamageCalc.mark_attacker(victim, shooter_faction)
 		victim.take_damage(DamageCalc.scaled(explosion_damage, damage_type, victim), true, push)
 
 
@@ -276,6 +286,8 @@ func get_run_state() -> Dictionary:
 		"range": weapon_range,
 		"traveled": traveled_distance,
 		"enemy": from_enemy,
+		"faction": shooter_faction,
+		"type": damage_type,
 		"pierce": pierce_left,
 		"bounce": bounce_left,
 		"knockback": knockback_force,
@@ -301,6 +313,13 @@ func apply_run_state(data: Dictionary) -> void:
 	knockback_force = maxf(0.0, SaveSystem._safe_float(data.get("knockback", 0.0)))
 	explosion_damage = maxf(0.0, SaveSystem._safe_float(data.get("explosion_damage", 0.0)))
 	explosion_radius = maxf(0.0, SaveSystem._safe_float(data.get("explosion_radius", 0.0)))
+	# Factie en damage type: alleen korte, nette namen (een aangepaste save kan van alles bevatten).
+	var saved_faction: String = str(data.get("faction", ""))
+	if saved_faction.length() <= 2 and (saved_faction == "" or saved_faction.is_valid_identifier()):
+		shooter_faction = saved_faction
+	var saved_type: String = str(data.get("type", damage_type))
+	if saved_type.length() <= 24 and (saved_type == "" or saved_type.is_valid_identifier()):
+		damage_type = saved_type
 	if bool(data.get("enemy", false)) and not from_enemy:
 		from_enemy = true
 		if not area_entered.is_connected(_on_area_entered):

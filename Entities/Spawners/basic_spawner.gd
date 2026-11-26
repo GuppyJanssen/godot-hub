@@ -233,6 +233,7 @@ func get_contact_damage() -> float:
 # --- SCHADE OPVANGEN EN PERMANENTE VERNIETIGING ---
 func take_damage(amount: int, flash: bool = true, hit_dir: Vector2 = Vector2.ZERO) -> void:
 	if is_destroyed or spawner_current_health <= 0: return
+	DamageCalc.take_hit_by(self)  # wie raakte (andere factie) is voor een fabriek niet nodig; opruimen
 	if hit_dir != Vector2.ZERO:
 		last_hit_dir = hit_dir
 	
