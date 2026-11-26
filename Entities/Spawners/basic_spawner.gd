@@ -220,6 +220,10 @@ func spawn_single_enemy() -> void:
 		inst.faction = faction
 	if "unit_type" in inst:
 		inst.unit_type = spawn_unit_type
+		# Heel soms een commando in plaats van de gewone unit (SSOT world: factory_commando_chance).
+		if randf() < clampf(Ssot.get_number("world", "factory_commando_chance", 0.0), 0.0, 1.0) \
+				and EnemyStats.exists(faction, "medium"):
+			inst.unit_type = "medium"
 	# Eeuwige fabriek: de hoeveelste unit dit is, voor minder loot per unit (loot_factory_falloff).
 	if total_enemies_to_spawn == -1 and "factory_order" in inst:
 		inst.factory_order = enemies_spawned_count
