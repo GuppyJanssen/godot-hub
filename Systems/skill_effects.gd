@@ -9,6 +9,9 @@ class_name SkillEffects
 ## - Een ingevulde kolom  <stat>_modifier  = procent PER LEVEL      (damage_modifier 0,01 → +1% schade per level)
 ## - Kolom SKILL_KIND_COLUMN               = soort upgrade (wapen, schip, physics...), voor kleur en uitschakelen
 ## - Lege kolommen doen niets.
+## - Kolom MILESTONE_COLUMN (mijlpalen, Daan 26 nov): "stat:level=waarde/level=waarde", bijvoorbeeld
+##   "bounce_count:25=1/50=3/75=6/100=999". Die stat krijgt dan niet "per level" maar de waarde van de
+##   hoogste behaalde mijlpaal (onder level 25: niets). 999 = zo goed als onbeperkt.
 ##
 ## Voorbeeld, na het laden van de save en na elke aankoop of elk verval:
 ##   var levels: Dictionary = SkillEffects.effective_levels(gekochte_levels, RunState.run_points)
@@ -36,6 +39,7 @@ const WEAPON_TYPE_COLUMN := "weapon_type"
 const MAX_LEVEL_COLUMN := "fill_levels_amount"
 ## weapon_type-waarde in een skill-rij → stat die op het maximale level aangaat.
 const MAX_LEVEL_EFFECTS := {"auto": "full_auto", "homing": "homing"}
+const MILESTONE_COLUMN := "skill_milestones"
 
 
 ## De gekochte levels uit de save, bewaard zodat Hard-verval niet elke seconde de schijf leest.
@@ -106,6 +110,11 @@ static func apply_one(skill_id: String, level: float) -> void:
 			if not stat in IGNORED_STATS:
 				percent_per_stat[stat] = Ssot.get_number(skill_id, column_name) * level
 
+	# Mijlpalen gaan voor de waarde per level.
+	var milestone: Array = _milestone(Ssot.get_text(skill_id, MILESTONE_COLUMN, ""), level)
+	if not milestone.is_empty():
+		flat_per_stat[milestone[0]] = milestone[1]
+
 	var stats: Dictionary = {}
 	for stat in flat_per_stat:
 		stats[stat] = true
@@ -126,6 +135,32 @@ static func apply_one(skill_id: String, level: float) -> void:
 				float(flat_per_stat.get(stat, 0.0)),
 				float(percent_per_stat.get(stat, 0.0)),
 				kind)
+
+
+## Leest "stat:25=1/50=3/..." en geeft [stat, waarde bij dit level] terug, of [] als er niets is.
+static func _milestone(text: String, level: float) -> Array:
+	var clean: String = text.strip_edges()
+	if clean == "" or not ":" in clean:
+		return []
+	var stat: String = clean.get_slice(":", 0).strip_edges()
+	stat = STAT_ALIASES.get(stat, stat)
+	if not stat.is_valid_identifier():
+		return []
+	var value: float = 0.0
+	var best_level: float = -1.0
+	for part in clean.get_slice(":", 1).split("/", false):
+		var pair: PackedStringArray = part.split("=", false)
+		if pair.size() != 2:
+			continue
+		var at: String = pair[0].strip_edges()
+		var amount: String = pair[1].strip_edges().replace(",", ".")
+		if not at.is_valid_float() or not amount.is_valid_float():
+			continue
+		var at_level: float = at.to_float()
+		if level >= at_level and at_level > best_level:
+			best_level = at_level
+			value = amount.to_float()
+	return [stat, value]
 
 
 ## Hoe vol een skill zit, als trede: 0, 25, 50, 75 of 100.

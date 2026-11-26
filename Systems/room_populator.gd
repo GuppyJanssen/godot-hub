@@ -119,11 +119,11 @@ static func populate(parent: Node, ring: int, room_index: int) -> void:
 	var placed: Array[Vector2] = []
 	var owner_area: Rect2 = _area() if second == "" else _half(split_x, owner_first)
 	_place(parent, scene, rng, owner, count, owner_area, placed, heavy_chance, grunts, heavies)
-	_place_commandos(parent, rng, owner, owner_area, placed, "%d_%d_%d" % [ring, room_index, gen])
+	_place_commandos(parent, rng, owner, owner_area, placed, "%d_%d_%d" % [ring, room_index, gen], fill)
 	if second != "":
 		var second_area: Rect2 = _half(split_x, not owner_first)
 		_place(parent, scene, rng, second, second_count, second_area, placed, heavy_chance, grunts, heavies)
-		_place_commandos(parent, rng, second, second_area, placed, "%d_%d_%d" % [ring, room_index, gen])
+		_place_commandos(parent, rng, second, second_area, placed, "%d_%d_%d" % [ring, room_index, gen], fill)
 
 	print("KAMER: ring ", ring, " kamer ", room_index, " = factie ", owner, ", ", count, " fabriek(en)",
 			(", plus factie %s met %d fabriek(en)" % [second, second_count]) if second != "" else "",
@@ -153,9 +153,10 @@ static func _place(parent: Node, scene: PackedScene, rng: RandomNumberGenerator,
 ## Commando's die al in de kamer staan: kans room_commando_chance op één, en als er één staat
 ## kans room_commando_double_chance op een tweede. Vaste namen per kamer en generatie, zodat RunState ze onthoudt.
 static func _place_commandos(parent: Node, rng: RandomNumberGenerator, faction: String, area: Rect2,
-		placed: Array[Vector2], tag: String) -> void:
+		placed: Array[Vector2], tag: String, fill: float = 1.0) -> void:
 	var amount: int = 0
-	if rng.randf() < clampf(_setting("room_commando_chance"), 0.0, 1.0):
+	# Rijkere ringen (room_fill_per_ring): ook meer kans op vijanden die er al staan.
+	if rng.randf() < clampf(_setting("room_commando_chance") * fill, 0.0, 1.0):
 		amount = 1
 		if rng.randf() < clampf(_setting("room_commando_double_chance"), 0.0, 1.0):
 			amount = 2
@@ -174,8 +175,9 @@ static func _place_commandos(parent: Node, rng: RandomNumberGenerator, faction: 
 		var pos: Vector2 = _free_spot(rng, placed, area)
 		if not homes.is_empty():
 			var home: Vector2 = homes[rng.randi_range(0, homes.size() - 1)]
-			var spread: float = _setting("room_factory_spacing") * 0.6
-			pos = home + Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(spread * 0.4, spread)
+			# Dicht bij de fabriek (net buiten het gebouw), alsof ze daar net gebouwd zijn.
+			var spread: float = _setting("room_factory_spacing") * 0.45
+			pos = home + Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(spread * 0.5, spread)
 			pos = Vector2(roundf(clampf(pos.x, _area().position.x, _area().end.x)), roundf(clampf(pos.y, _area().position.y, _area().end.y)))
 		placed.append(pos)
 		var unit: Node = scene.instantiate()

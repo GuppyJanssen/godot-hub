@@ -81,8 +81,13 @@ func _physics_process(delta: float) -> void:
 	# de camera achter mag lopen: camera_follow_lag (deel van het halve beeld), anders schuift het
 	# schip uit beeld bij hoge snelheid.
 	var wanted: Vector2 = player.global_position + _offset_now
-	var follow: Vector2 = global_position.lerp(wanted, weight)
 	var half_view: Vector2 = get_viewport_rect().size / zoom / 2.0
+	# Teleport (nieuwe kamer, Continue, start van de run): meteen erheen, niet aanglijden. Anders
+	# lijkt alles in beeld weg te vallen en verschiet de achtergrond.
+	if global_position.distance_to(wanted) > half_view.length():
+		snap()
+		return
+	var follow: Vector2 = global_position.lerp(wanted, weight)
 	var max_lag: Vector2 = half_view * clampf(_setting("camera_follow_lag"), 0.0, MAX_LOOKAHEAD)
 	follow.x = clampf(follow.x, wanted.x - max_lag.x, wanted.x + max_lag.x)
 	follow.y = clampf(follow.y, wanted.y - max_lag.y, wanted.y + max_lag.y)

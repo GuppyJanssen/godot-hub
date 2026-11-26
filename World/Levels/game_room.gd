@@ -140,6 +140,13 @@ func _ready() -> void:
 	if barrier_visuals is CanvasItem:
 		barrier_visuals.visible = true
 
+	# 5a. Begin van de run in de Zuidpool: in het midden van de kamer (Daan, 26 nov).
+	if is_instance_valid(active_player) and my_layer == 0 and not LevelManager.in_test_room \
+			and not LevelManager.has_meta("coming_from") and not Game.should_load_run:
+		active_player.global_position = RoomBounds.center()
+		if "camera" in active_player and is_instance_valid(active_player.camera):
+			active_player.camera.snap()
+
 	# 5. TOGGLE-AFHANKELIJKE RANDSPAWN
 	if is_instance_valid(active_player) and LevelManager.has_meta("coming_from"):
 		var direction = LevelManager.get_meta("coming_from")
