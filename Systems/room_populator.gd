@@ -16,18 +16,14 @@ class_name RoomPopulator
 ##   room_heavy_chance                    kans dat een fabriek heavy's maakt in plaats van grunts
 ##   room_grunts_per_factory              hoeveel grunts een grunt-fabriek maakt
 ##   room_heavies_per_factory             hoeveel heavy's een heavy-fabriek maakt
-##   room_second_faction_chance           kans dat een TWEEDE factie in de kamer staat als de oorlog
-##                                        geen aanvaller voor deze kamer heeft (0 = alleen de aanvaller)
 ##
-## TWEE FACTIES (front): valt een factie deze kamer aan in de oorlog (room["attacker"]), dan staan
-## haar fabrieken er ook. Anders, met kans room_second_faction_chance, een andere factie uit dezelfde
-## driehoek die nu kamers bezit. De bezitter staat op de ene helft, de tweede factie op de andere
-## (links/rechts of boven/onder, uit de seed). Ze vechten onderling (TargetPicker), maar de speler
-## gaat voor. AANNAME: welke helft is nog willekeurig; later de kant van het eigen gebied (front).
+## TWEE FACTIES (front): valt een factie deze kamer aan in de oorlog (room["attacker"]), dan is de
+## kamer een front en staan haar fabrieken er ook. Geen aanvaller = alleen de bezitter. De bezitter
+## staat op de ene helft, de aanvaller op de andere (links/rechts of boven/onder, uit de seed). Ze
+## vechten onderling (TargetPicker), maar de speler gaat voor. Op de oorlogskaart (F2) hebben
+## fronten een eigen kleur. AANNAME: welke helft is nog willekeurig; later de kant van het eigen gebied.
 
 const FACTORY_SCENE := "res://Entities/Spawners/factory.tscn"
-## Het script van de autoload FactionWar, voor zijn statische hulpfuncties (triangle_of).
-const FactionWarScript := preload("res://Systems/faction_war.gd")
 const SETTINGS_ROW := "world"
 const DEFAULTS := {
 	"room_factory_min": 1.0,
@@ -37,7 +33,6 @@ const DEFAULTS := {
 	"room_heavies_per_factory": 1.0,
 	"room_factory_spacing": 260.0,
 	"room_center_free_radius": 220.0,
-	"room_second_faction_chance": 0.0,
 }
 
 ## Waar fabrieken mogen staan: de kamer (RoomBounds.size) met deze rand, met afstand tot elkaar en tot het midden.
@@ -90,7 +85,7 @@ static func populate(parent: Node, ring: int, room_index: int) -> void:
 		if not _is_known_faction(second) or second == owner:
 			second = ""
 	else:
-		second = _pick_second(war, ring, room_index, owner, rng)
+		second = _pick_second(war, ring, room_index, owner)
 	var second_count: int = rng.randi_range(low, high) if second != "" else 0
 	# Welke helft voor wie: true = links/rechts, false = boven/onder; owner_first = bezitter links/boven.
 	var split_x: bool = rng.randf() < 0.5
@@ -135,29 +130,14 @@ static func _place(parent: Node, scene: PackedScene, rng: RandomNumberGenerator,
 		parent.add_child(factory)
 
 
-## De tweede factie voor deze kamer: de aanvaller uit de oorlog, of (met kans) een andere factie uit
-## dezelfde driehoek die nu kamers bezit. "" = alleen de bezitter.
-static func _pick_second(war: Node, ring: int, room_index: int, owner: String, rng: RandomNumberGenerator) -> String:
+## De tweede factie voor deze kamer: de factie waarmee hier een front is (de aanvaller in de oorlog).
+## "" = geen front, alleen de bezitter.
+static func _pick_second(war: Node, ring: int, room_index: int, owner: String) -> String:
 	var info: Dictionary = war.get_room_info(ring, room_index)
 	var attacker: String = str(info.get("attacker", ""))
 	if attacker != "" and attacker != owner and _is_known_faction(attacker):
 		return attacker
-	var chance: float = clampf(_setting("room_second_faction_chance"), 0.0, 1.0)
-	if chance <= 0.0 or rng.randf() >= chance:
-		return ""
-	var tri: int = FactionWarScript.triangle_of(owner)
-	if tri < 0:
-		return ""
-	var counts: Dictionary = war.owner_counts()
-	var options: Array[String] = []
-	for f in counts.keys():
-		var other: String = str(f)
-		if other != "" and other != owner and int(counts[f]) > 0 and FactionWarScript.triangle_of(other) == tri and _is_known_faction(other):
-			options.append(other)
-	if options.is_empty():
-		return ""
-	options.sort()  # vaste volgorde, zodat de seed altijd dezelfde keuze geeft
-	return options[rng.randi_range(0, options.size() - 1)]
+	return ""
 
 
 ## Bestaat deze factie in de SSOT (rij faction_<naam>)? Beschermt tegen rare waarden uit een save.

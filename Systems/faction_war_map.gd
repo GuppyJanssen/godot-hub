@@ -31,6 +31,9 @@ const REDRAW_SECONDS := 0.2
 
 const EMPTY_COLOR := Color(0.18, 0.18, 0.18)
 const CLEARED_COLOR := Color(0.4, 0.08, 0.08)
+## Front: twee facties vechten in deze kamer (bezitter + aanvaller). Eigen celkleur, met boven een
+## streep in de kleur van de aanvaller en onder een streep in de kleur van de bezitter.
+const FRONT_COLOR := Color(0.95, 0.85, 0.2)
 
 var _view: Control
 var _speed_index: int = 0
@@ -108,6 +111,7 @@ func _draw_map() -> void:
 		return
 
 	var max_strength: float = FactionWar.get_setting("max_strength")
+	var fronts: int = 0
 	for r in ring_count:
 		var row_y: float = MARGIN + HEADER_HEIGHT + (ring_count - 1 - r) * ROW_HEIGHT
 		var ring_rooms: Array = FactionWar.rooms[r]
@@ -125,6 +129,10 @@ func _draw_map() -> void:
 			var attacker: String = room["attacker"]
 			if attacker != "":
 				_view.draw_rect(Rect2(rect.position, Vector2(rect.size.x, 4.0)), faction_color(attacker))
+			# Front (bezet en aangevallen): onder een streepje in de kleur van de bezitter.
+			if _is_front(room):
+				_view.draw_rect(Rect2(rect.position + Vector2(0.0, rect.size.y - 4.0), Vector2(rect.size.x, 4.0)), faction_color(room["owner"]))
+				fronts += 1
 
 			# De kamer van de speler.
 			if r == LevelManager.current_layer and i == LevelManager.current_room_index:
@@ -138,11 +146,21 @@ func _draw_map() -> void:
 	for faction in factions:
 		var label: String = "leeg" if faction == "" else str(faction).to_upper()
 		legend += "%s: %d    " % [label, counts[faction]]
+	legend += "FRONT (geel): %d" % fronts
 	var footer_y: float = MARGIN + HEADER_HEIGHT + ring_count * ROW_HEIGHT + 28.0
 	_view.draw_string(font, Vector2(MARGIN, footer_y), legend, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, Color.WHITE)
 
 
+## Een front: de kamer is bezet en een andere factie valt hem aan (twee facties vechten hier).
+static func _is_front(room: Dictionary) -> bool:
+	var holder: String = room["owner"]
+	var attacker: String = room["attacker"]
+	return holder != "" and attacker != "" and attacker != holder
+
+
 func _room_color(room: Dictionary, max_strength: float) -> Color:
+	if _is_front(room):
+		return FRONT_COLOR
 	var holder: String = room["owner"]
 	if holder == "":
 		return CLEARED_COLOR if room["cleared_at"] >= 0.0 else EMPTY_COLOR

@@ -66,6 +66,10 @@ func _ready() -> void:
 	spawner_max_health = EnemyStats.value(faction, building_type, "max_health", spawner_max_health)
 	# Tempo uit de SSOT: base_spawn_rate = seconden tussen twee keer, base_spawn_amount = vijanden per keer.
 	spawn_interval_seconds = maxf(0.2, EnemyStats.value(faction, building_type, "spawn_rate", spawn_interval_seconds))
+	# Heeft de unit die deze fabriek maakt een eigen base_spawn_rate (bijv. spores: snel), dan geldt die.
+	var unit_row: String = EnemyStats.enemy_row(faction, spawn_unit_type)
+	if StatCalc.applies(unit_row, "spawn_rate"):
+		spawn_interval_seconds = maxf(0.2, StatCalc.value(unit_row, "spawn_rate", spawn_interval_seconds))
 	spawn_per_wave = maxi(1, roundi(EnemyStats.value(faction, building_type, "spawn_amount", spawn_per_wave)))
 	spawner_current_health = spawner_max_health
 	# Grootte uit de SSOT (base_size). Voor gebouwen telt die vanaf een fabriek: 1 = even groot als een fabriek.

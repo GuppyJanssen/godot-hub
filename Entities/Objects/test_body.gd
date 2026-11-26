@@ -108,11 +108,18 @@ const CONTACT_SLACK := 6.0
 # Ziet een unit de speler, dan hoort de rest van zijn factie de plek, na de communicatievertraging,
 # en wie niet in gevecht is gaat die kant op.
 var _player_in_sight: bool = false
-var _last_seen_pos: Vector2 = Vector2.ZERO
-var _has_last_seen: bool = false
-var _pending_seen_pos: Vector2 = Vector2.ZERO
-var _pending_seen_left: float = -1.0
+# Communicatie (Daan, 26 nov): berichten van de eigen factie komen na de communicatievertraging binnen.
+# Meerdere berichten: eerst naar de dichtstbijzijnde.
+#   _leads          plekken waar de speler gezien is (Vector2), hooguit MAX_LEADS
+#   _told_targets   units/gebouwen van andere facties die een factiegenoot zag (bijv. scout -> spores)
+#   _pending        berichten die nog onderweg zijn: [seconden_over, plek of node]
+var _leads: Array[Vector2] = []
+var _told_targets: Array = []
+var _pending: Array = []
 var _share_left: float = 0.0
+var _share_unit_left: float = 0.0
+const MAX_LEADS := 4
+const MAX_PENDING := 8
 # Hoe vaak een unit die de speler ziet de plek doorgeeft (seconden). Alleen om rekenwerk te sparen.
 const SHARE_INTERVAL := 1.0
 # Dichter dan dit bij de laatst bekende plek: aangekomen, de speler is er niet meer.
@@ -303,33 +310,96 @@ func _chases_player() -> bool:
 # Deze vijand ziet de speler: onthouden en (hooguit eens per SHARE_INTERVAL) doorgeven aan de eigen
 # factie, met de communicatievertraging (alarm_communication_delay; alarm_instant_from = meteen).
 func _remember_player(pos: Vector2) -> void:
-	_last_seen_pos = pos
-	_has_last_seen = true
+	_leads = [pos]  # zelf gezien: dit is de nieuwste en beste plek
 	_share_left -= SIGHT_CHECK_SECONDS
-	if _share_left > 0.0 or faction == "":
+	if _share_left > 0.0:
 		return
 	_share_left = SHARE_INTERVAL
+	_broadcast(pos)
+
+
+# Stuurt een bericht (plek van de speler, of een vijandige unit) naar de eigen factie in deze kamer.
+func _broadcast(message: Variant) -> void:
+	if faction == "":
+		return
 	var delay: float = maxf(0.0, Ssot.get_number("world", "alarm_communication_delay", 2.0))
 	for other in get_tree().get_nodes_in_group("enemies"):
-		if other == self or not other.has_method("hear_player_position") or not "faction" in other or other.faction != faction:
+		if other == self or not other.has_method("hear_message") or not "faction" in other or other.faction != faction:
 			continue
 		var instant: bool = other.has_method("hears_alarm_instantly_from") and other.hears_alarm_instantly_from(unit_type)
-		other.hear_player_position(pos, 0.0 if instant else delay)
+		other.hear_message(message, 0.0 if instant else delay)
 
 
-## Een unit van mijn factie zag de speler hier. Komt na 'delay' seconden binnen; wie dan in gevecht
-## is met een andere factie, negeert het. Een nieuwere plek vervangt de oude.
-func hear_player_position(pos: Vector2, delay: float) -> void:
+## Bericht van een factiegenoot: een Vector2 = daar is de speler gezien; een node = die vijandige unit
+## of dat gebouw is gezien. Komt na 'delay' seconden binnen.
+func hear_message(message: Variant, delay: float) -> void:
 	if passive or current_health <= 0:
 		return
-	if delay <= 0.0:
-		if not is_instance_valid(_unit_target):
-			_last_seen_pos = pos
-			_has_last_seen = true
+	if not (message is Vector2 or (message is Node2D and is_instance_valid(message))):
 		return
-	_pending_seen_pos = pos
-	if _pending_seen_left < 0.0:
-		_pending_seen_left = delay
+	if delay <= 0.0:
+		_receive(message)
+		return
+	if _pending.size() >= MAX_PENDING:
+		_pending.pop_front()  # het oudste bericht valt weg
+	_pending.append([delay, message])
+
+
+func _tick_messages(delta: float) -> void:
+	var still: Array = []
+	for entry in _pending:
+		entry[0] -= delta
+		if entry[0] <= 0.0:
+			_receive(entry[1])
+		else:
+			still.append(entry)
+	_pending = still
+
+
+# Een bericht is binnen. Wie in gevecht is met een andere factie, negeert berichten over de speler.
+func _receive(message: Variant) -> void:
+	if message is Vector2:
+		if is_instance_valid(_unit_target):
+			return
+		for lead in _leads:
+			if lead.distance_to(message) < LAST_SEEN_REACHED * 2.0:
+				return  # al bekend
+		if _leads.size() >= MAX_LEADS:
+			_leads.remove_at(0)
+		_leads.append(message)
+	elif is_instance_valid(message) and TargetPicker.is_hostile_to(faction, message) and not _told_targets.has(message):
+		if _told_targets.size() >= MAX_LEADS:
+			_told_targets.remove_at(0)
+		_told_targets.append(message)
+
+
+# De dichtstbijzijnde plek waar de speler gezien is (index in _leads), of -1.
+func _nearest_lead() -> int:
+	var best: int = -1
+	var best_d: float = INF
+	for k in _leads.size():
+		var d: float = global_position.distance_squared_to(_leads[k])
+		if d < best_d:
+			best_d = d
+			best = k
+	return best
+
+
+# De dichtstbijzijnde nog levende vijand die een factiegenoot doorgaf, of null.
+func _nearest_told_target() -> Node2D:
+	var best: Node2D = null
+	var best_d: float = INF
+	var alive: Array = []
+	for node in _told_targets:
+		if not TargetPicker.is_hostile_to(faction, node):
+			continue
+		alive.append(node)
+		var d: float = global_position.distance_squared_to(node.global_position)
+		if d < best_d:
+			best_d = d
+			best = node
+	_told_targets = alive
+	return best
 
 
 # Kamikaze: alleen ontploffen als het de moeite is (friendly fire, zie TargetPicker.aoe_ok).
@@ -357,7 +427,17 @@ func _update_unit_target(player: Node2D) -> void:
 	if is_instance_valid(player) and _chases_player():
 		_unit_target = null
 		return
-	_unit_target = TargetPicker.pick(self, faction, _attack_damage_type(), _fight_radius())
+	var seen: Node2D = TargetPicker.pick(self, faction, _attack_damage_type(), _fight_radius())
+	if seen != null:
+		# Zelf gezien: doorgeven aan de factie (bijv. de scout aan de spores), niet vaker dan nodig.
+		_share_unit_left -= SIGHT_CHECK_SECONDS
+		if seen != _unit_target or _share_unit_left <= 0.0:
+			_share_unit_left = SHARE_INTERVAL
+			_broadcast(seen)
+		_unit_target = seen
+		return
+	# Niets in de buurt: dan het dichtstbijzijnde doel dat een factiegenoot doorgaf.
+	_unit_target = _nearest_told_target()
 
 
 # Met welk damage type valt deze vijand aan? Het wapen, of anders base_damage_type van zijn rij.
@@ -464,11 +544,8 @@ func _physics_process(delta: float) -> void:
 		_pending_alarm -= delta
 		if _pending_alarm < 0.0 and not alerted and current_health > 0:
 			on_alarm()
-	if _pending_seen_left >= 0.0:
-		_pending_seen_left -= delta
-		if _pending_seen_left < 0.0 and not is_instance_valid(_unit_target):
-			_last_seen_pos = _pending_seen_pos
-			_has_last_seen = true
+	if not _pending.is_empty():
+		_tick_messages(delta)
 	if shield != null:
 		shield.update(delta)
 	
@@ -550,11 +627,12 @@ func _physics_process(delta: float) -> void:
 				velocity = velocity.move_toward(direction * movement_speed, acceleration * delta)
 		if behavior_agro != "kamikaze":
 			_try_shoot(target, distance, delta)
-	elif _has_last_seen:
-		# Laatst bekende plek van de speler (zelf gezien of doorgekregen): daarheen.
-		var to_seen: Vector2 = _last_seen_pos - global_position
+	elif not _leads.is_empty():
+		# Plek waar de speler gezien is (zelf of doorgekregen): eerst de dichtstbijzijnde.
+		var lead: int = _nearest_lead()
+		var to_seen: Vector2 = _leads[lead] - global_position
 		if to_seen.length() < LAST_SEEN_REACHED:
-			_has_last_seen = false
+			_leads.remove_at(lead)
 		velocity = velocity.move_toward(to_seen.normalized() * movement_speed, acceleration * delta)
 		facing = velocity
 	elif _investigating:
