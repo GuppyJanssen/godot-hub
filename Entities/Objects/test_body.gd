@@ -150,6 +150,10 @@ const LEGACY_TEST_HEALTH := {1: 50, 2: 80}
 
 
 func _ready() -> void:
+	# Bovenaanzicht: "floating". In de standaardstand (grounded, voor platformspellen) ziet Godot wat
+	# eronder zit als vloer en neemt hij de snelheid van die "vloer" over, waardoor units naar beneden
+	# schoten (Daan, 26 nov). Zo is er geen boven/onder meer.
+	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
 	add_to_group("targets")
 	add_to_group("enemies")
 	if not passive:

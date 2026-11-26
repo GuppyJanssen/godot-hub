@@ -63,4 +63,3 @@ static func world_triangle_count(base: int, wins: int, wins_per_extra: int, max_
 		return clampi(base, 1, max_count)
 	@warning_ignore("integer_division")  # bewust: alleen hele driehoeken
 	return clampi(base + wins / wins_per_extra, 1, max_count)
-

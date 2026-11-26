@@ -56,6 +56,10 @@ var crosshair: Crosshair = null
 
 
 func _ready() -> void:
+	# Bovenaanzicht: "floating". In de standaardstand (grounded, voor platformspellen) ziet Godot wat
+	# eronder zit als vloer en neemt hij de snelheid van die "vloer" over, waardoor units naar beneden
+	# schoten (Daan, 26 nov). Zo is er geen boven/onder meer.
+	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
 	if is_instance_valid(Game):
 		Game.active_player = self
 	# Hitbox passend bij de sprite van het schip.
