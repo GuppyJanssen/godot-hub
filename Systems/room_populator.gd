@@ -16,14 +16,13 @@ class_name RoomPopulator
 ##   room_heavy_chance                    kans dat een fabriek heavy's maakt in plaats van grunts
 ##   room_grunts_per_factory              hoeveel grunts een grunt-fabriek maakt
 ##   room_heavies_per_factory             hoeveel heavy's een heavy-fabriek maakt
-##   factory_type_swap_chance             kans dat een fabriek toch het andere type maakt (light <-> heavy)
 ##   room_commando_chance                 kans per factie dat er al een commando in de kamer staat
-##   room_commando_double_chance          kans per factie dat het er twee zijn (valt binnen de kans hierboven)
+##   room_commando_double_chance          als er één staat: kans op nog een tweede (0.1 x 0.1 = 1% op twee)
 ##
 ## WELKE UNIT (Daan, 26 nov): de 1e fabriek van een factie maakt lights (bij Organic spores), de 2e
-## heavy's, de rest volgens room_heavy_chance. Daarna heeft elke fabriek factory_type_swap_chance kans
-## om om te draaien. Torens zijn gebouwen en komen niet uit fabrieken. Commando's: zie hierboven, plus
-## factory_commando_chance per gemaakte unit in basic_spawner.gd.
+## heavy's, de rest volgens room_heavy_chance. Per gemaakte unit kan de fabriek toch het andere type
+## maken (factory_type_swap_chance) of een commando (factory_commando_chance), zie basic_spawner.gd.
+## Torens zijn gebouwen en komen niet uit fabrieken.
 ##
 ## TWEE FACTIES (front): valt een factie deze kamer aan in de oorlog (room["attacker"]), dan is de
 ## kamer een front en staan haar fabrieken er ook. Geen aanvaller = alleen de bezitter. De bezitter
@@ -42,7 +41,6 @@ const DEFAULTS := {
 	"room_heavies_per_factory": 1.0,
 	"room_factory_spacing": 260.0,
 	"room_center_free_radius": 220.0,
-	"factory_type_swap_chance": 0.0,
 	"room_commando_chance": 0.0,
 	"room_commando_double_chance": 0.0,
 }
@@ -133,18 +131,15 @@ static func populate(parent: Node, ring: int, room_index: int) -> void:
 ## Zet 'amount' fabrieken van 'faction' neer binnen 'area'.
 static func _place(parent: Node, scene: PackedScene, rng: RandomNumberGenerator, faction: String, amount: int,
 		area: Rect2, placed: Array[Vector2], heavy_chance: float, grunts: int, heavies: int) -> void:
-	var swap: float = clampf(_setting("factory_type_swap_chance"), 0.0, 1.0)
 	for k in amount:
 		var pos: Vector2 = _free_spot(rng, placed, area)
 		placed.append(pos)
-		# 1e fabriek lights, 2e heavy's, daarna volgens de kans; dan een kleine kans op omdraaien.
+		# 1e fabriek lights, 2e heavy's, daarna volgens de kans.
 		var heavy: bool = false
 		if k == 1:
 			heavy = true
 		elif k >= 2:
 			heavy = rng.randf() < heavy_chance
-		if rng.randf() < swap:
-			heavy = not heavy
 		var factory: Node = scene.instantiate()
 		factory.faction = faction
 		factory.spawn_unit_type = "heavy" if heavy else "light"
@@ -153,16 +148,15 @@ static func _place(parent: Node, scene: PackedScene, rng: RandomNumberGenerator,
 		parent.add_child(factory)
 
 
-## Commando's die al in de kamer staan: kans room_commando_chance op minstens één, waarvan
-## room_commando_double_chance op twee. Vaste namen per kamer en generatie, zodat RunState ze onthoudt.
+## Commando's die al in de kamer staan: kans room_commando_chance op één, en als er één staat
+## kans room_commando_double_chance op een tweede. Vaste namen per kamer en generatie, zodat RunState ze onthoudt.
 static func _place_commandos(parent: Node, rng: RandomNumberGenerator, faction: String, area: Rect2,
 		placed: Array[Vector2], tag: String) -> void:
-	var roll: float = rng.randf()
 	var amount: int = 0
-	if roll < clampf(_setting("room_commando_double_chance"), 0.0, 1.0):
-		amount = 2
-	elif roll < clampf(_setting("room_commando_chance"), 0.0, 1.0):
+	if rng.randf() < clampf(_setting("room_commando_chance"), 0.0, 1.0):
 		amount = 1
+		if rng.randf() < clampf(_setting("room_commando_double_chance"), 0.0, 1.0):
+			amount = 2
 	if amount == 0 or not EnemyStats.exists(faction, "medium"):
 		return
 	var scene: PackedScene = load(UNIT_SCENE)

@@ -220,7 +220,12 @@ func spawn_single_enemy() -> void:
 		inst.faction = faction
 	if "unit_type" in inst:
 		inst.unit_type = spawn_unit_type
-		# Heel soms een commando in plaats van de gewone unit (SSOT world: factory_commando_chance).
+		# Per unit een kleine kans op het andere type (light <-> heavy, factory_type_swap_chance)
+		# of op een commando (factory_commando_chance). Alleen als dat type voor deze factie bestaat.
+		if randf() < clampf(Ssot.get_number("world", "factory_type_swap_chance", 0.0), 0.0, 1.0):
+			var other: String = "heavy" if spawn_unit_type == "light" else ("light" if spawn_unit_type == "heavy" else "")
+			if other != "" and EnemyStats.exists(faction, other):
+				inst.unit_type = other
 		if randf() < clampf(Ssot.get_number("world", "factory_commando_chance", 0.0), 0.0, 1.0) \
 				and EnemyStats.exists(faction, "medium"):
 			inst.unit_type = "medium"
