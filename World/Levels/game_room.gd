@@ -90,6 +90,11 @@ func _ready() -> void:
 			if ResourceLoader.exists(target_tex_path):
 				background_node.texture = load(target_tex_path)
 
+		# Gewone kamers (geen pool-plaatje): de pixel-achtergrond met parallax.
+		if background_node.texture == null:
+			background_node.visible = false
+			SpaceBackground.create(self, active_layer, my_room, RoomBounds.size())
+
 	# 3. ÉÉNMALIGE NODE INDEXATIE FOR BARRIERS
 	for child in find_children("*", "", true, false):
 		if is_instance_valid(child):
