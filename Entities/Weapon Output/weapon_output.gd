@@ -200,8 +200,11 @@ func _on_body_entered(body: Node2D) -> void:
 			if from_enemy:
 				DamageCalc.mark_attacker(body, shooter_faction)
 			body.take_damage(DamageCalc.scaled(damage, damage_type, body), true, impact_direction)
-		if knockback_force > 0.0 and "velocity" in body:
-			body.velocity += impact_direction * knockback_force
+		if knockback_force > 0.0:
+			if body.has_method("apply_knockback"):
+				body.apply_knockback(impact_direction * knockback_force)
+			elif "velocity" in body:
+				body.velocity += impact_direction * knockback_force
 		_after_hit(body)
 
 

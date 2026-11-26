@@ -76,7 +76,12 @@ func _physics_process(delta: float) -> void:
 		if not _has_look:
 			_look_angle = to_mouse.angle()
 			_has_look = true
-		_turn_look(to_mouse.angle(), delta)
+		if _setting("camera_smoothing") <= 0.0:
+			# Test (Daan, 26 nov): de camera kijkt precies waar het schip naartoe wijst, dus hij draait
+			# even snel als het schip (base_rotation_speed).
+			_look_angle = player.global_rotation
+		else:
+			_turn_look(to_mouse.angle(), delta)
 	if _has_look:
 		_look_dir = Vector2.from_angle(_look_angle)
 	_offset_now = _target_offset()

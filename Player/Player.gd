@@ -412,6 +412,9 @@ func _on_player_hitbox_body_entered(body: Node2D) -> void:
 		return
 	if not (body.is_in_group("enemies") or body.is_in_group("targets")):
 		return
+	# Een kamikaze (spore) ontploft meteen bij aanraking; dan geen botsing of ramschade.
+	if body.has_method("explode_on_contact") and body.explode_on_contact():
+		return
 
 	# 1. Schade aan de speler: base_damage van die vijand (zie get_contact_damage).
 	var incoming: float = _stat("damage", 10.0)
@@ -432,7 +435,9 @@ func _on_player_hitbox_body_entered(body: Node2D) -> void:
 	# 3. Terugstoot voor jezelf, duw voor de vijand.
 	var knockback_dir: Vector2 = (global_position - body.global_position).normalized()
 	velocity = knockback_dir * StatCalc.value(PLAYER_ROW, "recoil_force", 350.0)
-	if "velocity" in body:
+	if body.has_method("apply_knockback"):
+		body.apply_knockback(-knockback_dir * StatCalc.value(PLAYER_ROW, "knockback_force", 250.0))
+	elif "velocity" in body:
 		body.velocity = -knockback_dir * StatCalc.value(PLAYER_ROW, "knockback_force", 250.0)
 
 

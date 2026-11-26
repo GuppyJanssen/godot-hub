@@ -102,6 +102,8 @@ var _exploding: bool = false
 var _unit_target: Node2D = null
 # Seconden tot deze vijand weer contactschade mag doen aan een unit van een andere factie.
 var _contact_left: float = 0.0
+# Terugstoot die nog doorwerkt (zie apply_knockback).
+var _knockback: Vector2 = Vector2.ZERO
 # Voor F1 "AI-labels": wat de vijand deze frame doet, en het label zelf.
 var _ai_state: String = ""
 var _ai_label: Label = null
@@ -419,9 +421,17 @@ func _nearest_told_target() -> Node2D:
 
 
 # Kamikaze: alleen ontploffen als het de moeite is (friendly fire, zie TargetPicker.aoe_ok).
+# Kamikaze: bij aanraking van de speler of een vijand ALTIJD meteen ontploffen (Daan, 26 nov).
+# De friendly-fire-afweging (TargetPicker.aoe_ok) geldt alleen voor bommen en raketten.
 func _try_explode() -> bool:
-	if not TargetPicker.aoe_ok(self, faction, global_position, explosion_radius, explosion_damage,
-			DamageCalc.attack_type(self)):
+	_explode()
+	return true
+
+
+## De speler raakt deze vijand aan. Een kamikaze ontploft dan meteen (zonder eerst te botsen).
+## Geeft true terug als hij ontploft is; dan doet de speler geen ramschade of terugstoot.
+func explode_on_contact() -> bool:
+	if behavior_agro != "kamikaze" or _exploding or current_health <= 0 or passive:
 		return false
 	_explode()
 	return true
@@ -628,6 +638,7 @@ func _update_ai_label() -> void:
 	if _ai_label == null:
 		_ai_label = Label.new()
 		_ai_label.top_level = true
+		_ai_label.z_index = 100
 		_ai_label.size = Vector2(220, 20)
 		_ai_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_ai_label.add_theme_font_size_override("font_size", 12)
@@ -693,7 +704,7 @@ func _physics_process(delta: float) -> void:
 	# Een kamikaze (spore) ontploft altijd als de speler hem aanraakt, ook als hij nog geen
 	# alarm heeft (dan merkt hij de speler pas op het laatste moment op).
 	if behavior_agro == "kamikaze" and current_health > 0 \
-			and distance <= maxf(kamikaze_trigger_distance, body_radius + _player_radius(player)):
+			and distance <= maxf(kamikaze_trigger_distance, body_radius + _player_radius(player) + CONTACT_SLACK):
 		if _try_explode():
 			return
 	
@@ -705,7 +716,7 @@ func _physics_process(delta: float) -> void:
 		distance = global_position.distance_to(target.global_position)
 		direction = (target.global_position - global_position).normalized()
 		facing = direction
-		if behavior_agro == "kamikaze" and distance <= maxf(kamikaze_trigger_distance, body_radius + _target_radius(target)):
+		if behavior_agro == "kamikaze" and distance <= maxf(kamikaze_trigger_distance, body_radius + _target_radius(target) + CONTACT_SLACK):
 			if _try_explode():
 				return
 		_touch_unit(target, distance, delta)
@@ -756,9 +767,26 @@ func _physics_process(delta: float) -> void:
 	if faces_player and facing.length() > 1.0:
 		global_rotation = rotate_toward(global_rotation, facing.angle(), rotation_speed * delta)
 	
+	# Terugstoot (kogels, rammen) bovenop de eigen beweging, zodat de besturing hem niet meteen opeet.
+	velocity += _knockback
 	move_and_slide()
+	velocity -= _knockback
+	_knockback = _knockback.move_toward(Vector2.ZERO, maxf(friction, 1.0) * delta)
+	# Kamikaze die toch tegen de speler of een vijand botst: meteen ontploffen.
+	if behavior_agro == "kamikaze":
+		for i in get_slide_collision_count():
+			var other: Object = get_slide_collision(i).get_collider()
+			if other == player or (other is Node and TargetPicker.is_hostile_to(faction, other)):
+				_explode()
+				return
 	# Dezelfde bewegingsruimte als de speler (Systems/room_bounds.gd).
 	RoomBounds.apply(self, body_radius, true)
+
+
+## Een duw (pixels per seconde) die uitdooft met de friction van deze vijand. Kogels en rammen.
+func apply_knockback(push: Vector2) -> void:
+	if push.is_finite():
+		_knockback = (_knockback + push).limit_length(SNAPSHOT_MAX_SPEED)
 
 
 # Maakt de vijand groter of kleiner (kolom base_size in de SSOT, 1 = normaal, 1.5 = anderhalf keer zo groot).
