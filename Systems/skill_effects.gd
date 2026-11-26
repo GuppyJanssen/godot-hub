@@ -34,6 +34,8 @@ const STAT_ALIASES := {
 ## elk wapen full-auto (de stat "full_auto", zie SsotWeapon).
 const WEAPON_TYPE_COLUMN := "weapon_type"
 const MAX_LEVEL_COLUMN := "fill_levels_amount"
+## weapon_type-waarde in een skill-rij → stat die op het maximale level aangaat.
+const MAX_LEVEL_EFFECTS := {"auto": "full_auto", "homing": "homing"}
 
 
 ## De gekochte levels uit de save, bewaard zodat Hard-verval niet elke seconde de schijf leest.
@@ -110,10 +112,14 @@ static func apply_one(skill_id: String, level: float) -> void:
 	for stat in percent_per_stat:
 		stats[stat] = true
 
-	if str(row.get(WEAPON_TYPE_COLUMN, "")).strip_edges().to_lower() == "auto" \
-			and level >= Ssot.get_number(skill_id, MAX_LEVEL_COLUMN, MAX_LEVEL):
-		flat_per_stat["full_auto"] = 1.0
-		stats["full_auto"] = true
+	# Speciaal effect op het maximale level, via de kolom weapon_type (geen eigen kolom nodig):
+	#   auto   → elk wapen full-auto (stat full_auto)
+	#   homing → kogels sturen bij naar het vastgezette doel (stat homing, zie Crosshair/lock-on)
+	var max_effect: String = str(row.get(WEAPON_TYPE_COLUMN, "")).strip_edges().to_lower()
+	if MAX_LEVEL_EFFECTS.has(max_effect) and level >= Ssot.get_number(skill_id, MAX_LEVEL_COLUMN, MAX_LEVEL):
+		var effect_stat: String = MAX_LEVEL_EFFECTS[max_effect]
+		flat_per_stat[effect_stat] = 1.0
+		stats[effect_stat] = true
 
 	for stat in stats:
 		Mods.set_modifier(source, stat,

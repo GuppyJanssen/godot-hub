@@ -378,6 +378,10 @@ func fire_primary_weapon() -> void:
 		bullet.global_position = global_position + muzzle_offset
 		bullet.global_rotation = global_rotation + final_spread
 		bullet.shooter_velocity = velocity
+		# Lock-on op het maximale level: de kogel stuurt bij naar het doel (draaisnelheid speler).
+		if Mods.flat_total("homing") >= 1.0 and is_instance_valid(crosshair) and crosshair.locked_target != null:
+			bullet.homing_target = crosshair.locked_target
+			bullet.homing_turn_speed = maxf(0.0, _stat("rotation_speed", 10.0))
 		get_tree().current_scene.add_child(bullet)
 
 	if energy_cost > 0.0 and not god:

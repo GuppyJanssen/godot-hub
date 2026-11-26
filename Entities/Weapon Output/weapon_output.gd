@@ -29,6 +29,10 @@ var range_override: float = -1.0
 var shooter_velocity: Vector2 = Vector2.ZERO
 ## De kogel gaat nooit langzamer dan dit deel van zijn eigen snelheid (ook niet bij hard achteruit).
 const MIN_INHERIT_FACTOR := 0.3
+## Homing (lock-on op het maximale level): hierheen bijsturen, met turn_speed radialen per seconde.
+## Zet de schutter vóór add_child (Player); null = rechtdoor.
+var homing_target: Node2D = null
+var homing_turn_speed: float = 0.0
 var pierce_left: int = 0
 var bounce_left: int = 0
 var knockback_force: float = 0.0
@@ -122,6 +126,13 @@ func _physics_process(delta: float) -> void:
 
 	# GECORRIGEERD: Gebruikt de betrouwbare transform-richting van Godot 4.7
 	# Dit voorkomt dat de kogel bij een verkeerde rotatie-matrix naar (0,0) schiet!
+	# Homing: bijsturen naar het vastgezette doel, zo snel als de speler zelf kan draaien.
+	if homing_target != null:
+		if is_instance_valid(homing_target) and not homing_target.is_queued_for_deletion():
+			var wanted: float = (homing_target.global_position - global_position).angle()
+			global_rotation = rotate_toward(global_rotation, wanted, homing_turn_speed * delta)
+		else:
+			homing_target = null  # doel weg: verder rechtdoor
 	var move_amount: float = speed * delta
 	# Richting zonder schaal: transform.x is zo lang als de schaal van de kogel (base_size). Een kleine
 	# kogel (pistool 0,5) vloog daardoor half zo snel en kwam maar tot de helft van zijn bereik.
