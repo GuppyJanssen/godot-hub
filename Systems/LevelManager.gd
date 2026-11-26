@@ -9,6 +9,11 @@ const DEFAULT_LAYER_WIDTHS: Array[int] = [1, 6, 12, 24, 48, 96, 48, 24, 12, 6, 1
 ## Grootste aantal kamers in één ring (beschermt tegen een typfout als 9600).
 const MAX_RING_WIDTH := 1000
 var LAYER_WIDTHS: Array[int] = DEFAULT_LAYER_WIDTHS.duplicate()
+## Hoeveel driehoeken (elk 3 ringen) de wereld in deze run heeft: 1, 2 of 3. Groeit met het aantal
+## bossoverwinningen van de save (RunState.start_new_run). Ringen = 2 + 3 x driehoeken (pool, ringen, boss).
+const MAX_TRIANGLES := 3
+const RINGS_PER_TRIANGLE := 3
+var world_triangles: int = MAX_TRIANGLES
 
 
 func _ready() -> void:
@@ -18,6 +23,36 @@ func _ready() -> void:
 
 
 func _load_ring_widths() -> void:
+	set_world_triangles(world_triangles)
+
+
+## Zet de wereld op 1, 2 of 3 driehoeken en bouwt de ringbreedtes. Bij 3 driehoeken telt
+## world_ring_widths uit de SSOT (als die klopt); anders een bol: 1, 6, 12, 24 ... en weer terug.
+func set_world_triangles(triangles: int) -> void:
+	world_triangles = clampi(triangles, 1, MAX_TRIANGLES)
+	var count: int = 2 + RINGS_PER_TRIANGLE * world_triangles
+	LAYER_WIDTHS = _sphere_widths(count)
+	if world_triangles == MAX_TRIANGLES:
+		_apply_ssot_widths()
+
+
+## Bol-breedtes voor 'count' ringen: van de pool naar het midden verdubbelen, dan weer terug.
+static func _sphere_widths(count: int) -> Array[int]:
+	var widths: Array[int] = []
+	for i in count:
+		var k: int = mini(i, count - 1 - i)
+		widths.append(1 if k == 0 else mini(6 * int(pow(2.0, k - 1)), MAX_RING_WIDTH))
+	return widths
+
+
+## In welke driehoek ligt deze ring? -1 = pool of boss (geen facties).
+func triangle_of_ring(r: int) -> int:
+	if r <= 0 or r >= LAYER_WIDTHS.size() - 1:
+		return -1
+	return mini((r - 1) / RINGS_PER_TRIANGLE, world_triangles - 1)
+
+
+func _apply_ssot_widths() -> void:
 	var text: String = Ssot.get_text("world", "world_ring_widths", "")
 	if text.strip_edges() == "":
 		return

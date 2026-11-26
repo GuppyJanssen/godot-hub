@@ -21,7 +21,7 @@ class_name MetaProgress
 
 # --- VOORTGANG VAN DEZE SAVE ---
 ## Hoe vaak de boss in deze save verslagen is. Bepaalt later hoe groot de wereld wordt
-## (base_world_rings, wins_per_extra_ring, max_world_rings). In te stellen in F1 om te testen.
+## (base_world_triangles, wins_per_extra_triangle, max_world_triangles). In te stellen in F1 vóór de run.
 @export var boss_wins: int = 0
 
 

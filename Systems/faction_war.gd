@@ -43,9 +43,8 @@ const MAX_TICKS_PER_FRAME := 120
 ## De drie driehoeken. Hybrides ontstaan alleen binnen een driehoek: ab, bc, ca.
 const TRIANGLES: Array = [["a", "b", "c"], ["d", "e", "f"], ["g", "h", "i"]]
 
-## Welke driehoek in welke ring woont. Index = ring (0 = zuidpool). -1 = geen facties.
-## AANNAME, nog met Maik afstemmen. Werkt voor de 11 ringen uit LevelManager.LAYER_WIDTHS.
-const RING_TRIANGLE: Array = [-1, 0, 0, 0, 1, 1, 1, 2, 2, 2, -1]
+## Welke driehoek in welke ring woont: LevelManager.triangle_of_ring (de wereld kan 1, 2 of 3
+## driehoeken hebben, zie LevelManager.set_world_triangles). Pool en boss-ring: geen facties.
 
 ## Standaardwaarden. Elke waarde kan in de SSOT-rij SETTINGS_ROW een eigen kolom krijgen.
 const DEFAULTS := {
@@ -179,8 +178,8 @@ func _fill_ring_at_start(r: int, t: int, offset: float, rng: RandomNumberGenerat
 
 ## De onderste ring waar facties wonen (ring 1 bij de huidige indeling).
 func _lowest_faction_ring() -> int:
-	for r in RING_TRIANGLE.size():
-		if int(RING_TRIANGLE[r]) >= 0:
+	for r in LevelManager.LAYER_WIDTHS.size():
+		if LevelManager.triangle_of_ring(r) >= 0:
 			return r
 	return -1
 
@@ -528,9 +527,7 @@ func _get_room(ring: int, room_index: int) -> Dictionary:
 
 
 func _ring_triangle(r: int) -> int:
-	if r < 0 or r >= RING_TRIANGLE.size():
-		return -1
-	return int(RING_TRIANGLE[r])
+	return LevelManager.triangle_of_ring(r)
 
 
 ## Klopt een bewaarde oorlog nog met de huidige wereld (zelfde aantal ringen en kamers)?

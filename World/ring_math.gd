@@ -55,6 +55,14 @@ static func backtrack_points(cleared_rooms: int, rooms_per_backtrack: int, max_p
 	return maxi(0, earned - used)
 
 
+## Hoeveel driehoeken heeft de wereld bij dit aantal bossoverwinningen? (SSOT world:
+## base_world_triangles, wins_per_extra_triangle, max_world_triangles.)
+static func world_triangle_count(base: int, wins: int, wins_per_extra: int, max_count: int) -> int:
+	if wins_per_extra <= 0:
+		return clampi(base, 1, max_count)
+	return clampi(base + wins / wins_per_extra, 1, max_count)
+
+
 ## Hoeveel ringen heeft de wereld bij dit aantal overwinningen?
 static func world_ring_count(base_rings: int, wins: int, wins_per_extra_ring: int, max_rings: int) -> int:
 	if wins_per_extra_ring <= 0:

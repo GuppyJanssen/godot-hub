@@ -92,6 +92,9 @@ func start_new_run(new_difficulty: int = 1, seed_value: int = -1) -> void:
 	extra.clear()
 	reset_weapons()
 	
+	# De wereld groeit met het aantal bossoverwinningen van deze save (in F1 in te stellen vóór de run).
+	LevelManager.set_world_triangles(_triangles_for_save())
+	
 	# De factie-oorlog begint elke run opnieuw.
 	var war: Node = _faction_war()
 	if war != null:
@@ -357,6 +360,7 @@ func save() -> bool:
 		"run_seed": run_seed,
 		"ring": ring,
 		"room": room,
+		"triangles": LevelManager.world_triangles,
 		"player_x": player_position.x,
 		"player_y": player_position.y,
 		"loot": loot,
@@ -399,6 +403,8 @@ func load_run() -> bool:
 	run_seconds = maxf(0.0, SaveSystem._safe_float(data.get("run_seconds", 0.0)))
 	difficulty = clampi(SaveSystem._safe_int(data.get("difficulty", 1)), 0, 2)
 	run_seed = maxi(0, SaveSystem._safe_int(data.get("run_seed", 0)))
+	# Eerst de grootte van de wereld (oude saves: 3 driehoeken), dan pas ring en oorlog.
+	LevelManager.set_world_triangles(SaveSystem._safe_int(data.get("triangles", LevelManager.MAX_TRIANGLES)))
 	ring = clampi(SaveSystem._safe_int(data.get("ring", 0)), 0, LevelManager.LAYER_WIDTHS.size() - 1)
 	room = maxi(0, SaveSystem._safe_int(data.get("room", 0)))
 	player_position = Vector2(SaveSystem._safe_float(data.get("player_x", 0.0)), SaveSystem._safe_float(data.get("player_y", 0.0)))
@@ -453,5 +459,15 @@ func delete_save() -> void:
 
 
 ## De autoload FactionWar, als die bestaat. Zo werkt RunState ook zonder factie-oorlog.
+## Aantal driehoeken voor een nieuwe run, uit de bossoverwinningen van de save en de SSOT (world).
+func _triangles_for_save() -> int:
+	var meta: MetaProgress = load("res://Systems/SaveSystem.gd").new().get_loaded_meta_progress() as MetaProgress
+	var wins: int = meta.boss_wins if meta != null else 0
+	return RingMath.world_triangle_count(
+			roundi(Ssot.get_number("world", "base_world_triangles", 1.0)), wins,
+			roundi(Ssot.get_number("world", "wins_per_extra_triangle", 1.0)),
+			mini(roundi(Ssot.get_number("world", "max_world_triangles", 3.0)), LevelManager.MAX_TRIANGLES))
+
+
 func _faction_war() -> Node:
 	return get_node_or_null("/root/FactionWar")

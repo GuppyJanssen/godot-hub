@@ -19,6 +19,24 @@ func toggle_pause() -> void:
 	visible = get_tree().paused
 	if visible:
 		print("PAUZEMENU: Game gepauzeerd.")
+		# Pauze = momentopname (Daan, 26 nov): de hele kamer (vijanden, kogels, loot, ...) en het schip
+		# met zijn vaart worden opgeslagen, als een autosave. Afsluiten en Continue gaat dus precies
+		# verder; pauzeren levert niets op. De kluis en skills (meta_data) worden niet aangeraakt.
+		_save_snapshot()
+
+
+## Schrijft de huidige stand van de run weg voor Continue (zie toggle_pause en terug naar hoofdmenu).
+func _save_snapshot() -> void:
+	if not (is_instance_valid(Game) and is_instance_valid(Game.active_player)) or not RunState.active:
+		return
+	Game.save_live_run_state_to_disk()
+	RunState.ring = LevelManager.current_layer
+	RunState.room = LevelManager.current_room_index
+	RunState.player_position = Game.active_player.global_position
+	var room_scene = get_tree().current_scene
+	if room_scene and room_scene.has_method("snapshot_room"):
+		room_scene.snapshot_room()
+	RunState.save()
 
 
 func _on_continue_button_pressed() -> void:
