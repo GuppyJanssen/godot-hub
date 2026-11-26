@@ -164,15 +164,11 @@ func _physics_process(delta: float) -> void:
 	global_rotation = rotate_toward(global_rotation, target_angle, maxf(0.0, turn_speed) * delta)
 
 	# 2. Bewegen (ijs/schaatsen): versnellen naar de topsnelheid, afremmen zonder invoer.
-	var input_dir := Vector2.ZERO
-	input_dir.x = Input.get_action_strength("ui_right") - Input.get_action_strength("ui_left")
-	input_dir.y = Input.get_action_strength("ui_down") - Input.get_action_strength("ui_up")
-	if input_dir == Vector2.ZERO:
-		if Input.is_key_pressed(KEY_D): input_dir.x += 1.0
-		if Input.is_key_pressed(KEY_A): input_dir.x -= 1.0
-		if Input.is_key_pressed(KEY_S): input_dir.y += 1.0
-		if Input.is_key_pressed(KEY_W): input_dir.y -= 1.0
-	input_dir = input_dir.normalized()
+	# WASD of de linker stick (move_*, zie InputDevice). De stick is analoog: half = halve kracht.
+	# De pijltjes kiezen wapens, dus die sturen niet meer.
+	var input_dir: Vector2 = Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	if input_dir.length() > 1.0:
+		input_dir = input_dir.normalized()
 
 	var current_accel: float = _stat("acceleration", 1600.0) * Game.debug_acceleration_multiplier
 	var current_friction: float = _stat("friction", 300.0) * Game.debug_friction_multiplier
@@ -195,9 +191,9 @@ func _physics_process(delta: float) -> void:
 	if can_fire:
 		var weapon_is_auto: bool = float(current_weapon_stats.get("is_full_auto", 0.0)) == 1.0
 		if weapon_is_auto:
-			if Input.is_action_pressed("fire_primary") or Input.is_action_pressed("ui_accept"):
+			if Input.is_action_pressed("fire_primary"):
 				fire_primary_weapon()
-		elif Input.is_action_just_pressed("fire_primary") or Input.is_action_just_pressed("ui_accept"):
+		elif Input.is_action_just_pressed("fire_primary"):
 			fire_primary_weapon()
 
 	# 6. De stand doorgeven: aan Game (kamerwissel) en RunState (Continue).
@@ -264,8 +260,15 @@ func _publish_status() -> void:
 
 # ---------------------------------------------------------------- wapens
 
-# Scrollen bladert door de vakken met een wapen, 1 t/m 4 kiest een vak. Het wiel is dan even zichtbaar.
+# Scrollen bladert door de vakken met een wapen, 1 t/m 4 of de pijltjes/D-pad (boven, rechts, onder,
+# links) kiezen een vak. Het wiel is dan even zichtbaar.
 func _unhandled_input(event: InputEvent) -> void:
+	var arrow_slot: int = InputDevice.weapon_slot_for(event)
+	if arrow_slot >= 0:
+		RunState.select_weapon_slot(arrow_slot)
+		on_weapons_changed()
+		get_viewport().set_input_as_handled()
+		return
 	var mouse_event: InputEventMouseButton = event as InputEventMouseButton
 	if mouse_event != null and mouse_event.pressed:
 		if mouse_event.button_index == MOUSE_BUTTON_WHEEL_DOWN:

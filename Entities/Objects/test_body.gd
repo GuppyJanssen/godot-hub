@@ -90,6 +90,8 @@ const WANDER_MARGIN := 100.0
 var _sight_timer: float = 0.0
 ## Loopt af na een treffer; bij 0 slaat de vijand alarm. -1 = er loopt niets.
 var _hit_alarm_timer: float = -1.0
+## Seconden tot het alarm van een andere vijand binnenkomt (communicatievertraging). -1 = niets onderweg.
+var _pending_alarm: float = -1.0
 var _wander_target: Vector2 = Vector2.ZERO
 var _wander_timer: float = 0.0
 var _investigating: bool = false
@@ -322,6 +324,10 @@ func _process(_delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	if _exploding:
 		return
+	if _pending_alarm >= 0.0:
+		_pending_alarm -= delta
+		if _pending_alarm < 0.0 and not alerted and current_health > 0:
+			on_alarm()
 	if shield != null:
 		shield.update(delta)
 	
@@ -489,7 +495,9 @@ func _has_line_of_sight(point: Vector2, target: Node) -> bool:
 	return true
 
 
-# Deze vijand heeft de speler gezien: alle vijanden van zijn factie in deze kamer gaan in de aanval.
+# Deze vijand heeft de speler gezien: alle vijanden van zijn factie in deze kamer gaan in de aanval,
+# na de communicatievertraging (SSOT world: alarm_communication_delay). Een vijand die het van dit
+# type meteen hoort (alarm_instant_from, bijv. organic grunt van heavy en toren) gaat direct.
 func _raise_alarm() -> void:
 	if alerted:
 		return
@@ -500,9 +508,32 @@ func _raise_alarm() -> void:
 		return
 	# Onthouden voor deze kamer, ook voor vijanden die de fabriek hierna nog maakt.
 	RunState.set_room_change(LevelManager.current_layer, LevelManager.current_room_index, "alarm_" + faction, true)
+	var delay: float = maxf(0.0, Ssot.get_number("world", "alarm_communication_delay", 2.0))
 	for other in get_tree().get_nodes_in_group("enemies"):
 		if other != self and other.has_method("on_alarm") and "faction" in other and other.faction == faction:
-			other.on_alarm()
+			if delay <= 0.0 or (other.has_method("hears_alarm_instantly_from") and other.hears_alarm_instantly_from(unit_type)):
+				other.on_alarm()
+			elif other.has_method("on_alarm_delayed"):
+				other.on_alarm_delayed(delay)
+			else:
+				other.on_alarm()
+
+
+## Hoort deze vijand het alarm van dit unit-type meteen? (SSOT: alarm_instant_from, types met /.)
+func hears_alarm_instantly_from(sender_type: String) -> bool:
+	var list: String = EnemyStats.text(faction, unit_type, "alarm_instant_from", "")
+	for part in list.split("/", false):
+		if part.strip_edges().to_lower() == sender_type.to_lower():
+			return true
+	return false
+
+
+## Het alarm komt over 'delay' seconden binnen (communicatievertraging). Een eerder bericht wint.
+func on_alarm_delayed(delay: float) -> void:
+	if alerted:
+		return
+	if _pending_alarm < 0.0 or delay < _pending_alarm:
+		_pending_alarm = delay
 
 
 # Een andere vijand van mijn factie heeft alarm geslagen.
@@ -541,6 +572,14 @@ func _explode() -> void:
 	for victim in victims:
 		var push: Vector2 = (victim.global_position - center).normalized()
 		victim.take_damage(DamageCalc.scaled(explosion_damage, DamageCalc.attack_type(self), victim), true, push)
+	
+	# Spore: een corrosive wolkje blijft hangen (SSOT: explosion_cloud_duration, explosion_cloud_radius,
+	# base_corrosive_damage). Leeg of 0 = geen wolkje.
+	var cloud_radius: float = EnemyStats.value(faction, unit_type, "explosion_cloud_radius", explosion_radius)
+	CorrosiveCloud.spawn(get_tree().current_scene, center,
+			EnemyStats.value(faction, unit_type, "explosion_cloud_duration", 0.0),
+			cloud_radius if cloud_radius > 0.0 else explosion_radius,
+			EnemyStats.value(faction, unit_type, "corrosive_damage", 0.0))
 	
 	# Zelf dood, en maar een fractie van de loot.
 	_loot_factor = kamikaze_loot_factor

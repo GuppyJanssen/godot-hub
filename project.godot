@@ -25,6 +25,7 @@ Ssot="*uid://cw43h3hy6icco"
 RunState="*uid://bk6pjalermsg5"
 FactionWar="*uid://dkha0l42lv1xj"
 FactionWarMap="*uid://dkwix6ds1n3il"
+PadMenu="*res://Systems/pad_menu.gd"
 
 [display]
 
