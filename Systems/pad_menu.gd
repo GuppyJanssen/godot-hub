@@ -19,9 +19,6 @@ extends Node
 ## Pixels per seconde bij een volle stick (schermpixels).
 const CURSOR_SPEED := 1100.0
 
-var _cursor_moved: bool = false
-
-
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	InputDevice.ensure_bindings()

@@ -186,7 +186,7 @@ static func _add_key(action: String, keycode: int) -> void:
 		if key != null and (key.physical_keycode == keycode or key.keycode == keycode):
 			return
 	var event := InputEventKey.new()
-	event.physical_keycode = keycode
+	event.physical_keycode = keycode as Key
 	InputMap.action_add_event(action, event)
 
 
@@ -198,7 +198,7 @@ static func _add_mouse_button(action: String, button: int) -> void:
 		if mb != null and mb.button_index == button:
 			return
 	var event := InputEventMouseButton.new()
-	event.button_index = button
+	event.button_index = button as MouseButton
 	InputMap.action_add_event(action, event)
 
 
@@ -212,7 +212,7 @@ static func _add_button(action: String, button: int) -> void:
 			return
 	var event := InputEventJoypadButton.new()
 	event.device = -1
-	event.button_index = button
+	event.button_index = button as JoyButton
 	InputMap.action_add_event(action, event)
 
 
@@ -228,6 +228,6 @@ static func _add_axis(action: String, axis: int, direction: float, deadzone: flo
 			return  # staat er al
 	var event := InputEventJoypadMotion.new()
 	event.device = -1  # elke controller
-	event.axis = axis
+	event.axis = axis as JoyAxis
 	event.axis_value = direction
 	InputMap.action_add_event(action, event)

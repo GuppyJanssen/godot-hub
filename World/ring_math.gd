@@ -51,6 +51,7 @@ static func room_angle_degrees(room_index: int, width: int) -> float:
 static func backtrack_points(cleared_rooms: int, rooms_per_backtrack: int, max_points: int, used: int) -> int:
 	if rooms_per_backtrack <= 0:
 		return 0
+	@warning_ignore("integer_division")  # bewust: alleen hele punten
 	var earned: int = mini(cleared_rooms / rooms_per_backtrack, max_points)
 	return maxi(0, earned - used)
 
@@ -60,11 +61,6 @@ static func backtrack_points(cleared_rooms: int, rooms_per_backtrack: int, max_p
 static func world_triangle_count(base: int, wins: int, wins_per_extra: int, max_count: int) -> int:
 	if wins_per_extra <= 0:
 		return clampi(base, 1, max_count)
+	@warning_ignore("integer_division")  # bewust: alleen hele driehoeken
 	return clampi(base + wins / wins_per_extra, 1, max_count)
 
-
-## Hoeveel ringen heeft de wereld bij dit aantal overwinningen?
-static func world_ring_count(base_rings: int, wins: int, wins_per_extra_ring: int, max_rings: int) -> int:
-	if wins_per_extra_ring <= 0:
-		return mini(base_rings, max_rings)
-	return mini(base_rings + wins / wins_per_extra_ring, max_rings)

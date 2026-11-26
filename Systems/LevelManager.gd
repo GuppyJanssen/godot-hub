@@ -49,6 +49,7 @@ static func _sphere_widths(count: int) -> Array[int]:
 func triangle_of_ring(r: int) -> int:
 	if r <= 0 or r >= LAYER_WIDTHS.size() - 1:
 		return -1
+	@warning_ignore("integer_division")  # bewust afronden naar beneden: ring → driehoek
 	return mini((r - 1) / RINGS_PER_TRIANGLE, world_triangles - 1)
 
 
