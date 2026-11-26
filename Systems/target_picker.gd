@@ -12,6 +12,7 @@ class_name TargetPicker
 ##      dan het zwakste (laagste deel levens over), dan het dichtstbijzijnde.
 ##      Zelfde regel als "dichtstbij, wissel naar zwakte" in de Imperial Arena-sheet.
 ##   De lock-on van de speler gebruikt dit NIET: die blijft op zijn doel zitten.
+##   4. Gebiedsschade (bommen, kamikaze) raakt ook de eigen factie; aoe_ok() bekijkt of het de moeite is.
 ##
 ## Ontwikkelaarsnotities:
 ## - Vijandig = een node in de groep "targets" met een factie die niet leeg is en niet de mijne.
@@ -96,6 +97,39 @@ static func pick(me: Node2D, my_faction: String, damage_type: String, radius: fl
 			best_hp = hp
 			best_d = d
 	return best
+
+
+## Mag deze gebiedsschade (ontploffing) hier? Friendly fire hoort erbij, maar de vijand proberen
+## te raken weegt zwaarder: het mag, tenzij de schade aan de eigen factie groter is dan
+## friendly_fire_tolerance (world) keer de schade aan vijanden (de speler en andere facties).
+## Voorbeeld: tolerance 1.5, vijanden krijgen samen 40, eigen factie 50: mag (50 <= 60).
+## 'shooter' zelf telt niet mee (een kamikaze gaat sowieso dood).
+static func aoe_ok(shooter: Node, my_faction: String, center: Vector2, radius: float, damage: float,
+		damage_type: String) -> bool:
+	if radius <= 0.0 or damage <= 0.0 or not is_instance_valid(shooter) or not shooter.is_inside_tree():
+		return true
+	var enemy_total: float = 0.0
+	var friend_total: float = 0.0
+	var player: Node = Game.active_player
+	if is_instance_valid(player) and player is Node2D and player.global_position.distance_to(center) <= radius:
+		enemy_total += damage * DamageCalc.factor(damage_type, player)
+	for node in shooter.get_tree().get_nodes_in_group("targets"):
+		if node == shooter or not node is Node2D or not "faction" in node:
+			continue
+		if node.global_position.distance_to(center) > radius or health_fraction(node) <= 0.0:
+			continue
+		var hit: float = damage * DamageCalc.factor(damage_type, node)
+		var theirs: String = str(node.faction)
+		if theirs == my_faction:
+			friend_total += hit
+		elif theirs != "":
+			enemy_total += hit
+	return friend_total <= enemy_total * friendly_fire_tolerance()
+
+
+## Hoeveel keer de vijandschade een ontploffing aan de eigen factie mag doen (SSOT world).
+static func friendly_fire_tolerance() -> float:
+	return maxf(0.0, Ssot.get_number(SETTINGS_ROW, "friendly_fire_tolerance", 1.5))
 
 
 ## Moet dit doel eerst afgemaakt worden? (onder target_finish_health levens)

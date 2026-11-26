@@ -7,7 +7,8 @@ extends Area2D
 ##   base_knockback_force   duw op wat geraakt wordt (pixels per seconde erbij)
 ##   base_explosion_damage / base_explosion_radius   ontploffen bij een treffer of aan het eind van
 ##                          het bereik; raakt alles binnen de straal (spelerkogels: vijanden en
-##                          gebouwen, vijandkogels: de speler)
+##                          gebouwen, vijandkogels: de speler en ALLE facties, ook de eigen:
+##                          friendly fire)
 ## Ontwikkelaarsnotitie: een kogel raakt hetzelfde doel nooit twee keer (_hit_ids), ook niet bij pierce.
 
 @export var speed: float = 700.0
@@ -243,8 +244,10 @@ func _explode() -> void:
 	for node in get_tree().get_nodes_in_group("targets") + get_tree().get_nodes_in_group("enemies"):
 		if victims.has(node) or not node is Node2D or not node.has_method("take_damage"):
 			continue
-		if from_enemy and not TargetPicker.is_hostile_to(shooter_faction, node):
-			continue  # vijandbom: alleen andere facties (de speler is hierboven al geraakt)
+		# Vijandbom: friendly fire, dus ook de eigen factie (de schutter heeft vooraf gekeken of het
+		# de moeite is, zie TargetPicker.aoe_ok). Zonder factie (testdummy) niet.
+		if from_enemy and not ("faction" in node and str(node.faction) != ""):
+			continue
 		if node.global_position.distance_to(center) <= explosion_radius:
 			victims[node] = true
 	for victim in victims:

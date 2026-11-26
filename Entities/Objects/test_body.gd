@@ -104,6 +104,19 @@ var _unit_target: Node2D = null
 var _contact_left: float = 0.0
 # Iets speling bij "aanraken" van een andere unit (pixels), zodat duwen ook telt.
 const CONTACT_SLACK := 6.0
+# Jagers (behavior_searching "hunt") jagen alleen op de speler als ze hem zien (kijkafstand + zicht).
+# Ziet een unit de speler, dan hoort de rest van zijn factie de plek, na de communicatievertraging,
+# en wie niet in gevecht is gaat die kant op.
+var _player_in_sight: bool = false
+var _last_seen_pos: Vector2 = Vector2.ZERO
+var _has_last_seen: bool = false
+var _pending_seen_pos: Vector2 = Vector2.ZERO
+var _pending_seen_left: float = -1.0
+var _share_left: float = 0.0
+# Hoe vaak een unit die de speler ziet de plek doorgeeft (seconden). Alleen om rekenwerk te sparen.
+const SHARE_INTERVAL := 1.0
+# Dichter dan dit bij de laatst bekende plek: aangekomen, de speler is er niet meer.
+const LAST_SEEN_REACHED := 40.0
 var _loot_factor: float = 1.0
 
 # --- WAPEN (commando's, zie EnemyGun) ---
@@ -266,8 +279,62 @@ func _try_shoot(target: Node2D, distance: float, delta: float) -> void:
 	_fire_cooldown -= delta
 	if _fire_cooldown > 0.0 or distance > _weapon.weapon_range or not _can_see(target):
 		return
+	# Bom of raket: friendly fire telt mee. Te veel eigen units bij het doel? Even wachten.
+	if _weapon.explosion_radius > 0.0 and _weapon.explosion_damage > 0.0 \
+			and not TargetPicker.aoe_ok(self, faction, target.global_position, _weapon.explosion_radius,
+					_weapon.explosion_damage, _weapon.damage_type):
+		_fire_cooldown = SIGHT_CHECK_SECONDS
+		return
 	_fire_cooldown = EnemyGun.fire_interval(_weapon, faction, unit_type)
 	EnemyGun.fire(self, _weapon, target.global_position, body_radius + 8.0)
+
+
+# Jaagt deze vijand nu op de speler? Jagers alleen als ze hem zien; de rest na het alarm.
+func _chases_player() -> bool:
+	if behavior_searching == "hunt":
+		return _player_in_sight
+	return alerted
+
+
+# Deze vijand ziet de speler: onthouden en (hooguit eens per SHARE_INTERVAL) doorgeven aan de eigen
+# factie, met de communicatievertraging (alarm_communication_delay; alarm_instant_from = meteen).
+func _remember_player(pos: Vector2) -> void:
+	_last_seen_pos = pos
+	_has_last_seen = true
+	_share_left -= SIGHT_CHECK_SECONDS
+	if _share_left > 0.0 or faction == "":
+		return
+	_share_left = SHARE_INTERVAL
+	var delay: float = maxf(0.0, Ssot.get_number("world", "alarm_communication_delay", 2.0))
+	for other in get_tree().get_nodes_in_group("enemies"):
+		if other == self or not other.has_method("hear_player_position") or not "faction" in other or other.faction != faction:
+			continue
+		var instant: bool = other.has_method("hears_alarm_instantly_from") and other.hears_alarm_instantly_from(unit_type)
+		other.hear_player_position(pos, 0.0 if instant else delay)
+
+
+## Een unit van mijn factie zag de speler hier. Komt na 'delay' seconden binnen; wie dan in gevecht
+## is met een andere factie, negeert het. Een nieuwere plek vervangt de oude.
+func hear_player_position(pos: Vector2, delay: float) -> void:
+	if passive or current_health <= 0:
+		return
+	if delay <= 0.0:
+		if not is_instance_valid(_unit_target):
+			_last_seen_pos = pos
+			_has_last_seen = true
+		return
+	_pending_seen_pos = pos
+	if _pending_seen_left < 0.0:
+		_pending_seen_left = delay
+
+
+# Kamikaze: alleen ontploffen als het de moeite is (friendly fire, zie TargetPicker.aoe_ok).
+func _try_explode() -> bool:
+	if not TargetPicker.aoe_ok(self, faction, global_position, explosion_radius, explosion_damage,
+			DamageCalc.attack_type(self)):
+		return false
+	_explode()
+	return true
 
 
 # Kiest of deze vijand een unit/gebouw van een andere factie aanvalt (_unit_target) of de speler (null).
@@ -283,7 +350,7 @@ func _update_unit_target(player: Node2D) -> void:
 			and TargetPicker.should_finish(_unit_target) \
 			and global_position.distance_to(_unit_target.global_position) <= _fight_radius() * 1.5:
 		return
-	if is_instance_valid(player) and (alerted or behavior_searching == "hunt"):
+	if is_instance_valid(player) and _chases_player():
 		_unit_target = null
 		return
 	_unit_target = TargetPicker.pick(self, faction, _attack_damage_type(), _fight_radius())
@@ -391,6 +458,11 @@ func _physics_process(delta: float) -> void:
 		_pending_alarm -= delta
 		if _pending_alarm < 0.0 and not alerted and current_health > 0:
 			on_alarm()
+	if _pending_seen_left >= 0.0:
+		_pending_seen_left -= delta
+		if _pending_seen_left < 0.0 and not is_instance_valid(_unit_target):
+			_last_seen_pos = _pending_seen_pos
+			_has_last_seen = true
 	if shield != null:
 		shield.update(delta)
 	
@@ -424,6 +496,9 @@ func _physics_process(delta: float) -> void:
 	if _sight_timer <= 0.0:
 		_sight_timer = SIGHT_CHECK_SECONDS
 		_look_around(player)
+		_player_in_sight = behavior_searching == "hunt" and _can_see(player)
+		if _player_in_sight:
+			_remember_player(player.global_position)
 		_update_unit_target(player)
 	
 	var to_player: Vector2 = player.global_position - global_position
@@ -435,8 +510,8 @@ func _physics_process(delta: float) -> void:
 	# alarm heeft (dan merkt hij de speler pas op het laatste moment op).
 	if behavior_agro == "kamikaze" and current_health > 0 \
 			and distance <= maxf(kamikaze_trigger_distance, body_radius + _player_radius(player)):
-		_explode()
-		return
+		if _try_explode():
+			return
 	
 	# Aanvallen op een unit of gebouw van een andere factie (zie _update_unit_target).
 	var target: Node2D = player
@@ -447,15 +522,14 @@ func _physics_process(delta: float) -> void:
 		direction = (target.global_position - global_position).normalized()
 		facing = direction
 		if behavior_agro == "kamikaze" and distance <= maxf(kamikaze_trigger_distance, body_radius + _target_radius(target)):
-			_explode()
-			return
+			if _try_explode():
+				return
 		_touch_unit(target, distance, delta)
 	
-	if fighting_unit or alerted or behavior_searching == "hunt":
+	if fighting_unit or _chases_player():
 		match behavior_agro:
 			"kamikaze":
-				if distance <= kamikaze_trigger_distance:
-					_explode()
+				if distance <= kamikaze_trigger_distance and _try_explode():
 					return
 				velocity = velocity.move_toward(direction * movement_speed * kamikaze_speed_factor, acceleration * kamikaze_speed_factor * delta)
 			"keep_distance":
@@ -470,6 +544,13 @@ func _physics_process(delta: float) -> void:
 				velocity = velocity.move_toward(direction * movement_speed, acceleration * delta)
 		if behavior_agro != "kamikaze":
 			_try_shoot(target, distance, delta)
+	elif _has_last_seen:
+		# Laatst bekende plek van de speler (zelf gezien of doorgekregen): daarheen.
+		var to_seen: Vector2 = _last_seen_pos - global_position
+		if to_seen.length() < LAST_SEEN_REACHED:
+			_has_last_seen = false
+		velocity = velocity.move_toward(to_seen.normalized() * movement_speed, acceleration * delta)
+		facing = velocity
 	elif _investigating:
 		# Een kogel gezien: kijken waar hij vandaan kwam.
 		var to_target: Vector2 = _investigate_target - global_position

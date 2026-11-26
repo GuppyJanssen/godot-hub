@@ -18,8 +18,13 @@ class_name DamageCalc
 ## scaled() onthoudt het damage type op het doel (meta), zodat take_damage het bij het schild kan
 ## gebruiken via shield_factor_for(). Wie take_damage zelf aanroept: eerst mark(doel, type).
 ##
+## TWEE TYPES (hybrides): base_damage_type mag twee types hebben, bijvoorbeeld "acid/magnetic". De schade
+## gaat dan half om half: de factor is het gemiddelde van beide types (ook tegen schilden).
+##
 ## Ontwikkelaarsnotities:
 ## - "corrosive" is hetzelfde als "acid" en "physical" hetzelfde als "kinetic" (normalize).
+## - Een samengesteld type blijft overal één tekst ("acid/magnetic"); alleen factor() en shield_factor()
+##   splitsen hem. Hooguit MAX_TYPES delen, zodat een rare tekst geen lange lus wordt.
 ## - De lijst wordt één keer per tekst ontleed en bewaard (_cache); daarna is het een opzoeking.
 ## - Factoren worden begrensd (0..10) zodat een typfout als 50 niet alles kapotmaakt.
 
@@ -29,24 +34,51 @@ const MAX_FACTOR := 10.0
 const SHIELD_COLUMN := "shield_damage_modifier"
 const LAST_TYPE_META := "last_damage_type"
 const HIT_BY_META := "hit_by_faction"
+const MAX_TYPES := 4
 
 static var _cache: Dictionary = {}
 
 
-## Eén naam per damage type.
+## Eén naam per damage type. Twee types ("acid/magnetic") blijven twee, elk genormaliseerd.
 static func normalize(type: String) -> String:
+	if "/" in type:
+		return "/".join(types_of(type))
 	var clean: String = SsotWeapon.normalize_damage_type(type)
 	if clean == "corrosive":
 		return "acid"
 	return clean
 
 
+## De losse types in een (samengesteld) damage type. Nooit leeg: leeg = ["kinetic"].
+static func types_of(type: String) -> PackedStringArray:
+	var out: PackedStringArray = PackedStringArray()
+	for part in type.split("/", false):
+		if out.size() >= MAX_TYPES:
+			break
+		var one: String = SsotWeapon.normalize_damage_type(part)
+		if one == "corrosive":
+			one = "acid"
+		if not out.has(one):
+			out.append(one)
+	if out.is_empty():
+		out.append("kinetic")
+	return out
+
+
+## Gemiddelde factor van alle types uit een tabel (1 = niet genoemd).
+static func _mean_factor(table: Dictionary, damage_type: String) -> float:
+	var parts: PackedStringArray = types_of(damage_type)
+	var total: float = 0.0
+	for part in parts:
+		total += float(table.get(part, 1.0))
+	return total / float(parts.size())
+
+
 ## De factor voor dit doel en dit damage type (1 = normaal).
 static func factor(damage_type: String, target: Node) -> float:
 	if not is_instance_valid(target):
 		return 1.0
-	var table: Dictionary = _parse(_text_for(target))
-	return float(table.get(normalize(damage_type), 1.0))
+	return _mean_factor(_parse(_text_for(target)), damage_type)
 
 
 ## Onthoudt het damage type van de treffer die zo komt (voor het schild).
@@ -57,8 +89,7 @@ static func mark(target: Node, damage_type: String) -> void:
 
 ## Factor van dit damage type tegen schilden (1 = normaal).
 static func shield_factor(damage_type: String) -> float:
-	var table: Dictionary = _parse(Ssot.get_text("world", SHIELD_COLUMN, ""))
-	return float(table.get(normalize(damage_type), 1.0))
+	return _mean_factor(_parse(Ssot.get_text("world", SHIELD_COLUMN, "")), damage_type)
 
 
 ## Factor tegen het schild voor de treffer die nu binnenkomt (en vergeet het type daarna).
