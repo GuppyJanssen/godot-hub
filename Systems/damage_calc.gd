@@ -22,7 +22,7 @@ class_name DamageCalc
 ## gaat dan half om half: de factor is het gemiddelde van beide types (ook tegen schilden).
 ##
 ## Ontwikkelaarsnotities:
-## - "corrosive" is hetzelfde als "acid" en "physical" hetzelfde als "kinetic" (normalize).
+## - "corrosive" is hetzelfde als "acid" en "kinetic" hetzelfde als "physical" (normalize). Physical = geen element.
 ## - Een samengesteld type blijft overal één tekst ("acid/magnetic"); alleen factor() en shield_factor()
 ##   splitsen hem. Hooguit MAX_TYPES delen, zodat een rare tekst geen lange lus wordt.
 ## - De lijst wordt één keer per tekst ontleed en bewaard (_cache); daarna is het een opzoeking.
@@ -49,7 +49,7 @@ static func normalize(type: String) -> String:
 	return clean
 
 
-## De losse types in een (samengesteld) damage type. Nooit leeg: leeg = ["kinetic"].
+## De losse types in een (samengesteld) damage type. Nooit leeg: leeg = ["physical"].
 static func types_of(type: String) -> PackedStringArray:
 	var out: PackedStringArray = PackedStringArray()
 	for part in type.split("/", false):
@@ -61,7 +61,7 @@ static func types_of(type: String) -> PackedStringArray:
 		if not out.has(one):
 			out.append(one)
 	if out.is_empty():
-		out.append("kinetic")
+		out.append("physical")
 	return out
 
 
@@ -102,10 +102,10 @@ static func shield_factor_for(target: Node) -> float:
 
 
 ## Het damage type waarmee een vijand of gebouw zelf aanvalt (rammen, aanraken, ontploffen):
-## base_damage_type van zijn rij (eigen vijand-rij, dan factie, dan type). Leeg = kinetic.
+## base_damage_type van zijn rij (eigen vijand-rij, dan factie, dan type). Leeg = physical.
 static func attack_type(attacker: Node) -> String:
 	if not is_instance_valid(attacker) or not "faction" in attacker:
-		return "kinetic"
+		return "physical"
 	var unit: String = ""
 	if "unit_type" in attacker:
 		unit = str(attacker.unit_type)

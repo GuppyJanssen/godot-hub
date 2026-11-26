@@ -423,7 +423,7 @@ func _on_player_hitbox_body_entered(body: Node2D) -> void:
 	# 2. Schade aan de vijand / het gebouw (rammen), zonder wapenskills.
 	if body.has_method("take_damage"):
 		var ram_damage: float = StatCalc.value(PLAYER_ROW, "damage", 10.0)
-		var ram_type: String = SsotWeapon.normalize_damage_type(Ssot.get_text(PLAYER_ROW, "base_damage_type", "kinetic"))
+		var ram_type: String = SsotWeapon.normalize_damage_type(Ssot.get_text(PLAYER_ROW, "base_damage_type", "physical"))
 		var hit_direction: Vector2 = (body.global_position - global_position).normalized()
 		if body.has_method("on_hit_info"):
 			body.on_hit_info(ram_damage, ram_type)
@@ -480,6 +480,10 @@ func _die() -> void:
 
 # ---------------------------------------------------------------- opslaan en Continue
 
+## Hoogste vaart die een momentopname terug mag zetten (veiligheidsgrens, geen gameplaywaarde).
+const SNAPSHOT_MAX_SPEED := 5000.0
+
+
 func _force_continue_position() -> void:
 	var run_data: Dictionary = SaveSystem.read_json(SaveSystem.slot_file(SaveSystem.RUN_FILE))
 	if not (run_data.has("player_x") and run_data.has("player_y")):
@@ -488,6 +492,13 @@ func _force_continue_position() -> void:
 	# Alleen een plek binnen (of vlak naast) de kamer overnemen.
 	if found_pos != Vector2.ZERO and Rect2(Vector2(-200.0, -200.0), RoomBounds.size() + Vector2(400.0, 400.0)).has_point(found_pos):
 		global_position = found_pos
+		# Vaart en draaiing terug (begrensd: een aangepaste save mag het schip niet wegschieten).
+		var saved_velocity := Vector2(SaveSystem._safe_float(run_data.get("player_vx", 0.0)), SaveSystem._safe_float(run_data.get("player_vy", 0.0)))
+		if saved_velocity.is_finite():
+			velocity = saved_velocity.limit_length(SNAPSHOT_MAX_SPEED)
+		var saved_rot: float = SaveSystem._safe_float(run_data.get("player_rot", global_rotation))
+		if is_finite(saved_rot):
+			global_rotation = wrapf(saved_rot, -PI, PI)
 
 
 ## Schrijft de plek van de speler naar current_run.json (bij "terug naar hoofdmenu").
@@ -503,4 +514,8 @@ func save_live_run_state_to_disk() -> void:
 	run_data["current_room_index"] = LevelManager.current_room_index
 	run_data["player_x"] = global_position.x
 	run_data["player_y"] = global_position.y
+	# Pauze = momentopname: ook vaart en draaiing, zodat stoppen en verdergaan niets oplevert.
+	run_data["player_vx"] = velocity.x
+	run_data["player_vy"] = velocity.y
+	run_data["player_rot"] = global_rotation
 	SaveSystem.write_json(full_path, run_data)

@@ -120,6 +120,9 @@ var _share_left: float = 0.0
 var _share_unit_left: float = 0.0
 const MAX_LEADS := 4
 const MAX_PENDING := 8
+# Veiligheidsgrenzen voor een momentopname uit een save (geen gameplaywaarden).
+const SNAPSHOT_MAX_SPEED := 5000.0
+const SNAPSHOT_MAX_TIMER := 600.0
 # Hoe vaak een unit die de speler ziet de plek doorgeeft (seconden). Alleen om rekenwerk te sparen.
 const SHARE_INTERVAL := 1.0
 # Dichter dan dit bij de laatst bekende plek: aangekomen, de speler is er niet meer.
@@ -500,6 +503,25 @@ func get_run_state() -> Dictionary:
 		"weapon": weapon_id,
 		"shield": shield.current if shield != null else 0.0,
 		"order": factory_order,
+		# Momentopname (pauze/opslaan mag geen cheatknop zijn): vaart, lopende wachttijden en
+		# beslissingen. Berichten over vijandige units (nodes) kunnen niet bewaard worden; die
+		# komen na het laden vanzelf opnieuw binnen.
+		"vx": velocity.x,
+		"vy": velocity.y,
+		"t_alarm": _pending_alarm,
+		"t_hit": _hit_alarm_timer,
+		"t_fire": _fire_cooldown,
+		"t_contact": _contact_left,
+		"t_sight": _sight_timer,
+		"inv": _investigating,
+		"inv_x": _investigate_target.x,
+		"inv_y": _investigate_target.y,
+		"wan_x": _wander_target.x,
+		"wan_y": _wander_target.y,
+		"t_wan": _wander_timer,
+		"leads": _leads.map(func(v: Vector2) -> Array: return [v.x, v.y]),
+		"msgs": _pending.filter(func(e: Array) -> bool: return e[1] is Vector2).map(
+				func(e: Array) -> Array: return [e[0], e[1].x, e[1].y]),
 	}
 
 
@@ -528,6 +550,52 @@ func apply_run_state(data: Dictionary) -> void:
 	spin = float(data.get("spin", spin))
 	alerted = bool(data.get("alerted", alerted))
 	factory_order = clampi(SaveSystem._safe_int(data.get("order", factory_order)), -1, 1000000)
+	_apply_snapshot(data)
+
+
+# Zet de momentopname terug (zie get_run_state). Alles begrensd: een aangepaste save kan van alles
+# bevatten. Ontbreekt een veld (oude save), dan blijft de standaardwaarde staan.
+func _apply_snapshot(data: Dictionary) -> void:
+	var v := Vector2(_snap_num(data, "vx", 0.0), _snap_num(data, "vy", 0.0))
+	velocity = v.limit_length(SNAPSHOT_MAX_SPEED)
+	_pending_alarm = clampf(_snap_num(data, "t_alarm", _pending_alarm), -1.0, SNAPSHOT_MAX_TIMER)
+	_hit_alarm_timer = clampf(_snap_num(data, "t_hit", _hit_alarm_timer), -1.0, SNAPSHOT_MAX_TIMER)
+	_fire_cooldown = clampf(_snap_num(data, "t_fire", _fire_cooldown), 0.0, SNAPSHOT_MAX_TIMER)
+	_contact_left = clampf(_snap_num(data, "t_contact", _contact_left), 0.0, SNAPSHOT_MAX_TIMER)
+	_sight_timer = clampf(_snap_num(data, "t_sight", _sight_timer), 0.0, SIGHT_CHECK_SECONDS)
+	_investigating = bool(data.get("inv", _investigating))
+	_investigate_target = _snap_point(data.get("inv_x"), data.get("inv_y"), _investigate_target)
+	_wander_target = _snap_point(data.get("wan_x"), data.get("wan_y"), _wander_target)
+	_wander_timer = clampf(_snap_num(data, "t_wan", _wander_timer), 0.0, SNAPSHOT_MAX_TIMER)
+	var leads: Variant = data.get("leads", [])
+	if leads is Array:
+		_leads.clear()
+		for entry in leads.slice(0, MAX_LEADS):
+			if entry is Array and entry.size() == 2:
+				_leads.append(_snap_point(entry[0], entry[1], global_position))
+	var msgs: Variant = data.get("msgs", [])
+	if msgs is Array:
+		_pending.clear()
+		for entry in msgs.slice(0, MAX_PENDING):
+			if entry is Array and entry.size() == 3:
+				var t: float = clampf(SaveSystem._safe_float(entry[0]), 0.0, SNAPSHOT_MAX_TIMER)
+				_pending.append([t, _snap_point(entry[1], entry[2], global_position)])
+
+
+static func _snap_num(data: Dictionary, key: String, fallback: float) -> float:
+	if not data.has(key):
+		return fallback
+	var n: float = SaveSystem._safe_float(data[key])
+	return n if is_finite(n) else fallback
+
+
+# Een punt uit de save, binnen (of vlak naast) de kamer; anders de fallback.
+static func _snap_point(x: Variant, y: Variant, fallback: Vector2) -> Vector2:
+	if x == null or y == null:
+		return fallback
+	var p := Vector2(SaveSystem._safe_float(x), SaveSystem._safe_float(y))
+	var room := Rect2(Vector2(-200.0, -200.0), RoomBounds.size() + Vector2(400.0, 400.0))
+	return p if p.is_finite() and room.has_point(p) else fallback
 
 
 # Het naambordje van het wapen blijft recht boven de vijand hangen.

@@ -100,6 +100,10 @@ static func array_or_empty(value: Variant) -> Array:
 
 # ---------------------------------------------------------------- meta (de kluis en de skills)
 
+## Bovengrens voor het aantal bossoverwinningen in een save (beschermt tegen rare saves).
+const MAX_BOSS_WINS := 9999
+
+
 func get_loaded_meta_progress() -> MetaProgress:
 	var meta_res: MetaProgress = MetaProgress.new()
 	var save_dict: Dictionary = read_json(slot_file(META_FILE))
@@ -129,6 +133,7 @@ func get_loaded_meta_progress() -> MetaProgress:
 
 	# JSON geeft getallen terug als float; de seed is een int.
 	meta_res.tree_seed = _safe_int(save_dict.get("tree_seed", 0))
+	meta_res.boss_wins = clampi(_safe_int(save_dict.get("boss_wins", 0)), 0, MAX_BOSS_WINS)
 	for skill_id in array_or_empty(save_dict.get("discovered_skills")):
 		if skill_id is String and Ssot.has_row(skill_id) and not meta_res.discovered_skills.has(skill_id):
 			meta_res.discovered_skills.append(skill_id)
@@ -143,6 +148,7 @@ func save_meta_progress(meta_resource: MetaProgress) -> void:
 		"skills_data": meta_resource.skills_data,
 		"tree_seed": meta_resource.tree_seed,
 		"discovered_skills": meta_resource.discovered_skills,
+		"boss_wins": clampi(meta_resource.boss_wins, 0, MAX_BOSS_WINS),
 	})
 
 

@@ -19,6 +19,11 @@ class_name MetaProgress
 ## Blijft staan, ook als de skill door verval weer op 0 komt.
 @export var discovered_skills: Array = []
 
+# --- VOORTGANG VAN DEZE SAVE ---
+## Hoe vaak de boss in deze save verslagen is. Bepaalt later hoe groot de wereld wordt
+## (base_world_rings, wins_per_extra_ring, max_world_rings). In te stellen in F1 om te testen.
+@export var boss_wins: int = 0
+
 
 func get_amount(id: String) -> int:
 	return int(resources.get(id, 0))

@@ -119,6 +119,9 @@ func _update_dashboard() -> void:
 	
 	var weapon_mode_names: Array = ["SSOT", "AUTO", "SEMI"]
 
+	# Voortgang van de save: hoe vaak de boss al verslagen is (voor testen van de wereldgrootte).
+	_add_boss_wins_row()
+
 	_add_dashboard_row("God Mode", "Geen schade/energie", "Toggle: " + ("AAN" if Game.debug_is_invincible else "UIT"), _toggle_invincible)
 	_add_dashboard_row("Refill", "HP, schild, energie", "Alles vol", _refill_player)
 	_add_dashboard_row("Oorlogskaart", "Factie-oorlog", "Kaart: " + ("AAN" if _war_map_visible() else "UIT"), _toggle_war_map)
@@ -301,6 +304,45 @@ func _cycle_muzzles() -> void:
 	elif cur == 2: Game.debug_muzzle_count = 4
 	else: Game.debug_muzzle_count = 0
 	_update_dashboard()
+
+## Rij met - / + om het aantal bossoverwinningen van deze save in te stellen.
+func _add_boss_wins_row() -> void:
+	var hbox := HBoxContainer.new()
+	vbox.add_child(hbox)
+	var title := Label.new()
+	title.text = "Boss verslagen:"
+	title.custom_minimum_size = Vector2(110, 0)
+	hbox.add_child(title)
+	var minus := Button.new()
+	minus.text = " - "
+	minus.pressed.connect(_change_boss_wins.bind(-1))
+	hbox.add_child(minus)
+	var value := Label.new()
+	value.text = "  %d keer  " % _load_meta().boss_wins
+	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	value.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hbox.add_child(value)
+	var plus := Button.new()
+	plus.text = " + "
+	plus.pressed.connect(_change_boss_wins.bind(1))
+	hbox.add_child(plus)
+
+
+func _load_meta() -> MetaProgress:
+	var save_system = load("res://Systems/SaveSystem.gd").new()
+	var meta: MetaProgress = save_system.get_loaded_meta_progress() as MetaProgress
+	return meta if meta != null else MetaProgress.new()
+
+
+func _change_boss_wins(step: int) -> void:
+	var save_system = load("res://Systems/SaveSystem.gd").new()
+	var meta: MetaProgress = save_system.get_loaded_meta_progress() as MetaProgress
+	if meta == null:
+		return
+	meta.boss_wins = clampi(meta.boss_wins + step, 0, SaveSystem.MAX_BOSS_WINS)
+	save_system.save_meta_progress(meta)
+	_update_dashboard()
+
 
 func _make_rich() -> void: _set_money_values(9999)
 func _reset_money() -> void: _set_money_values(0)
