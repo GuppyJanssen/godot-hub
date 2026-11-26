@@ -540,7 +540,7 @@ func _explode() -> void:
 	print("BOEM: ", name, " ontploft en raakt ", victims.size(), " doelen.")
 	for victim in victims:
 		var push: Vector2 = (victim.global_position - center).normalized()
-		victim.take_damage(int(round(explosion_damage)), true, push)
+		victim.take_damage(DamageCalc.scaled(explosion_damage, DamageCalc.attack_type(self), victim), true, push)
 	
 	# Zelf dood, en maar een fractie van de loot.
 	_loot_factor = kamikaze_loot_factor

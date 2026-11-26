@@ -160,7 +160,7 @@ func _on_area_entered(area: Area2D) -> void:
 		return
 	_hit_ids[player.get_instance_id()] = true
 	if player.has_method("take_damage"):
-		player.take_damage(damage)
+		player.take_damage(DamageCalc.scaled(damage, damage_type, player))
 	if knockback_force > 0.0 and "velocity" in player:
 		player.velocity += transform.x.normalized() * knockback_force
 	_after_hit(player)
@@ -180,7 +180,8 @@ func _on_body_entered(body: Node2D) -> void:
 			# Wie het wil weten (de testdummy), hoort eerst welk damage type deze treffer heeft.
 			if body.has_method("on_hit_info"):
 				body.on_hit_info(damage, damage_type)
-			body.take_damage(hit_damage(), true, impact_direction)
+			# Resistances en zwaktes van het doel tellen mee (DamageCalc).
+			body.take_damage(DamageCalc.scaled(damage, damage_type, body), true, impact_direction)
 		if knockback_force > 0.0 and "velocity" in body:
 			body.velocity += impact_direction * knockback_force
 		_after_hit(body)
@@ -216,11 +217,10 @@ func _explode() -> void:
 		flash.set("radius", explosion_radius)
 		get_tree().current_scene.add_child(flash)
 		flash.global_position = center
-	var amount: int = maxi(1, roundi(explosion_damage))
 	if from_enemy:
 		var player: Node2D = Game.active_player
 		if is_instance_valid(player) and player.global_position.distance_to(center) <= explosion_radius:
-			player.take_damage(amount)
+			player.take_damage(DamageCalc.scaled(explosion_damage, damage_type, player))
 		return
 	var victims: Dictionary = {}
 	for node in get_tree().get_nodes_in_group("targets") + get_tree().get_nodes_in_group("enemies"):
@@ -232,7 +232,7 @@ func _explode() -> void:
 		var push: Vector2 = (victim.global_position - center).normalized()
 		if victim.has_method("on_hit_info"):
 			victim.on_hit_info(explosion_damage, damage_type)
-		victim.take_damage(amount, true, push)
+		victim.take_damage(DamageCalc.scaled(explosion_damage, damage_type, victim), true, push)
 
 
 ## De schade als heel getal voor take_damage: afgerond, en minimaal 1 als er schade is.

@@ -410,7 +410,7 @@ func _on_player_hitbox_body_entered(body: Node2D) -> void:
 	var incoming: float = _stat("damage", 10.0)
 	if body.has_method("get_contact_damage"):
 		incoming = float(body.get_contact_damage())
-	if take_damage(incoming):
+	if take_damage(DamageCalc.scaled(incoming, DamageCalc.attack_type(body), self)):
 		return
 
 	# 2. Schade aan de vijand / het gebouw (rammen), zonder wapenskills.
@@ -420,7 +420,7 @@ func _on_player_hitbox_body_entered(body: Node2D) -> void:
 		var hit_direction: Vector2 = (body.global_position - global_position).normalized()
 		if body.has_method("on_hit_info"):
 			body.on_hit_info(ram_damage, ram_type)
-		body.take_damage(maxi(1, roundi(ram_damage)), true, hit_direction)
+		body.take_damage(DamageCalc.scaled(ram_damage, ram_type, body), true, hit_direction)
 
 	# 3. Terugstoot voor jezelf, duw voor de vijand.
 	var knockback_dir: Vector2 = (global_position - body.global_position).normalized()
